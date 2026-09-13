@@ -8,14 +8,14 @@ const mediaCtx = { serverIp, apiPort };
 async function listLive(req, res) {
   const users = await User.find({ isLive: true }).sort({ updatedAt: -1 });
   res.json({
-    streams: users.map((u) => ({ ...publicUser(u, mediaCtx), viewerCount: getViewerCount(u.username) })),
+    streams: users.map((u) => ({ ...publicUser(u, mediaCtx), ...(u.showViewerCount ? { viewerCount: getViewerCount(u.username) } : {}) })),
   });
 }
 
 async function getChannel(req, res) {
   const user = await User.findOne({ username: req.params.username.toLowerCase(), role: 'teacher' });
   if (!user) return res.status(404).json({ error: 'Channel not found' });
-  res.json({ channel: { ...publicUser(user, mediaCtx), viewerCount: getViewerCount(user.username) } });
+  res.json({ channel: { ...publicUser(user, mediaCtx), ...(user.showViewerCount ? { viewerCount: getViewerCount(user.username) } : {}) } });
 }
 
 module.exports = { listLive, getChannel };

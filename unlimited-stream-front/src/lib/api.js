@@ -68,6 +68,8 @@ export const api = {
   createManagedChannel: (payload) => apiFetch("/api/admin/channels", { method: "POST", body: JSON.stringify(payload) }),
   setChatMode: (channel, chatMode) =>
     apiFetch(`/api/admin/channels/${channel}/chat-mode`, { method: "POST", body: JSON.stringify({ chatMode }) }),
+  setViewerCount: (channel, enabled) =>
+    apiFetch(`/api/admin/channels/${channel}/viewer-count`, { method: "POST", body: JSON.stringify({ enabled }) }),
   createTestLink: (channel, displayName) =>
     apiFetch(`/api/admin/channels/${channel}/test-link`, { method: "POST", body: JSON.stringify({ displayName }) }),
   activeStudents: (channel) => apiFetch(`/api/admin/channels/${channel}/active-students`),

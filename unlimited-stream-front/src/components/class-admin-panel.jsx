@@ -16,20 +16,30 @@ function AppleSwitch({ checked, onChange, label }) {
   );
 }
 
-export function ClassAdminPanel({ channel, chatMode, onChatMode }) {
+export function ClassAdminPanel({ channel, chatMode, showViewerCount, onChatMode, onViewerCount }) {
   const [polls, setPolls] = useState([]);
-  const [form, setForm] = useState({ question: "", mode: "poll", options: ["", ""], timerSeconds: "", showResults: false });
+  const [form, setForm] = useState({ question: "", mode: "poll", options: [{ text: "", isCorrect: false }, { text: "", isCorrect: false }], timerSeconds: "", showResults: false });
   const [ingress, setIngress] = useState(null);
   const [message, setMessage] = useState("");
   const [results, setResults] = useState({});
   const [newOptions, setNewOptions] = useState({});
 
   useEffect(() => {
-    api.listPolls(channel).then(setPolls).catch(() => {});
+    async function load() {
+      try {
+        const list = await api.listPolls(channel);
+        setPolls(list);
+        const loadedResults = await Promise.all(list.map(async (poll) => [poll._id, await api.pollResults(poll._id).catch(() => null)]));
+        setResults(Object.fromEntries(loadedResults.filter(([, result]) => result)));
+      } catch {
+        setPolls([]);
+      }
+    }
+    load();
   }, [channel]);
 
   function updateOption(index, value) {
-    setForm((current) => ({ ...current, options: current.options.map((item, itemIndex) => itemIndex === index ? value : item) }));
+    setForm((current) => ({ ...current, options: current.options.map((item, itemIndex) => itemIndex === index ? { ...item, text: value } : item) }));
   }
 
   async function createPoll(event) {
@@ -38,12 +48,12 @@ export function ClassAdminPanel({ channel, chatMode, onChatMode }) {
       const poll = await api.createPoll(channel, {
         question: form.question,
         mode: form.mode,
-        options: form.options.filter(Boolean).map((text) => ({ text })),
+        options: form.options.filter((option) => option.text.trim()).map((option) => ({ text: option.text.trim(), isCorrect: form.mode === "quiz" && option.isCorrect })),
         timerSeconds: form.timerSeconds ? Number(form.timerSeconds) : undefined,
         showResults: form.showResults,
       });
       setPolls((current) => [poll, ...current]);
-      setForm({ question: "", mode: "poll", options: ["", ""], timerSeconds: "", showResults: false });
+      setForm({ question: "", mode: "poll", options: [{ text: "", isCorrect: false }, { text: "", isCorrect: false }], timerSeconds: "", showResults: false });
       setMessage("ساخته شد");
     } catch (error) {
       setMessage(error.message);
@@ -51,10 +61,17 @@ export function ClassAdminPanel({ channel, chatMode, onChatMode }) {
   }
 
   async function pollAction(id, action) {
-    if (action === "close") await api.closePoll(id);
-    if (action === "reveal") await api.revealPoll(id);
-    if (action === "reset") await api.resetPoll(id);
-    setPolls(await api.listPolls(channel));
+    try {
+      if (action === "close") await api.closePoll(id);
+      if (action === "reveal") await api.revealPoll(id);
+      if (action === "reset") await api.resetPoll(id);
+      const list = await api.listPolls(channel);
+      setPolls(list);
+      await loadResults(id);
+      setMessage("انجام شد");
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
   async function toggleResults(poll, showResults) {
@@ -94,6 +111,7 @@ export function ClassAdminPanel({ channel, chatMode, onChatMode }) {
         <strong className="text-sm">کنترل کلاس</strong>
         <Button size="sm" variant={chatMode === "private" ? "outline" : "default"} onClick={() => onChatMode("public")}>چت عمومی</Button>
         <Button size="sm" variant={chatMode === "private" ? "default" : "outline"} onClick={() => onChatMode("private")}>چت خصوصی</Button>
+        <AppleSwitch checked={showViewerCount} onChange={onViewerCount} label="نمایش تعداد حاضرین" />
         <Button size="sm" variant="outline" onClick={createIngress}>دریافت کلید LiveKit</Button>
       </div>
       {ingress && <p className="text-xs break-all">Server: <code>{ingress.url}</code><br />Key: <code>{ingress.streamKey}</code></p>}
@@ -109,12 +127,13 @@ export function ClassAdminPanel({ channel, chatMode, onChatMode }) {
         {form.options.map((option, index) => (
           <div key={index} className="flex items-center gap-2">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index + 1}</span>
-            <Input placeholder={`گزینه ${index + 1}`} value={option} onChange={(event) => updateOption(index, event.target.value)} required />
+            <Input placeholder={`گزینه ${index + 1}`} value={option.text} onChange={(event) => updateOption(index, event.target.value)} required />
+            {form.mode === "quiz" && <label className="flex shrink-0 items-center gap-1 text-xs"><input type="checkbox" checked={option.isCorrect} onChange={(event) => setForm((current) => ({ ...current, options: current.options.map((item, itemIndex) => itemIndex === index ? { ...item, isCorrect: event.target.checked } : item) }))} /> صحیح</label>}
             {form.options.length > 2 && <Button type="button" size="sm" variant="ghost" onClick={() => setForm((current) => ({ ...current, options: current.options.filter((_, itemIndex) => itemIndex !== index) }))}>حذف</Button>}
           </div>
         ))}
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-black/5 p-3 dark:bg-white/5">
-          <Button type="button" size="sm" variant="outline" onClick={() => setForm((current) => ({ ...current, options: [...current.options, ""] }))}>+ افزودن گزینه</Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => setForm((current) => ({ ...current, options: [...current.options, { text: "", isCorrect: false }] }))}>+ افزودن گزینه</Button>
           <AppleSwitch checked={form.showResults} onChange={(showResults) => setForm((current) => ({ ...current, showResults }))} label="نمایش نتیجه برای دانش‌آموز" />
         </div>
         <Button type="submit" className="justify-self-start">ساخت سؤال</Button>

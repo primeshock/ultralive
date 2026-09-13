@@ -17,7 +17,7 @@ router.use(requireAuth, requireRole('admin', 'owner'));
 async function myChannels(req) {
   const filter = { role: 'teacher' };
   if (req.user.role === 'admin') filter.managedBy = req.user._id;
-  return User.find(filter).select('username displayName streamTitle streamKey livekitIngressUrl livekitStreamKey isLive chatEnabled chatMode managedBy');
+  return User.find(filter).select('username displayName streamTitle streamKey livekitIngressUrl livekitStreamKey isLive chatEnabled chatMode showViewerCount managedBy');
 }
 
 router.get('/channels', async (req, res) => res.json(await myChannels(req)));
@@ -66,6 +66,13 @@ router.post('/channels/:channel/chat-mode', loadOwnedChannel, async (req, res) =
   await req.targetChannel.save();
   chat.setChatMode(req.targetChannel.username, chatMode); // apply immediately, not just on next chat load
   res.json({ chatMode });
+});
+
+router.post('/channels/:channel/viewer-count', loadOwnedChannel, async (req, res) => {
+  if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'مقدار enabled نامعتبر است.' });
+  req.targetChannel.showViewerCount = req.body.enabled;
+  await req.targetChannel.save();
+  res.json({ showViewerCount: req.targetChannel.showViewerCount });
 });
 
 // ---- Test link: try the student flow WITHOUT WordPress ----

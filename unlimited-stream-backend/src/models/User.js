@@ -43,6 +43,7 @@ const userSchema = new mongoose.Schema(
     // 'public'  → everyone in chat sees everyone else's messages (original behavior)
     // 'private' → students only see their own messages + this channel owner's/admin's messages
     chatMode: { type: String, enum: ['public', 'private'], default: 'public' },
+    showViewerCount: { type: Boolean, default: false },
 
     // --- LiveKit Ingress (Phase 6) — empty until an admin provisions one ---
     livekitIngressId: { type: String, default: '' },

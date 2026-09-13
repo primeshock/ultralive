@@ -72,6 +72,11 @@ export default function ChannelPage({ params }) {
     setChatMode(mode);
   }
 
+  async function handleViewerCount(enabled) {
+    await api.setViewerCount(username, enabled);
+    setChannel((current) => ({ ...current, showViewerCount: enabled }));
+  }
+
   return (
     <div className="mx-auto max-w-6xl w-full px-4 py-6 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 lg:h-[calc(100dvh_-_3.5rem_-_3rem)]">
       <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
@@ -107,7 +112,7 @@ export default function ChannelPage({ params }) {
               {channel.streamTitle || `پخش زنده ${channel.username}`}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {channel.displayName || channel.username} · {channel.viewerCount} بیننده
+              {channel.displayName || channel.username}{channel.showViewerCount && ` · ${channel.viewerCount || 0} بیننده`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -131,7 +136,7 @@ export default function ChannelPage({ params }) {
         </div>
 
         <PollWidget channel={username} />
-        {canManageClass && <ClassAdminPanel channel={username} chatMode={chatMode} onChatMode={handleChatMode} />}
+        {canManageClass && <ClassAdminPanel channel={username} chatMode={chatMode} showViewerCount={channel.showViewerCount} onChatMode={handleChatMode} onViewerCount={handleViewerCount} />}
       </div>
 
       <div className="h-[70dvh] lg:h-full min-h-0">

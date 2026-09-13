@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 export function LiveKitPlayer({ channel, className, poster, connection }) {
   const mediaRef = useRef(null);
   const roomRef = useRef(null);
+  const streamRef = useRef(null);
   const [state, setState] = useState("CONNECTING");
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState(false);
@@ -21,10 +22,16 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
     function syncMedia() {
       const media = mediaRef.current;
       if (!media) return;
-      const stream = new MediaStream();
-      for (const track of tracks.values()) stream.addTrack(track);
-      media.srcObject = stream;
-      media.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+      const stream = streamRef.current || new MediaStream();
+      for (const track of stream.getTracks()) {
+        if (![...tracks.values()].includes(track)) stream.removeTrack(track);
+      }
+      for (const track of tracks.values()) {
+        if (!stream.getTracks().includes(track)) stream.addTrack(track);
+      }
+      streamRef.current = stream;
+      if (media.srcObject !== stream) media.srcObject = stream;
+      if (media.paused) media.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     }
 
     async function start() {
@@ -33,7 +40,7 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
         const { serverUrl, participantToken } = credentials;
         if (cancelled || !serverUrl || !participantToken) throw new Error("LiveKit is not configured");
         const lk = await import("livekit-client");
-        room = new lk.Room({ adaptiveStream: true, dynacast: true });
+        room = new lk.Room({ adaptiveStream: true, dynacast: false });
         roomRef.current = room;
         room.on(lk.RoomEvent.ConnectionStateChanged, (s) => {
           if (s === "connected") setState("LIVE");
@@ -83,6 +90,7 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
       cancelled = true;
       room?.disconnect();
       roomRef.current = null;
+      streamRef.current = null;
       if (media) media.srcObject = null;
     };
   }, [channel, connection, attempt]);
@@ -118,7 +126,7 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
         <div className="rounded-full bg-black/60 px-3 py-1 text-xs text-white backdrop-blur">
           {state === "LIVE" ? "پخش زنده" : state === "CONNECTING" ? "در حال اتصال" : "قطع شده"}
         </div>
-        <span className="rounded-full bg-red-600 px-3 py-1 text-xs text-white">LIVEKIT</span>
+        <span className="rounded-full bg-red-600 px-3 py-1 text-xs text-white">SHADOWKIT</span>
       </div>
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent p-4 pt-10">
         <div className="flex items-center gap-2">
