@@ -74,7 +74,7 @@ if [[ ! -f /etc/os-release ]] || ! grep -qiE 'ubuntu|debian' /etc/os-release; th
   exit 1
 fi
 
-REPO_URL="https://github.com/IMMOBINIUM/UnlimitedStream.git"
+REPO_URL="https://github.com/primeshock/ultralive.git"
 APP_DIR="/opt/unlimited-stream"
 BACKEND_DIR="$APP_DIR/unlimited-stream-backend"
 FRONTEND_DIR="$APP_DIR/unlimited-stream-front"
