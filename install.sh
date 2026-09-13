@@ -75,6 +75,7 @@ if [[ ! -f /etc/os-release ]] || ! grep -qiE 'ubuntu|debian' /etc/os-release; th
 fi
 
 REPO_URL="https://github.com/primeshock/ultralive.git"
+REPO_BRANCH="koosha-live-current"
 APP_DIR="/opt/unlimited-stream"
 BACKEND_DIR="$APP_DIR/unlimited-stream-backend"
 FRONTEND_DIR="$APP_DIR/unlimited-stream-front"
@@ -172,7 +173,7 @@ if [[ -d "$APP_DIR/.git" ]]; then
   git -C "$APP_DIR" pull --ff-only
 else
   mkdir -p "$APP_DIR"
-  git clone "$REPO_URL" "$APP_DIR"
+  git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 
 # ---------------------------------------------------------------------------
