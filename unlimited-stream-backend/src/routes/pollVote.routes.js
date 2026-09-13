@@ -27,13 +27,28 @@ router.get('/:channel/polls/active', async (req, res) => {
   }
   const poll = await Poll.findOne({ channel: req.params.channel.toLowerCase() }).sort({ createdAt: -1 });
   if (!poll) return res.json(null);
-  res.json({
+  const response = {
     id: poll._id,
     question: poll.question,
     mode: poll.mode,
     options: poll.options.map((o) => ({ id: o._id, text: o.text })),
     isOpen: poll.isEffectivelyOpen(),
-  });
+    showResults: poll.showResults,
+  };
+  if (poll.showResults) {
+    const counts = await PollResponse.aggregate([
+      { $match: { pollId: poll._id } },
+      { $group: { _id: '$optionId', count: { $sum: 1 } } },
+    ]);
+    const countMap = Object.fromEntries(counts.map((item) => [String(item._id), item.count]));
+    response.results = poll.options.map((option) => ({
+      id: option._id,
+      text: option.text,
+      count: countMap[String(option._id)] || 0,
+      isCorrect: poll.isEffectivelyRevealed() ? option.isCorrect : undefined,
+    }));
+  }
+  res.json(response);
 });
 
 router.post('/:channel/polls/:pollId/vote', async (req, res) => {

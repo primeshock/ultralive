@@ -82,6 +82,14 @@ export default function AdminPage() {
     setPolls(pollList);
   }
 
+  function handleChannelChange(username) {
+    const current = channels.find((channel) => channel.username === username);
+    setSelected(username);
+    setTestLink("");
+    setMonitorLink("");
+    setIngressInfo(current?.livekitIngressUrl && current?.livekitStreamKey ? { url: current.livekitIngressUrl, streamKey: current.livekitStreamKey } : null);
+  }
+
   function flash(text) {
     setMsg(text);
     setTimeout(() => setMsg(""), 2500);
@@ -132,9 +140,15 @@ export default function AdminPage() {
     try {
       const info = await api.createIngress(selected);
       setIngressInfo(info);
+      setChannels((current) => current.map((channel) => channel.username === selected ? { ...channel, livekitIngressUrl: info.url, livekitStreamKey: info.streamKey } : channel));
     } catch (err) {
       flash(err.message || "LiveKit فعال نیست.");
     }
+  }
+
+  async function copyValue(value) {
+    await navigator.clipboard.writeText(value);
+    flash("کپی شد.");
   }
 
   async function handleModerate(e) {
@@ -218,7 +232,7 @@ export default function AdminPage() {
 
       <div className="flex items-center gap-2">
         <Label>کلاس</Label>
-        <select className="border rounded-md h-9 px-2 text-sm bg-background" value={selected} onChange={(e) => setSelected(e.target.value)}>
+        <select className="border rounded-md h-9 px-2 text-sm bg-background" value={selected} onChange={(e) => handleChannelChange(e.target.value)}>
           {channels.map((c) => (
             <option key={c.username} value={c.username}>
               {c.username} {c.isLive ? "· لایو" : ""}
@@ -246,15 +260,15 @@ export default function AdminPage() {
                 <Button size="sm" variant="outline" onClick={handleMonitorLink}>ساخت لینک مانیتور (بدون لاگین)</Button>
                 {monitorLink && <Input readOnly value={monitorLink} onFocus={(e) => e.target.select()} className="text-xs" />}
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-2">
                 <Button size="sm" variant="outline" className="self-start" onClick={handleCreateIngress}>
                   فعال‌سازی LiveKit برای این کلاس (تجربی)
                 </Button>
                 {ingressInfo && (
-                  <p className="text-xs text-muted-foreground">
-                    RTMP LiveKit: <code>{ingressInfo.url}</code> — کلید: <code>{ingressInfo.streamKey}</code>
-                    <br />همین یک مقصد را در OBS استفاده کن.
-                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-2xl border bg-background/60 p-3"><p className="mb-1 text-xs text-muted-foreground">Server / URL</p><div className="flex gap-2"><code className="min-w-0 flex-1 break-all text-xs">{ingressInfo.url}</code><Button size="sm" variant="outline" onClick={() => copyValue(ingressInfo.url)}>کپی</Button></div></div>
+                    <div className="rounded-2xl border bg-background/60 p-3"><p className="mb-1 text-xs text-muted-foreground">Stream Key</p><div className="flex gap-2"><code className="min-w-0 flex-1 break-all text-xs">{ingressInfo.streamKey}</code><Button size="sm" variant="outline" onClick={() => copyValue(ingressInfo.streamKey)}>کپی</Button></div></div>
+                  </div>
                 )}
               </div>
             </CardContent>

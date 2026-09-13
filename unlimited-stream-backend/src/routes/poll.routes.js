@@ -1,8 +1,29 @@
 const express = require('express');
 const { Poll, PollResponse } = require('../models/Poll');
+const User = require('../models/User');
 
 const router = express.Router();
 // Mounted after requireAuth+requireRole('admin','owner') in admin.routes.js (see wiring note).
+
+async function canManagePoll(req, poll) {
+  if (!poll) return false;
+  if (req.user.role === 'owner') return true;
+  const channel = await User.findOne({ username: poll.channel, role: 'teacher', managedBy: req.user._id }).select('_id');
+  return Boolean(channel);
+}
+
+async function loadManagedPoll(req, res) {
+  const poll = await Poll.findById(req.params.pollId);
+  if (!poll) {
+    res.status(404).json({ error: 'نظرسنجی پیدا نشد.' });
+    return null;
+  }
+  if (!(await canManagePoll(req, poll))) {
+    res.status(403).json({ error: 'به این نظرسنجی دسترسی ندارید.' });
+    return null;
+  }
+  return poll;
+}
 
 router.get('/channels/:channel/polls', async (req, res) => {
   const polls = await Poll.find({ channel: req.params.channel.toLowerCase() }).sort({ createdAt: -1 }).limit(50);
@@ -10,7 +31,7 @@ router.get('/channels/:channel/polls', async (req, res) => {
 });
 
 router.post('/channels/:channel/polls', async (req, res) => {
-  const { question, mode, options, timerSeconds, revealAt } = req.body || {};
+  const { question, mode, options, timerSeconds, revealAt, showResults } = req.body || {};
   if (!question || !Array.isArray(options) || options.length < 2) {
     return res.status(400).json({ error: 'سوال و حداقل دو گزینه لازم است.' });
   }
@@ -21,12 +42,24 @@ router.post('/channels/:channel/polls', async (req, res) => {
     options,
     closesAt: timerSeconds ? new Date(Date.now() + timerSeconds * 1000) : null,
     revealAt: revealAt ? new Date(revealAt) : null,
+    showResults: Boolean(showResults),
     createdBy: String(req.user._id),
   });
   res.status(201).json(poll);
 });
 
+router.patch('/polls/:pollId', async (req, res) => {
+  if (!(await loadManagedPoll(req, res))) return;
+  const update = {};
+  if (typeof req.body?.showResults === 'boolean') update.showResults = req.body.showResults;
+  if (typeof req.body?.question === 'string' && req.body.question.trim()) update.question = req.body.question.trim();
+  const poll = await Poll.findByIdAndUpdate(req.params.pollId, update, { new: true });
+  if (!poll) return res.status(404).json({ error: 'نظرسنجی پیدا نشد.' });
+  res.json(poll);
+});
+
 router.post('/polls/:pollId/options', async (req, res) => {
+  if (!(await loadManagedPoll(req, res))) return;
   const { text, isCorrect } = req.body || {};
   const poll = await Poll.findByIdAndUpdate(
     req.params.pollId,
@@ -36,23 +69,46 @@ router.post('/polls/:pollId/options', async (req, res) => {
   res.json(poll);
 });
 
+router.delete('/polls/:pollId/options/:optionId', async (req, res) => {
+  const poll = await loadManagedPoll(req, res);
+  if (!poll) return;
+  if (poll.options.length <= 2) return res.status(400).json({ error: 'حداقل دو گزینه لازم است.' });
+  poll.options = poll.options.filter((option) => String(option._id) !== req.params.optionId);
+  await poll.save();
+  await PollResponse.deleteMany({ pollId: poll._id, optionId: req.params.optionId });
+  res.json(poll);
+});
+
 router.post('/polls/:pollId/close', async (req, res) => {
-  res.json(await Poll.findByIdAndUpdate(req.params.pollId, { isOpen: false }, { new: true }));
+  const poll = await loadManagedPoll(req, res);
+  if (!poll) return;
+  poll.isOpen = false;
+  await poll.save();
+  res.json(poll);
 });
 
 router.post('/polls/:pollId/reveal', async (req, res) => {
-  res.json(await Poll.findByIdAndUpdate(req.params.pollId, { revealed: true }, { new: true }));
+  const poll = await loadManagedPoll(req, res);
+  if (!poll) return;
+  poll.revealed = true;
+  await poll.save();
+  res.json(poll);
 });
 
 // "ریست گزینه‌ها": clears all votes, keeps the poll open for a re-vote.
 router.post('/polls/:pollId/reset', async (req, res) => {
-  await PollResponse.deleteMany({ pollId: req.params.pollId });
-  res.json(await Poll.findByIdAndUpdate(req.params.pollId, { isOpen: true, revealed: false }, { new: true }));
+  const poll = await loadManagedPoll(req, res);
+  if (!poll) return;
+  await PollResponse.deleteMany({ pollId: poll._id });
+  poll.isOpen = true;
+  poll.revealed = false;
+  await poll.save();
+  res.json(poll);
 });
 
 router.get('/polls/:pollId/results', async (req, res) => {
-  const poll = await Poll.findById(req.params.pollId);
-  if (!poll) return res.status(404).json({ error: 'یافت نشد.' });
+  const poll = await loadManagedPoll(req, res);
+  if (!poll) return;
 
   const counts = await PollResponse.aggregate([
     { $match: { pollId: poll._id } },

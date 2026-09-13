@@ -15,6 +15,7 @@ const pollSchema = new mongoose.Schema(
     closesAt: { type: Date, default: null }, // timer: auto-closes voting at this time
     revealAt: { type: Date, default: null }, // scheduled result/answer reveal (quiz mode)
     revealed: { type: Boolean, default: false }, // manual reveal override
+    showResults: { type: Boolean, default: false },
     createdBy: { type: String, required: true },
   },
   { timestamps: true }

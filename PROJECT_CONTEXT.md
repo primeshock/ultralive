@@ -21,7 +21,7 @@ KooshaLive یک پلتفرم کلاس آنلاین زنده برای یک مؤس
 
 - IP: `37.202.246.54`
 - branch deploy: `koosha-live-current`
-- آخرین commit تأییدشده در زمان این سند: `3997cc8`
+- آخرین deploy تأییدشده در زمان این سند: `3997cc8`؛ تغییرات بعدی این workspace باید پس از push جداگانه روی VPS update شوند.
 - Backend و frontend با PM2 آنلاین بودند.
 - `GET http://127.0.0.1/api/health` پاسخ `{"ok":true}` داده است.
 - LiveKit، Redis و LiveKit Ingress در Docker اجرا شدند.
@@ -109,6 +109,7 @@ KooshaLive یک پلتفرم کلاس آنلاین زنده برای یک مؤس
       livekit-player.jsx
       live-chat.jsx
       class-admin-panel.jsx
+      poll-results-chart.jsx
       poll-widget.jsx
       hls-player.jsx             compatibility/rollback player
       site-header.jsx
@@ -279,11 +280,18 @@ Socket.io روی همان HTTP server backend اجرا می‌شود. دانش�
 
 - poll یا quiz بسازد.
 - گزینه‌ها و timer تعیین کند.
+- گزینه‌ها را هنگام ساخت و بعد از ساخت اضافه یا حذف کند؛ حداقل دو گزینه حفظ می‌شود.
+- با سوییچ پیش‌فرض خاموش تعیین کند نتیجه برای دانش‌آموز نمایش داده شود یا نه.
+- نمودار دایره‌ای درصدی با رنگ جدا و شماره‌ی هر گزینه ببیند.
 - poll را ببندد.
 - نتیجه را reveal کند.
 - رأی‌ها را reset کند.
 
-student از `PollWidget` رأی می‌دهد. در کد فعلی endpoint active poll آخرین poll را برمی‌گرداند؛ چند poll هم‌زمان هنوز طراحی نشده است.
+student از `PollWidget` رأی می‌دهد و فقط در صورت `showResults: true` نمودار نتایج را می‌بیند. endpoint active poll آخرین poll را برمی‌گرداند؛ چند poll هم‌زمان هنوز طراحی نشده است.
+
+تامبنیل از هر نوع تصویر مرورگرپذیر پذیرفته می‌شود، داخل قاب 16:9 با خروجی JPG و ابعاد
+`1280×720` در مرورگر crop می‌شود و سپس به backend ارسال می‌شود. کنترل zoom و جابه‌جایی
+افقی/عمودی برای انتخاب محدوده وجود دارد.
 
 ## 9. monitor
 

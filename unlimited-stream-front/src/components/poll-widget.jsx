@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import { PollResultsChart } from "@/components/poll-results-chart";
 
 export function PollWidget({ channel }) {
   const [poll, setPoll] = useState(null);
@@ -58,6 +59,7 @@ export function PollWidget({ channel }) {
             {o.text}
           </Button>
         ))}
+        {poll.showResults && poll.results && <PollResultsChart results={poll.results} />}
         {error && <p className="text-xs text-destructive">{error}</p>}
       </CardContent>
     </Card>

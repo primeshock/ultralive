@@ -127,31 +127,54 @@ export default function DashboardPage() {
 
 function ThumbnailCard({ user, onSaved }) {
   const [preview, setPreview] = useState(user.thumbnailUrl || "");
+  const [source, setSource] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const [offsetX, setOffsetX] = useState(50);
+  const [offsetY, setOffsetY] = useState(50);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
   async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Quick client-side check for a fast error message. This is not the real
-    // security boundary — the backend re-verifies the actual file bytes and
-    // only ever accepts/stores real jpg files (see backend upload.js).
-    if (file.type !== "image/jpeg") {
-      setError("فقط فایل jpg مجازه");
+    if (!file.type.startsWith("image/")) {
+      setError("فقط فایل تصویر مجاز است");
       e.target.value = "";
       return;
     }
-
-    setPreview(URL.createObjectURL(file));
+    setSource(URL.createObjectURL(file));
+    setZoom(1);
+    setOffsetX(50);
+    setOffsetY(50);
     setError("");
+    e.target.value = "";
+  }
+
+  async function uploadCrop() {
+    if (!source) return;
     setUploading(true);
     try {
+      const image = new Image();
+      image.src = source;
+      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; });
+      const canvas = document.createElement("canvas");
+      canvas.width = 1280;
+      canvas.height = 720;
+      const context = canvas.getContext("2d");
+      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight) * zoom;
+      const width = image.naturalWidth * scale;
+      const height = image.naturalHeight * scale;
+      const x = (canvas.width - width) * (offsetX / 100);
+      const y = (canvas.height - height) * (offsetY / 100);
+      context.drawImage(image, x, y, width, height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      const file = new File([blob], "thumbnail.jpg", { type: "image/jpeg" });
       const { user } = await api.uploadThumbnail(file);
       onSaved(user);
       setPreview(user.thumbnailUrl);
+      setSource("");
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "برش تصویر انجام نشد");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -162,9 +185,9 @@ function ThumbnailCard({ user, onSaved }) {
     <Card>
       <CardHeader>
         <CardTitle>تامبنیل استریم</CardTitle>
-        <CardDescription>این عکس توی لیست استریم‌های لایو و صفحه کانالت نشون داده میشه.</CardDescription>
+        <CardDescription>خروجی سایت با نسبت 16:9 و ابعاد 1280×720 نمایش داده می‌شود.</CardDescription>
       </CardHeader>
-      <CardContent className="flex items-center gap-4">
+      <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <div className="w-40 aspect-video bg-muted rounded-md overflow-hidden flex items-center justify-center shrink-0">
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -173,7 +196,7 @@ function ThumbnailCard({ user, onSaved }) {
             <span className="text-xs text-muted-foreground">بدون تامبنیل</span>
           )}
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
           <label
             htmlFor="thumbnail"
             className={cn(
@@ -187,11 +210,25 @@ function ThumbnailCard({ user, onSaved }) {
           <input
             id="thumbnail"
             type="file"
-            accept="image/jpeg"
+            accept="image/*"
             className="hidden"
             onChange={handleFileChange}
             disabled={uploading}
           />
+          {source && (
+            <div className="grid gap-2 rounded-2xl border bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground">محدوده‌ی 16:9 را انتخاب کن</p>
+              <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={source} alt="پیش‌نمایش برش" className="absolute h-full w-full object-cover" style={{ transform: `scale(${zoom})`, objectPosition: `${offsetX}% ${offsetY}%` }} />
+                <div className="pointer-events-none absolute inset-0 border-2 border-white/80" />
+              </div>
+              <label className="text-xs">بزرگ‌نمایی <input type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="w-full" /></label>
+              <label className="text-xs">جابه‌جایی افقی <input type="range" min="0" max="100" value={offsetX} onChange={(event) => setOffsetX(Number(event.target.value))} className="w-full" /></label>
+              <label className="text-xs">جابه‌جایی عمودی <input type="range" min="0" max="100" value={offsetY} onChange={(event) => setOffsetY(Number(event.target.value))} className="w-full" /></label>
+              <Button type="button" onClick={uploadCrop} disabled={uploading}>{uploading ? "در حال آپلود..." : "ثبت برش و آپلود"}</Button>
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       </CardContent>

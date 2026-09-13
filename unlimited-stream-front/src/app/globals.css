@@ -128,3 +128,16 @@
     @apply font-sans;
   }
 }
+
+.glass-panel {
+  border: 1px solid rgb(255 255 255 / 0.52);
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.28));
+  box-shadow: 0 18px 45px rgb(31 38 135 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.8);
+  backdrop-filter: blur(22px) saturate(130%);
+}
+
+.dark .glass-panel {
+  border-color: rgb(255 255 255 / 0.14);
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.04));
+  box-shadow: 0 18px 45px rgb(0 0 0 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.12);
+}

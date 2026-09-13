@@ -85,6 +85,10 @@ export const api = {
   listPolls: (channel) => apiFetch(`/api/admin/channels/${channel}/polls`),
   addPollOption: (pollId, payload) =>
     apiFetch(`/api/admin/polls/${pollId}/options`, { method: "POST", body: JSON.stringify(payload) }),
+  updatePoll: (pollId, payload) =>
+    apiFetch(`/api/admin/polls/${pollId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  removePollOption: (pollId, optionId) =>
+    apiFetch(`/api/admin/polls/${pollId}/options/${optionId}`, { method: "DELETE" }),
   closePoll: (pollId) => apiFetch(`/api/admin/polls/${pollId}/close`, { method: "POST" }),
   revealPoll: (pollId) => apiFetch(`/api/admin/polls/${pollId}/reveal`, { method: "POST" }),
   resetPoll: (pollId) => apiFetch(`/api/admin/polls/${pollId}/reset`, { method: "POST" }),

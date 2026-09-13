@@ -17,7 +17,7 @@ router.use(requireAuth, requireRole('admin', 'owner'));
 async function myChannels(req) {
   const filter = { role: 'teacher' };
   if (req.user.role === 'admin') filter.managedBy = req.user._id;
-  return User.find(filter).select('username displayName streamTitle streamKey isLive chatEnabled chatMode managedBy');
+  return User.find(filter).select('username displayName streamTitle streamKey livekitIngressUrl livekitStreamKey isLive chatEnabled chatMode managedBy');
 }
 
 router.get('/channels', async (req, res) => res.json(await myChannels(req)));
