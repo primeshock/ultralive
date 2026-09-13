@@ -257,9 +257,6 @@ export default function AdminPage() {
                     <br />همین یک مقصد را در OBS استفاده کن.
                   </p>
                 )}
-                {channels.find((c) => c.username === selected)?.streamKey && (
-                  <p className="text-xs text-muted-foreground">کلید داخلی کلاس: <code>{channels.find((c) => c.username === selected).streamKey}</code></p>
-                )}
               </div>
             </CardContent>
           </Card>
