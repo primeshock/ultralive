@@ -19,29 +19,25 @@ export default function MasterPage() {
   const router = useRouter();
 
   const [admins, setAdmins] = useState([]);
-  const [channels, setChannels] = useState([]);
   const [settings, setSettings] = useState(null);
   const [stats, setStats] = useState(null);
   const [activity, setActivity] = useState([]);
   const [msg, setMsg] = useState("");
 
   const [adminForm, setAdminForm] = useState({ username: "", password: "" });
-  const [channelForm, setChannelForm] = useState({ username: "", password: "", managedBy: "" });
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "owner")) router.replace("/");
   }, [loading, user, router]);
 
   async function loadAll() {
-    const [a, c, s, st, log] = await Promise.all([
+    const [a, s, st, log] = await Promise.all([
       api.listAdmins(),
-      api.listAllChannels(),
       api.getSettings(),
       api.systemStats().catch(() => null),
       api.activityLog().catch(() => []),
     ]);
     setAdmins(a);
-    setChannels(c);
     setSettings(s);
     setStats(st);
     setActivity(log);
@@ -62,18 +58,6 @@ export default function MasterPage() {
       await api.createAdmin(adminForm.username, adminForm.password);
       setAdminForm({ username: "", password: "" });
       flash("ادمین ساخته شد.");
-      loadAll();
-    } catch (err) {
-      flash(err.message);
-    }
-  }
-
-  async function handleCreateChannel(e) {
-    e.preventDefault();
-    try {
-      await api.createChannel(channelForm);
-      setChannelForm({ username: "", password: "", managedBy: "" });
-      flash("کانال ساخته شد.");
       loadAll();
     } catch (err) {
       flash(err.message);
@@ -212,48 +196,6 @@ export default function MasterPage() {
           <ul className="text-sm flex flex-col gap-1">
             {admins.map((a) => (
               <li key={a._id}>{a.username}</li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
-
-      {/* --- Create channel --- */}
-      <Card>
-        <CardHeader>
-          <CardTitle>ساخت کانال/کلاس جدید</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleCreateChannel} className="flex flex-wrap items-end gap-2">
-            <div className="grid gap-1.5">
-              <Label>یوزرنیم کانال</Label>
-              <Input value={channelForm.username} onChange={(e) => setChannelForm({ ...channelForm, username: e.target.value })} required />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>رمز عبور</Label>
-              <Input type="password" value={channelForm.password} onChange={(e) => setChannelForm({ ...channelForm, password: e.target.value })} required />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>مدیر (ادمین)</Label>
-              <select
-                className="border rounded-md h-9 px-2 text-sm bg-background"
-                value={channelForm.managedBy}
-                onChange={(e) => setChannelForm({ ...channelForm, managedBy: e.target.value })}
-                required
-              >
-                <option value="">انتخاب ادمین...</option>
-                {admins.map((a) => (
-                  <option key={a._id} value={a._id}>{a.username}</option>
-                ))}
-              </select>
-            </div>
-            <Button type="submit">ساخت</Button>
-          </form>
-          <Separator className="my-3" />
-          <ul className="text-sm flex flex-col gap-1">
-            {channels.map((c) => (
-              <li key={c._id}>
-                {c.username} — مدیر: {c.managedBy?.username || "—"} {c.isLive && <span className="text-destructive">(لایو)</span>}
-              </li>
             ))}
           </ul>
         </CardContent>
