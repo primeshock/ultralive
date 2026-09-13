@@ -170,6 +170,14 @@ command -v pm2 >/dev/null 2>&1 || npm install -g pm2
 # ---------------------------------------------------------------------------
 log "5/9 گرفتن کد از $REPO_URL"
 if [[ -d "$APP_DIR/.git" ]]; then
+  # npm can rewrite package-lock.json locally. Keep a backup and discard only
+  # that generated file so a previous update cannot block the source pull.
+  FRONT_LOCK_REL="unlimited-stream-front/package-lock.json"
+  if ! git -C "$APP_DIR" diff --quiet -- "$FRONT_LOCK_REL"; then
+    cp "$APP_DIR/$FRONT_LOCK_REL" "/root/koosha-package-lock.backup"
+    git -C "$APP_DIR" restore --source=HEAD --staged --worktree -- "$FRONT_LOCK_REL"
+    echo "package-lock محلی backup شد و نسخه repository استفاده می‌شود."
+  fi
   git -C "$APP_DIR" pull --ff-only
 else
   mkdir -p "$APP_DIR"
