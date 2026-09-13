@@ -35,7 +35,7 @@ export default function AdminPage() {
   const [channels, setChannels] = useState([]);
   const [selected, setSelected] = useState("");
   const [msg, setMsg] = useState("");
-  const [classForm, setClassForm] = useState({ username: "", password: "", displayName: "", streamTitle: "" });
+  const [classForm, setClassForm] = useState({ username: "", displayName: "", streamTitle: "" });
 
   const [testLink, setTestLink] = useState("");
   const [monitorLink, setMonitorLink] = useState("");
@@ -112,7 +112,7 @@ export default function AdminPage() {
       const channel = await api.createManagedChannel(classForm);
       setChannels((current) => [...current, channel]);
       setSelected(channel.username);
-      setClassForm({ username: "", password: "", displayName: "", streamTitle: "" });
+      setClassForm({ username: "", displayName: "", streamTitle: "" });
       flash("کلاس ساخته شد.");
     } catch (err) {
       flash(err.message);
@@ -209,7 +209,6 @@ export default function AdminPage() {
         <CardContent>
           <form onSubmit={handleCreateClass} className="grid gap-3 sm:grid-cols-2">
             <Input placeholder="نام کاربری کلاس، مثل algebra1" value={classForm.username} onChange={(e) => setClassForm({ ...classForm, username: e.target.value })} required />
-            <Input type="password" placeholder="رمز داخلی کلاس" value={classForm.password} onChange={(e) => setClassForm({ ...classForm, password: e.target.value })} required minLength={8} />
             <Input placeholder="نام نمایشی کلاس" value={classForm.displayName} onChange={(e) => setClassForm({ ...classForm, displayName: e.target.value })} />
             <Input placeholder="عنوان استریم" value={classForm.streamTitle} onChange={(e) => setClassForm({ ...classForm, streamTitle: e.target.value })} />
             <Button type="submit" className="sm:col-span-2 justify-self-start">ساخت کلاس</Button>

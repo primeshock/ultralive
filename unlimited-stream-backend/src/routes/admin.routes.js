@@ -9,6 +9,7 @@ const { requireAuth } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/requireRole');
 const { publicBaseUrl, wpJoinSecret } = require('../config/env');
 const chat = require('../services/chat');
+const { hashPassword } = require('../utils/password');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner'));
@@ -31,18 +32,17 @@ async function loadOwnedChannel(req, res, next) {
 }
 
 router.post('/channels', async (req, res) => {
-  const { username, password, displayName, streamTitle } = req.body || {};
-  if (!/^[a-z0-9_]{3,24}$/i.test(username || '') || !password || password.length < 8) {
-    return res.status(400).json({ error: 'نام کلاس معتبر و رمز حداقل ۸ کاراکتری لازم است.' });
+  const { username, displayName, streamTitle } = req.body || {};
+  if (!/^[a-z0-9_]{3,24}$/i.test(username || '')) {
+    return res.status(400).json({ error: 'نام کلاس معتبر لازم است.' });
   }
   const normalizedUsername = username.toLowerCase();
   const exists = await User.findOne({ username: normalizedUsername });
   if (exists) return res.status(409).json({ error: 'این نام قبلاً استفاده شده است.' });
 
-  const { hashPassword } = require('../utils/password');
   const channel = await User.create({
     username: normalizedUsername,
-    passwordHash: await hashPassword(password),
+    passwordHash: await hashPassword(require('crypto').randomBytes(32).toString('hex')),
     streamKey: require('../utils/streamKey').generateStreamKey(),
     displayName: displayName || normalizedUsername,
     streamTitle: streamTitle || '',
