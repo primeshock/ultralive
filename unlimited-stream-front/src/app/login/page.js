@@ -26,7 +26,9 @@ export default function LoginPage() {
     try {
       const { user } = await api.login(username, password);
       setUser(user);
-      router.push("/dashboard");
+      if (user.role === "owner") router.push("/master");
+      else if (user.role === "admin") router.push("/admin");
+      else router.push("/dashboard");
     } catch (err) {
       setError(err.message);
     } finally {

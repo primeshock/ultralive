@@ -54,6 +54,7 @@ function initChat(httpServer) {
         if (user) {
           socket.data.username = user.username;
           socket.data.role = user.role;
+          socket.data.userId = user._id;
         }
       }
       next();
@@ -66,6 +67,14 @@ function initChat(httpServer) {
     socket.on('chat:join', async (channel) => {
       if (typeof channel !== 'string' || !channel) return;
       const room = channel.toLowerCase();
+
+      if (socket.data.role === 'admin') {
+        const channelDoc = await User.findOne({ username: room, role: 'teacher', managedBy: socket.data.username ? socket.data.userId : null }).select('_id');
+        if (!channelDoc) {
+          socket.emit('chat:error', { message: 'به چت این کلاس دسترسی ندارید.' });
+          return;
+        }
+      }
 
       // Establish identity for THIS channel. A real logged-in account (from
       // the handshake middleware above) is accepted for any channel, same as
@@ -106,6 +115,7 @@ function initChat(httpServer) {
           text: m.text,
           kind: m.kind,
           replyTo: m.replyTo,
+          externalUserId: m.senderType === 'student' ? m.senderKey : null,
           ts: m.createdAt.getTime(),
         }))
       );
@@ -158,7 +168,14 @@ function initChat(httpServer) {
         console.error('[chat] failed to persist message', err);
       }
 
-      const outgoing = { id: saved?._id, username, text, replyTo, ts: Date.now() };
+      const outgoing = {
+        id: saved?._id,
+        username,
+        text,
+        replyTo,
+        externalUserId: isStaff ? null : senderKey,
+        ts: Date.now(),
+      };
 
       if (isPrivateMode(channel) && !isStaff) {
         // Private mode + student sender: only the sender and staff see it.

@@ -13,21 +13,50 @@ const chat = require('../services/chat');
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner'));
 
-async function myChannels(_req) {
-  // Both admin and owner see every channel — admin is a full operational
-  // role now, not scoped to a managedBy subset.
-  return User.find({ role: 'teacher' }).select('username displayName streamTitle isLive chatEnabled chatMode managedBy');
+async function myChannels(req) {
+  const filter = { role: 'teacher' };
+  if (req.user.role === 'admin') filter.managedBy = req.user._id;
+  return User.find(filter).select('username displayName streamTitle streamKey isLive chatEnabled chatMode managedBy');
 }
 
 router.get('/channels', async (req, res) => res.json(await myChannels(req)));
 
 async function loadOwnedChannel(req, res, next) {
-  const channel = await User.findOne({ username: req.params.channel.toLowerCase(), role: 'teacher' });
+  const filter = { username: req.params.channel.toLowerCase(), role: 'teacher' };
+  if (req.user.role === 'admin') filter.managedBy = req.user._id;
+  const channel = await User.findOne(filter);
   if (!channel) return res.status(404).json({ error: 'کانال پیدا نشد.' });
-  // No ownership check here by design: admin has full access to all classes/streams.
   req.targetChannel = channel;
   next();
 }
+
+router.post('/channels', async (req, res) => {
+  const { username, password, displayName, streamTitle } = req.body || {};
+  if (!/^[a-z0-9_]{3,24}$/i.test(username || '') || !password || password.length < 8) {
+    return res.status(400).json({ error: 'نام کلاس معتبر و رمز حداقل ۸ کاراکتری لازم است.' });
+  }
+  const normalizedUsername = username.toLowerCase();
+  const exists = await User.findOne({ username: normalizedUsername });
+  if (exists) return res.status(409).json({ error: 'این نام قبلاً استفاده شده است.' });
+
+  const { hashPassword } = require('../utils/password');
+  const channel = await User.create({
+    username: normalizedUsername,
+    passwordHash: await hashPassword(password),
+    streamKey: require('../utils/streamKey').generateStreamKey(),
+    displayName: displayName || normalizedUsername,
+    streamTitle: streamTitle || '',
+    role: 'teacher',
+    managedBy: req.user.role === 'admin' ? req.user._id : null,
+  });
+  res.status(201).json({
+    username: channel.username,
+    displayName: channel.displayName,
+    streamTitle: channel.streamTitle,
+    streamKey: channel.streamKey,
+    managedBy: channel.managedBy,
+  });
+});
 
 // ---- Chat privacy mode ----
 router.post('/channels/:channel/chat-mode', loadOwnedChannel, async (req, res) => {
@@ -72,7 +101,7 @@ router.post('/channels/:channel/monitor-link', loadOwnedChannel, async (req, res
     { token, active: true, createdBy: String(req.user._id) },
     { upsert: true, new: true }
   );
-  res.json({ url: `${publicBaseUrl}/api/monitor/${link.token}` });
+  res.json({ url: `${publicBaseUrl}/monitor/${link.token}` });
 });
 
 router.delete('/channels/:channel/monitor-link', loadOwnedChannel, async (req, res) => {

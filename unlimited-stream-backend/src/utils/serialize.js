@@ -18,6 +18,7 @@ function publicUser(user, ctx) {
     donateUrl: user.donateUrl,
     isLive: user.isLive,
     chatEnabled: user.chatEnabled,
+    chatMode: user.chatMode,
     thumbnailUrl: thumbnailUrl(user, ctx),
   };
 }

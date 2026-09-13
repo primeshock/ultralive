@@ -364,6 +364,9 @@ redis:
   address: 127.0.0.1:6379
 keys:
   ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+webhook:
+  urls:
+    - http://127.0.0.1:5050/api/livekit/webhook
 ingress:
   rtmp_base_url: rtmp://${PUBLIC_IP}:1936/live
 turn:

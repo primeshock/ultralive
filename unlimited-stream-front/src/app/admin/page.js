@@ -35,6 +35,7 @@ export default function AdminPage() {
   const [channels, setChannels] = useState([]);
   const [selected, setSelected] = useState("");
   const [msg, setMsg] = useState("");
+  const [classForm, setClassForm] = useState({ username: "", password: "", displayName: "", streamTitle: "" });
 
   const [testLink, setTestLink] = useState("");
   const [monitorLink, setMonitorLink] = useState("");
@@ -100,6 +101,19 @@ export default function AdminPage() {
     try {
       const { url } = await api.createTestLink(selected, "دانش‌آموز تستی");
       setTestLink(url);
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  async function handleCreateClass(e) {
+    e.preventDefault();
+    try {
+      const channel = await api.createManagedChannel(classForm);
+      setChannels((current) => [...current, channel]);
+      setSelected(channel.username);
+      setClassForm({ username: "", password: "", displayName: "", streamTitle: "" });
+      flash("کلاس ساخته شد.");
     } catch (err) {
       flash(err.message);
     }
@@ -190,6 +204,19 @@ export default function AdminPage() {
       <h1 className="text-2xl font-bold">پنل ادمین</h1>
       {msg && <p className="text-sm text-primary">{msg}</p>}
 
+      <Card>
+        <CardHeader><CardTitle>ساخت کلاس جدید</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={handleCreateClass} className="grid gap-3 sm:grid-cols-2">
+            <Input placeholder="نام کاربری کلاس، مثل algebra1" value={classForm.username} onChange={(e) => setClassForm({ ...classForm, username: e.target.value })} required />
+            <Input type="password" placeholder="رمز داخلی کلاس" value={classForm.password} onChange={(e) => setClassForm({ ...classForm, password: e.target.value })} required minLength={8} />
+            <Input placeholder="نام نمایشی کلاس" value={classForm.displayName} onChange={(e) => setClassForm({ ...classForm, displayName: e.target.value })} />
+            <Input placeholder="عنوان استریم" value={classForm.streamTitle} onChange={(e) => setClassForm({ ...classForm, streamTitle: e.target.value })} />
+            <Button type="submit" className="sm:col-span-2 justify-self-start">ساخت کلاس</Button>
+          </form>
+        </CardContent>
+      </Card>
+
       <div className="flex items-center gap-2">
         <Label>کلاس</Label>
         <select className="border rounded-md h-9 px-2 text-sm bg-background" value={selected} onChange={(e) => setSelected(e.target.value)}>
@@ -226,9 +253,12 @@ export default function AdminPage() {
                 </Button>
                 {ingressInfo && (
                   <p className="text-xs text-muted-foreground">
-                    RTMP دوم برای OBS: <code>{ingressInfo.url}</code> — کلید: <code>{ingressInfo.streamKey}</code>
-                    <br />این رو به‌عنوان یه خروجی اضافه (نه جایگزین) توی OBS اضافه کن.
+                    RTMP LiveKit: <code>{ingressInfo.url}</code> — کلید: <code>{ingressInfo.streamKey}</code>
+                    <br />همین یک مقصد را در OBS استفاده کن.
                   </p>
+                )}
+                {channels.find((c) => c.username === selected)?.streamKey && (
+                  <p className="text-xs text-muted-foreground">کلید داخلی کلاس: <code>{channels.find((c) => c.username === selected).streamKey}</code></p>
                 )}
               </div>
             </CardContent>

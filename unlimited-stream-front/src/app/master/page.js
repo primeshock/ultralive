@@ -48,7 +48,7 @@ export default function MasterPage() {
   }
 
   useEffect(() => {
-    if (user?.role === "owner") loadAll();
+    if (user?.role === "owner") Promise.resolve().then(loadAll);
   }, [user]);
 
   function flash(text) {

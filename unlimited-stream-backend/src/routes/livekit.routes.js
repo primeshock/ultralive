@@ -32,7 +32,8 @@ router.get('/token', async (req, res) => {
     try {
       const payload = verifyToken(rawToken);
       const user = await User.findById(payload.sub);
-      if (user && ['owner', 'admin'].includes(user.role)) {
+      const canAccess = user?.role === 'owner' || (user?.role === 'admin' && String(target.managedBy) === String(user._id));
+      if (user && canAccess) {
         const participantToken = await createStaffToken({
           channel,
           identity: user._id.toString(),
@@ -52,6 +53,16 @@ router.get('/token', async (req, res) => {
   } catch {
     return res.status(401).json({ error: 'برای ورود به کلاس احراز هویت لازم است.' });
   }
+});
+
+router.get('/monitor-token/:token', async (req, res) => {
+  if (!livekitEnabled) return res.status(503).json({ error: 'LiveKit فعال نیست.' });
+  const monitor = await require('../models/MonitorLink').findOne({ token: req.params.token, active: true });
+  if (!monitor) return res.status(404).json({ error: 'لینک مانیتور نامعتبر یا غیرفعال است.' });
+  const target = await User.findOne({ username: monitor.channel, role: 'teacher' });
+  if (!target) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+  const participantToken = await createStudentToken({ channel: target.username, identity: `monitor:${monitor.token}`, name: `Monitor ${target.username}` });
+  res.json({ serverUrl: livekitWsUrl, participantToken, channel: target.username, roomName: roomName(target.username) });
 });
 
 router.use(requireAuth, requireRole('owner', 'admin'));

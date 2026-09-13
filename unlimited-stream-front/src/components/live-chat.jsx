@@ -41,7 +41,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
   const [showEmoji, setShowEmoji] = useState(false);
   const bottomRef = useRef(null);
 
-  const isStreamer = user && user.username === channel;
+  const canModerate = user && ["admin", "owner"].includes(user.role);
 
   // NOTE: this used to bail out entirely when `user` was falsy, which meant a
   // student (no real logged-in account, only a room-session cookie) could
@@ -116,9 +116,15 @@ export function LiveChat({ channel, initialEnabled = true }) {
     setShowEmoji(false);
   }
 
-  async function handleMute(username) {
+  async function handleModeration(message, type, scope) {
     try {
-      await api.muteUser(username);
+      await api.moderate(channel, {
+        externalUserId: message.externalUserId || message.username,
+        type,
+        scope,
+        minutes: scope === "timed" ? 10 : undefined,
+        reason: `اعمال از چت توسط ${user.username}`,
+      });
     } catch (err) {
       setSendError(err.message);
       setTimeout(() => setSendError(""), 3000);
@@ -162,7 +168,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
                   >
                     <Reply className="size-4" />
                   </button>
-                  {isStreamer && m.username && m.username !== user?.username && (
+                  {canModerate && m.username && m.externalUserId && (
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={<button type="button" className="text-muted-foreground hover:text-foreground" aria-label="گزینه‌های پیام" />}
@@ -170,9 +176,10 @@ export function LiveChat({ channel, initialEnabled = true }) {
                         <MoreVertical className="size-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem variant="destructive" onClick={() => handleMute(m.username)}>
-                          میوت {m.username}
-                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleModeration(m, "mute", "timed")}>میوت ۱۰ دقیقه</DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onClick={() => handleModeration(m, "mute", "permanent")}>میوت دائمی</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleModeration(m, "ban", "timed")}>بن ۱۰ دقیقه</DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onClick={() => handleModeration(m, "ban", "permanent")}>بن دائمی</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

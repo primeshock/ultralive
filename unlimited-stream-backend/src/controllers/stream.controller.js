@@ -13,7 +13,7 @@ async function listLive(req, res) {
 }
 
 async function getChannel(req, res) {
-  const user = await User.findOne({ username: req.params.username.toLowerCase() });
+  const user = await User.findOne({ username: req.params.username.toLowerCase(), role: 'teacher' });
   if (!user) return res.status(404).json({ error: 'Channel not found' });
   res.json({ channel: { ...publicUser(user, mediaCtx), viewerCount: getViewerCount(user.username) } });
 }

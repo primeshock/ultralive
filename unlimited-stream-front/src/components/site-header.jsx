@@ -37,9 +37,11 @@ export function SiteHeader() {
                   پنل ادمین
                 </Button>
               )}
-              <Button variant="ghost" nativeButton={false} render={<Link href="/dashboard" />}>
-                داشبورد
-              </Button>
+              {user.role === "teacher" && (
+                <Button variant="ghost" nativeButton={false} render={<Link href="/dashboard" />}>
+                  داشبورد
+                </Button>
+              )}
               <Avatar className="size-8">
                 <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>

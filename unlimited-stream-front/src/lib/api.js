@@ -65,6 +65,7 @@ export const api = {
 
   // --- Admin panel (admin + owner) ---
   myManagedChannels: () => apiFetch("/api/admin/channels"),
+  createManagedChannel: (payload) => apiFetch("/api/admin/channels", { method: "POST", body: JSON.stringify(payload) }),
   setChatMode: (channel, chatMode) =>
     apiFetch(`/api/admin/channels/${channel}/chat-mode`, { method: "POST", body: JSON.stringify({ chatMode }) }),
   createTestLink: (channel, displayName) =>
@@ -96,6 +97,7 @@ export const api = {
   // --- LiveKit (Phase 6, alongside HLS) ---
   livekitStatus: () => apiFetch("/api/livekit/status"),
   livekitToken: (channel) => apiFetch(`/api/livekit/token?channel=${encodeURIComponent(channel)}`),
+  livekitMonitorToken: (token) => apiFetch(`/api/livekit/monitor-token/${encodeURIComponent(token)}`),
   createIngress: (channel) => apiFetch(`/api/livekit/channels/${channel}/ingress`, { method: "POST" }),
   deleteIngress: (channel) => apiFetch(`/api/livekit/channels/${channel}/ingress`, { method: "DELETE" }),
 };

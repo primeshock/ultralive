@@ -29,10 +29,10 @@ export default function DashboardPage() {
   const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
+    if (!loading && (!user || user.role !== "teacher")) router.replace("/");
   }, [loading, user, router]);
 
-  if (loading || !user) {
+  if (loading || !user || user.role !== "teacher") {
     return <div className="flex-1 flex items-center justify-center">در حال بارگذاری...</div>;
   }
 
