@@ -87,6 +87,22 @@ NODE_MAJOR=20
 # ---------------------------------------------------------------------------
 log "1/9 آپدیت apt و نصب پکیج‌های پایه"
 export DEBIAN_FRONTEND=noninteractive
+
+# A previous Docker installation can leave an unsupported or unsigned Docker
+# apt source behind (for example, a source targeting Ubuntu "resolute"). The
+# official Docker installer below recreates its own source, so disable only
+# existing Docker source files before the first apt update.
+for apt_source in /etc/apt/sources.list.d/*; do
+  if [[ -f "$apt_source" ]] && grep -q 'download\.docker\.com' "$apt_source"; then
+    mv "$apt_source" "${apt_source}.koosha-disabled"
+    echo "Docker apt source غیرفعال شد: $apt_source"
+  fi
+done
+if [[ -f /etc/apt/sources.list ]] && grep -q 'download\.docker\.com' /etc/apt/sources.list; then
+  sed -i.bak '/download\.docker\.com/s/^/# disabled by Koosha Live installer: /' /etc/apt/sources.list
+  echo "Docker apt source داخل /etc/apt/sources.list غیرفعال شد."
+fi
+
 apt_get_retry update -y
 apt_get_retry install -y curl git ca-certificates gnupg ufw openssl
 
