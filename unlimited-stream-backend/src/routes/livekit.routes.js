@@ -1,0 +1,72 @@
+const express = require('express');
+const User = require('../models/User');
+const { requireAuth } = require('../middleware/auth.middleware');
+const { requireRole } = require('../middleware/requireRole');
+const { checkStudentAccess } = require('../utils/checkStudentAccess');
+const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
+const { createStudentToken, createStaffToken, ensureIngress, deleteIngress, roomName } = require('../services/livekit');
+const { livekitEnabled, livekitWsUrl } = require('../config/env');
+const SiteSettings = require('../models/SiteSettings');
+
+const router = express.Router();
+
+// Public status check — the frontend uses this to decide whether to even
+// attempt a LiveKit connection before falling back to HLS.
+router.get('/status', async (_req, res) => {
+  const settings = await SiteSettings.get();
+  res.json({ enabled: livekitEnabled, playbackMode: settings.playbackMode || 'auto' });
+});
+
+// Either a real staff login (owner/admin) or a valid student room-session
+// cookie can get a subscribe-only token. Staff never gets publish rights
+// here — publishing is a separate, explicit endpoint below.
+router.get('/token', async (req, res) => {
+  if (!livekitEnabled) return res.status(503).json({ error: 'LiveKit فعال نیست.' });
+  const channel = String(req.query.channel || '').toLowerCase();
+  if (!/^[a-z0-9_]{3,24}$/.test(channel)) return res.status(400).json({ error: 'کلاس نامعتبر است.' });
+  const target = await User.findOne({ username: channel, role: 'teacher' });
+  if (!target) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+
+  const rawToken = req.cookies?.[COOKIE_NAME];
+  if (rawToken) {
+    try {
+      const payload = verifyToken(rawToken);
+      const user = await User.findById(payload.sub);
+      if (user && ['owner', 'admin'].includes(user.role)) {
+        const participantToken = await createStaffToken({
+          channel,
+          identity: user._id.toString(),
+          name: user.displayName || user.username,
+        });
+        return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: user.role });
+      }
+    } catch {
+      /* not a valid staff login — fall through to the student check */
+    }
+  }
+
+  try {
+    const access = await checkStudentAccess(channel, req.cookies || {});
+    const participantToken = await createStudentToken({ channel, identity: access.externalUserId, name: access.displayName });
+    return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: 'student' });
+  } catch {
+    return res.status(401).json({ error: 'برای ورود به کلاس احراز هویت لازم است.' });
+  }
+});
+
+router.use(requireAuth, requireRole('owner', 'admin'));
+
+router.post('/channels/:channel/ingress', async (req, res) => {
+  const target = await User.findOne({ username: req.params.channel.toLowerCase(), role: 'teacher' });
+  if (!target) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+  res.json(await ensureIngress(target));
+});
+
+router.delete('/channels/:channel/ingress', async (req, res) => {
+  const target = await User.findOne({ username: req.params.channel.toLowerCase(), role: 'teacher' });
+  if (!target) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+  await deleteIngress(target);
+  res.status(204).end();
+});
+
+module.exports = router;
