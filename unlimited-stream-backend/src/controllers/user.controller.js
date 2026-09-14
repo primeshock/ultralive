@@ -107,4 +107,15 @@ async function uploadThumbnail(req, res) {
   res.json({ user: ownerUser(user, mediaCtx) });
 }
 
-module.exports = { updateProfile, regenerateKey, toggleChat, uploadThumbnail, muteUser, unmuteUser };
+async function uploadChannelThumbnail(req, res) {
+  const channel = req.targetChannel;
+  if (!req.file) return res.status(400).json({ error: 'فایل تصویر ارسال نشده' });
+  if (!isJpeg(req.file.buffer)) return res.status(400).json({ error: 'فایل باید یک عکس jpg واقعی باشد' });
+  await fs.mkdir(THUMBNAIL_DIR, { recursive: true });
+  await fs.writeFile(path.join(THUMBNAIL_DIR, `${channel.username}.jpg`), req.file.buffer);
+  channel.thumbnailVersion += 1;
+  await channel.save();
+  res.json({ thumbnailUrl: `http://${mediaCtx.serverIp}:${mediaCtx.apiPort}/thumbnails/${channel.username}.jpg?v=${channel.thumbnailVersion}` });
+}
+
+module.exports = { updateProfile, regenerateKey, toggleChat, uploadThumbnail, uploadChannelThumbnail, muteUser, unmuteUser };

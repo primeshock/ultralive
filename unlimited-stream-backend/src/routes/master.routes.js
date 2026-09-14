@@ -1,4 +1,8 @@
 const express = require('express');
+const fs = require('fs/promises');
+const path = require('path');
+const { thumbnailUpload } = require('../utils/upload');
+const { isJpeg } = require('../utils/upload');
 const os = require('os');
 const { execSync } = require('child_process');
 const User = require('../models/User');
@@ -8,6 +12,7 @@ const { requireAuth } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/requireRole');
 const { hashPassword } = require('../utils/password');
 const { generateStreamKey } = require('../utils/streamKey');
+const { publicBaseUrl } = require('../config/env');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('owner'));
@@ -85,6 +90,14 @@ router.patch('/settings', async (req, res) => {
   if (playbackMode !== undefined && ['auto', 'livekit', 'hls'].includes(playbackMode)) update.playbackMode = playbackMode;
   const doc = await SiteSettings.findOneAndUpdate({ key: 'main' }, update, { upsert: true, new: true });
   res.json(doc);
+});
+
+router.post('/logo', thumbnailUpload.single('logo'), async (req, res) => {
+  if (!req.file || !isJpeg(req.file.buffer)) return res.status(400).json({ error: 'لوگو باید JPG باشد.' });
+  await fs.mkdir(path.join(process.cwd(), 'media'), { recursive: true });
+  await fs.writeFile(path.join(process.cwd(), 'media', 'site-logo.jpg'), req.file.buffer);
+  const settings = await SiteSettings.findOneAndUpdate({ key: 'main' }, { logoUrl: `${publicBaseUrl}/site-logo` }, { upsert: true, new: true });
+  res.json(settings);
 });
 
 // ---- Server monitoring ----

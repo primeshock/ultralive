@@ -10,6 +10,8 @@ const { requireRole } = require('../middleware/requireRole');
 const { publicBaseUrl, wpJoinSecret } = require('../config/env');
 const chat = require('../services/chat');
 const { hashPassword } = require('../utils/password');
+const { uploadChannelThumbnail } = require('../controllers/user.controller');
+const { thumbnailUpload } = require('../utils/upload');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner'));
@@ -75,6 +77,8 @@ router.post('/channels/:channel/viewer-count', loadOwnedChannel, async (req, res
   res.json({ showViewerCount: req.targetChannel.showViewerCount });
 });
 
+router.post('/channels/:channel/thumbnail', loadOwnedChannel, thumbnailUpload.single('thumbnail'), uploadChannelThumbnail);
+
 // ---- Test link: try the student flow WITHOUT WordPress ----
 // Generates the exact same kind of token a WordPress button would produce,
 // signed with the same secret, so you can open it (e.g. in an incognito
@@ -96,8 +100,22 @@ router.get('/channels/:channel/active-students', loadOwnedChannel, async (req, r
 });
 
 router.get('/channels/:channel/attendance', loadOwnedChannel, async (req, res) => {
-  const log = await AttendanceLog.find({ channel: req.targetChannel.username }).sort({ joinedAt: -1 }).limit(500);
+  const filter = { channel: req.targetChannel.username };
+  if (req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+    filter.joinedAt = { $gte: new Date(`${req.query.date}T00:00:00.000Z`), $lt: new Date(`${req.query.date}T23:59:59.999Z`) };
+  }
+  const log = await AttendanceLog.find(filter).sort({ joinedAt: -1 }).limit(500);
   res.json(log);
+});
+
+router.get('/channels/:channel/attendance-dates', loadOwnedChannel, async (req, res) => {
+  const dates = await AttendanceLog.aggregate([
+    { $match: { channel: req.targetChannel.username } },
+    { $project: { date: { $dateToString: { format: '%Y-%m-%d', date: '$joinedAt' } } } },
+    { $group: { _id: '$date' } },
+    { $sort: { _id: -1 } },
+  ]);
+  res.json(dates.map((item) => item._id));
 });
 
 // ---- Monitor link: check the stream without logging into the panel ----

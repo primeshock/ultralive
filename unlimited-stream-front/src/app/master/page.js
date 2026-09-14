@@ -25,6 +25,7 @@ export default function MasterPage() {
   const [msg, setMsg] = useState("");
 
   const [adminForm, setAdminForm] = useState({ username: "", password: "" });
+  const [logoFile, setLogoFile] = useState(null);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "owner")) router.replace("/");
@@ -74,6 +75,18 @@ export default function MasterPage() {
     }
   }
 
+  async function handleLogoUpload() {
+    if (!logoFile) return;
+    try {
+      const updated = await api.uploadLogo(logoFile);
+      setSettings(updated);
+      setLogoFile(null);
+      flash("لوگو ذخیره شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
   if (loading || !user || user.role !== "owner") {
     return <div className="flex-1 flex items-center justify-center">در حال بارگذاری...</div>;
   }
@@ -111,13 +124,10 @@ export default function MasterPage() {
                   onBlur={(e) => e.target.value !== settings.siteName && handleSettingsChange({ siteName: e.target.value })}
                 />
               </div>
-              <div className="grid gap-1.5">
-                <Label>لینک لوگو</Label>
-                <Input
-                  defaultValue={settings.logoUrl}
-                  placeholder="https://.../logo.png"
-                  onBlur={(e) => e.target.value !== settings.logoUrl && handleSettingsChange({ logoUrl: e.target.value })}
-                />
+              <div className="grid gap-2">
+                <Label>آپلود لوگو (JPG)</Label>
+                <div className="flex flex-wrap items-center gap-2"><Input type="file" accept="image/jpeg" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} /><Button type="button" onClick={handleLogoUpload} disabled={!logoFile}>آپلود لوگو</Button></div>
+                {settings.logoUrl && <img src={settings.logoUrl} alt="لوگوی سایت" className="h-14 w-fit rounded-xl object-contain" />}
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input

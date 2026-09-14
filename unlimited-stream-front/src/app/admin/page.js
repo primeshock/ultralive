@@ -43,6 +43,8 @@ export default function AdminPage() {
   const [modList, setModList] = useState([]);
   const [activeStudents, setActiveStudents] = useState([]);
   const [attendance, setAttendance] = useState([]);
+  const [attendanceDates, setAttendanceDates] = useState([]);
+  const [attendanceDate, setAttendanceDate] = useState("");
   const [modForm, setModForm] = useState({ externalUserId: "", type: "mute", scope: "timed", minutes: 10, reason: "" });
 
   const [pollForm, setPollForm] = useState({ question: "", mode: "poll", options: ["", ""], timerSeconds: "", revealAt: "" });
@@ -70,16 +72,19 @@ export default function AdminPage() {
   }, [selected]);
 
   async function refreshChannelData() {
-    const [mod, active, att, pollList] = await Promise.all([
+    const [mod, active, att, pollList, dates] = await Promise.all([
       api.listModeration(selected).catch(() => []),
       api.activeStudents(selected).catch(() => []),
       api.attendance(selected).catch(() => []),
+      api.attendance(selected, attendanceDate).catch(() => []),
       api.listPolls(selected).catch(() => []),
+      api.attendanceDates(selected).catch(() => []),
     ]);
     setModList(mod);
     setActiveStudents(active);
     setAttendance(att);
-    setPolls(pollList);
+      setAttendanceDates(dates);
+    setPolls(pollList.filter((poll) => poll.isOpen));
   }
 
   function handleChannelChange(username) {
@@ -206,6 +211,7 @@ export default function AdminPage() {
     if (action === "close") await api.closePoll(pollId);
     if (action === "reveal") await api.revealPoll(pollId);
     if (action === "reset") await api.resetPoll(pollId);
+    if (action === "close") setPolls((current) => current.filter((poll) => poll._id !== pollId));
     loadResults(pollId);
   }
 
@@ -328,6 +334,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <p className="text-sm font-medium mb-1">تاریخچه ورود</p>
+                                <div className="mb-1 flex items-center justify-between gap-2"><p className="text-sm font-medium">حضور و غیاب</p><select className="border rounded-md bg-background px-2 py-1 text-xs" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)}><option value="">همه تاریخ‌ها</option>{attendanceDates.map((date) => <option key={date} value={date}>{date}</option>)}</select></div>
                 <ul className="text-sm text-muted-foreground flex flex-col gap-0.5 max-h-40 overflow-y-auto">
                   {attendance.map((a, i) => (
                     <li key={i}>{a.displayName || a.externalUserId} — {new Date(a.joinedAt).toLocaleString("fa-IR")}</li>

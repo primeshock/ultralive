@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Moon, Sun } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
@@ -10,6 +12,19 @@ import { api } from "@/lib/api";
 export function SiteHeader() {
   const { user, loading, setUser } = useAuth();
   const router = useRouter();
+  const [dark, setDark] = useState(() => typeof window !== "undefined" && localStorage.getItem("koosha-theme") === "dark");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("koosha-theme") === "dark";
+    document.documentElement.classList.toggle("dark", saved);
+  }, []);
+
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("koosha-theme", next ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", next);
+  }
 
   async function handleLogout() {
     await api.logout().catch(() => {});
@@ -25,6 +40,7 @@ export function SiteHeader() {
         </Link>
 
         <nav className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="تغییر تم">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>
           {loading ? null : user ? (
             <>
               {user.role === "owner" && (

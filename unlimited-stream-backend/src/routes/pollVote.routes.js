@@ -41,7 +41,7 @@ router.get('/:channel/polls/active', async (req, res) => {
     return res.status(401).json({ error: 'دسترسی ندارید.' });
   }
   const poll = await Poll.findOne({ channel: req.params.channel.toLowerCase() }).sort({ createdAt: -1 });
-  if (!poll) return res.json(null);
+  if (!poll || !poll.isOpen || (poll.closesAt && poll.closesAt <= new Date())) return res.json(null);
   const response = {
     id: poll._id,
     question: poll.question,

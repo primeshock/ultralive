@@ -19,6 +19,7 @@ function publicUser(user, ctx) {
     isLive: user.isLive,
     chatEnabled: user.chatEnabled,
     chatMode: user.chatMode,
+    showViewerCount: user.showViewerCount,
     thumbnailUrl: thumbnailUrl(user, ctx),
   };
 }

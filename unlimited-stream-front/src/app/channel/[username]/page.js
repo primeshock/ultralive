@@ -81,7 +81,7 @@ export default function ChannelPage({ params }) {
     <div className="mx-auto max-w-6xl w-full px-4 py-6 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 lg:h-[calc(100dvh_-_3.5rem_-_3rem)]">
       <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
         <div className="aspect-video bg-black rounded-lg overflow-hidden shrink-0">
-          {useLiveKit ? (
+          {channel.isLive && useLiveKit ? (
               <LiveKitPlayer
                 channel={username}
                 poster={channel.thumbnailUrl}
@@ -96,12 +96,12 @@ export default function ChannelPage({ params }) {
                 className="w-full h-full object-cover opacity-40"
               />
               <div className="absolute inset-0 flex items-center justify-center text-white/90">
-                این کانال الان آفلاینه
+                {channel.isLive ? "پخش در دسترس نیست" : "کلاس هنوز شروع نشده"}
               </div>
             </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white/70">
-              این کانال الان آفلاینه
+              {channel.isLive ? "پخش در دسترس نیست" : "کلاس هنوز شروع نشده"}
             </div>
           )}
         </div>
@@ -136,7 +136,7 @@ export default function ChannelPage({ params }) {
         </div>
 
         <PollWidget channel={username} />
-        {canManageClass && <ClassAdminPanel channel={username} chatMode={chatMode} showViewerCount={channel.showViewerCount} onChatMode={handleChatMode} onViewerCount={handleViewerCount} />}
+        {canManageClass && <ClassAdminPanel channel={username} thumbnailUrl={channel.thumbnailUrl} chatMode={chatMode} showViewerCount={channel.showViewerCount} viewerCount={channel.viewerCount || 0} onChatMode={handleChatMode} onViewerCount={handleViewerCount} onThumbnail={(thumbnailUrl) => setChannel((current) => ({ ...current, thumbnailUrl }))} />}
       </div>
 
       <div className="h-[70dvh] lg:h-full min-h-0">

@@ -16,7 +16,7 @@ function AppleSwitch({ checked, onChange, label }) {
   );
 }
 
-export function ClassAdminPanel({ channel, chatMode, showViewerCount, onChatMode, onViewerCount }) {
+export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCount, viewerCount, onChatMode, onViewerCount, onThumbnail }) {
   const [polls, setPolls] = useState([]);
   const [form, setForm] = useState({ question: "", mode: "poll", options: [{ text: "", isCorrect: false }, { text: "", isCorrect: false }], timerSeconds: "", showResults: false });
   const [ingress, setIngress] = useState(null);
@@ -28,7 +28,7 @@ export function ClassAdminPanel({ channel, chatMode, showViewerCount, onChatMode
     async function load() {
       try {
         const list = await api.listPolls(channel);
-        setPolls(list);
+        setPolls(list.filter((poll) => poll.isOpen));
         const loadedResults = await Promise.all(list.map(async (poll) => [poll._id, await api.pollResults(poll._id).catch(() => null)]));
         setResults(Object.fromEntries(loadedResults.filter(([, result]) => result)));
       } catch {
@@ -66,7 +66,7 @@ export function ClassAdminPanel({ channel, chatMode, showViewerCount, onChatMode
       if (action === "reveal") await api.revealPoll(id);
       if (action === "reset") await api.resetPoll(id);
       const list = await api.listPolls(channel);
-      setPolls(list);
+      setPolls(action === "close" ? list.filter((poll) => poll.isOpen) : list);
       await loadResults(id);
       setMessage("انجام شد");
     } catch (error) {
@@ -105,6 +105,20 @@ export function ClassAdminPanel({ channel, chatMode, showViewerCount, onChatMode
     }
   }
 
+  async function uploadThumbnail(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const result = await api.uploadChannelThumbnail(channel, file);
+      onThumbnail(result.thumbnailUrl);
+      setMessage("تامبنیل کلاس ذخیره شد");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   return (
     <section className="glass-panel flex flex-col gap-3 rounded-3xl p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -112,7 +126,13 @@ export function ClassAdminPanel({ channel, chatMode, showViewerCount, onChatMode
         <Button size="sm" variant={chatMode === "private" ? "outline" : "default"} onClick={() => onChatMode("public")}>چت عمومی</Button>
         <Button size="sm" variant={chatMode === "private" ? "default" : "outline"} onClick={() => onChatMode("private")}>چت خصوصی</Button>
         <AppleSwitch checked={showViewerCount} onChange={onViewerCount} label="نمایش تعداد حاضرین" />
+        <span className="rounded-full bg-black/5 px-3 py-1 text-xs dark:bg-white/10">حاضرین: {viewerCount}</span>
         <Button size="sm" variant="outline" onClick={createIngress}>دریافت کلید LiveKit</Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-black/5 p-3 text-xs dark:bg-white/5">
+        {thumbnailUrl && <img src={thumbnailUrl} alt="" className="size-14 rounded-xl object-cover" />}
+        <div><p className="font-medium">تامبنیل کلاس</p><p className="text-muted-foreground">نسبت 16:9، پیشنهاد 1280×720</p></div>
+        <label className="cursor-pointer rounded-full border px-3 py-2"><input type="file" accept="image/jpeg" className="hidden" onChange={uploadThumbnail} />انتخاب تصویر</label>
       </div>
       {ingress && <p className="text-xs break-all">Server: <code>{ingress.url}</code><br />Key: <code>{ingress.streamKey}</code></p>}
       <form onSubmit={createPoll} className="grid gap-2">

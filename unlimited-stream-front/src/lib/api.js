@@ -60,6 +60,11 @@ export const api = {
   listAllChannels: () => apiFetch("/api/master/channels"),
   getSettings: () => apiFetch("/api/master/settings"),
   updateSettings: (payload) => apiFetch("/api/master/settings", { method: "PATCH", body: JSON.stringify(payload) }),
+  uploadLogo: (file) => {
+    const formData = new FormData();
+    formData.append("logo", file);
+    return apiUpload("/api/master/logo", formData);
+  },
   systemStats: () => apiFetch("/api/master/system-stats"),
   activityLog: () => apiFetch("/api/master/activity"),
 
@@ -70,10 +75,16 @@ export const api = {
     apiFetch(`/api/admin/channels/${channel}/chat-mode`, { method: "POST", body: JSON.stringify({ chatMode }) }),
   setViewerCount: (channel, enabled) =>
     apiFetch(`/api/admin/channels/${channel}/viewer-count`, { method: "POST", body: JSON.stringify({ enabled }) }),
+  uploadChannelThumbnail: (channel, file) => {
+    const formData = new FormData();
+    formData.append("thumbnail", file);
+    return apiUpload(`/api/admin/channels/${channel}/thumbnail`, formData);
+  },
   createTestLink: (channel, displayName) =>
     apiFetch(`/api/admin/channels/${channel}/test-link`, { method: "POST", body: JSON.stringify({ displayName }) }),
   activeStudents: (channel) => apiFetch(`/api/admin/channels/${channel}/active-students`),
-  attendance: (channel) => apiFetch(`/api/admin/channels/${channel}/attendance`),
+  attendance: (channel, date) => apiFetch(`/api/admin/channels/${channel}/attendance${date ? `?date=${encodeURIComponent(date)}` : ""}`),
+  attendanceDates: (channel) => apiFetch(`/api/admin/channels/${channel}/attendance-dates`),
   createMonitorLink: (channel) => apiFetch(`/api/admin/channels/${channel}/monitor-link`, { method: "POST" }),
   revokeMonitorLink: (channel) => apiFetch(`/api/admin/channels/${channel}/monitor-link`, { method: "DELETE" }),
   moderate: (channel, payload) =>
