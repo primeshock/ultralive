@@ -66,7 +66,7 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
       if (action === "reveal") await api.revealPoll(id);
       if (action === "reset") await api.resetPoll(id);
       const list = await api.listPolls(channel);
-      setPolls(action === "close" ? list.filter((poll) => poll.isOpen) : list);
+      setPolls(list.filter((poll) => poll.isOpen));
       await loadResults(id);
       setMessage("انجام شد");
     } catch (error) {
