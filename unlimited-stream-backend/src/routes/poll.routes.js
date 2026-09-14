@@ -79,6 +79,19 @@ router.delete('/polls/:pollId/options/:optionId', async (req, res) => {
   res.json(poll);
 });
 
+router.patch('/polls/:pollId/options/:optionId', async (req, res) => {
+  const poll = await loadManagedPoll(req, res);
+  if (!poll) return;
+  const option = poll.options.id(req.params.optionId);
+  if (!option) return res.status(404).json({ error: 'گزینه پیدا نشد.' });
+  if (typeof req.body?.isCorrect !== 'boolean') return res.status(400).json({ error: 'مقدار صحیح/غلط نامعتبر است.' });
+  if (poll.mode === 'poll' && req.body.isCorrect) return res.status(400).json({ error: 'نظرسنجی گزینه صحیح ندارد.' });
+  if (req.body.isCorrect) poll.options.forEach((item) => { item.isCorrect = false; });
+  option.isCorrect = req.body.isCorrect;
+  await poll.save();
+  res.json(poll);
+});
+
 router.post('/polls/:pollId/close', async (req, res) => {
   const poll = await loadManagedPoll(req, res);
   if (!poll) return;

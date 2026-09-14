@@ -92,6 +92,16 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
     setPolls((current) => current.map((item) => item._id === updated._id ? updated : item));
   }
 
+  async function setCorrectOption(poll, optionId, isCorrect) {
+    try {
+      const updated = await api.setPollOptionCorrect(poll._id, optionId, isCorrect);
+      setPolls((current) => current.map((item) => item._id === updated._id ? updated : item));
+      setMessage("گزینه صحیح ذخیره شد.");
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
   async function loadResults(pollId) {
     const result = await api.pollResults(pollId);
     setResults((current) => ({ ...current, [pollId]: result }));
@@ -165,7 +175,7 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
             <AppleSwitch checked={poll.showResults} onChange={(checked) => toggleResults(poll, checked)} label="نتیجه برای دانش‌آموز" />
           </div>
           <div className="grid gap-2">
-            {poll.options.map((option, index) => <div key={option._id} className="flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index + 1}</span><span className="flex-1">{option.text}</span>{poll.options.length > 2 && <Button size="sm" variant="ghost" onClick={() => removeOption(poll, option._id)}>حذف</Button>}</div>)}
+            {poll.options.map((option, index) => <div key={option._id} className="flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index + 1}</span><span className="flex-1">{option.text}</span>{poll.mode === "quiz" && <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={Boolean(option.isCorrect)} onChange={(event) => setCorrectOption(poll, option._id, event.target.checked)} /> صحیح</label>}{poll.options.length > 2 && <Button size="sm" variant="ghost" onClick={() => removeOption(poll, option._id)}>حذف</Button>}</div>)}
           </div>
           <div className="flex gap-2"><Input placeholder="گزینه جدید" value={newOptions[poll._id] || ""} onChange={(event) => setNewOptions((current) => ({ ...current, [poll._id]: event.target.value }))} /><Button size="sm" variant="outline" onClick={() => addOption(poll)}>افزودن</Button><Button size="sm" variant="outline" onClick={() => loadResults(poll._id)}>نمودار</Button></div>
           {results[poll._id] && <PollResultsChart results={results[poll._id].results} />}
