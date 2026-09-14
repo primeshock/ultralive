@@ -44,6 +44,8 @@ const userSchema = new mongoose.Schema(
     // 'private' → students only see their own messages + this channel owner's/admin's messages
     chatMode: { type: String, enum: ['public', 'private'], default: 'public' },
     showViewerCount: { type: Boolean, default: false },
+    accessMode: { type: String, enum: ['private', 'public'], default: 'private' },
+    publicAccessToken: { type: String, default: '', select: false },
 
     // --- LiveKit Ingress (Phase 6) — empty until an admin provisions one ---
     livekitIngressId: { type: String, default: '' },

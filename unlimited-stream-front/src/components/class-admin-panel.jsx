@@ -23,6 +23,8 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
   const [message, setMessage] = useState("");
   const [results, setResults] = useState({});
   const [newOptions, setNewOptions] = useState({});
+  const [publicUrl, setPublicUrl] = useState("");
+  const [studentUrl, setStudentUrl] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -139,6 +141,27 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
     }
   }
 
+  async function clearChat() {
+    try { await api.clearChat(channel); setMessage("چت پاک شد."); } catch (error) { setMessage(error.message); }
+  }
+  async function endSession() {
+    try { await api.endSession(channel); setMessage("جلسه پایان یافت و چت پاک شد."); } catch (error) { setMessage(error.message); }
+  }
+  async function setAccess(mode, regenerate = false) {
+    try {
+      const result = await api.setClassAccess(channel, mode, regenerate);
+      setPublicUrl(result.publicUrl || "");
+      setMessage(mode === "public" ? "لینک همگانی آماده است." : "کلاس فقط از سایت اصلی قابل ورود است.");
+    } catch (error) { setMessage(error.message); }
+  }
+  async function createStudentLink() {
+    try {
+      const result = await api.createTestLink(channel, "دانش‌آموز API");
+      setStudentUrl(result.url);
+      setMessage("لینک موقت API ساخته شد.");
+    } catch (error) { setMessage(error.message); }
+  }
+
   async function createIngress() {
     try {
       setIngress(await api.createIngress(channel));
@@ -170,6 +193,14 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
         <AppleSwitch checked={Boolean(showViewerCount)} onChange={changeViewerCount} label="نمایش تعداد حاضرین" />
         <span className="rounded-full bg-black/5 px-3 py-1 text-xs dark:bg-white/10">حاضرین: {viewerCount}</span>
         <Button size="sm" variant="outline" onClick={createIngress}>دریافت کلید LiveKit</Button>
+        <Button size="sm" variant="outline" onClick={clearChat}>پاک‌کردن چت</Button>
+        <Button size="sm" variant="destructive" onClick={endSession}>پایان جلسه</Button>
+      </div>
+      <div className="rounded-2xl border border-border/80 bg-muted/35 p-3 text-xs dark:border-white/20 dark:bg-black/20">
+        <p className="mb-2 font-medium">دسترسی کلاس</p>
+        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setAccess("private")}>فقط سایت اصلی</Button><Button size="sm" variant="outline" onClick={createStudentLink}>لینک موقت API</Button><Button size="sm" variant="outline" onClick={() => setAccess("public")}>فعال‌کردن لینک همگانی</Button><Button size="sm" variant="ghost" onClick={() => setAccess("public", true)}>تغییر لینک همگانی</Button></div>
+        {studentUrl && <Input readOnly value={studentUrl} onFocus={(event) => event.target.select()} className="mt-2 text-xs" />}
+        {publicUrl && <Input readOnly value={publicUrl} onFocus={(event) => event.target.select()} className="mt-2 text-xs" />}
       </div>
       <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-black/5 p-3 text-xs dark:bg-white/5">
         {thumbnailUrl && <img src={thumbnailUrl} alt="" className="size-14 rounded-xl object-cover" />}

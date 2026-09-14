@@ -15,15 +15,21 @@ export default function ChannelPage({ params }) {
   const { username } = usePromise(params);
   const { user } = useAuth();
   const [channel, setChannel] = useState(null);
+  const [accessAllowed, setAccessAllowed] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [playback, setPlayback] = useState({ enabled: false, mode: "auto" });
   const [chatMode, setChatMode] = useState("public");
 
   useEffect(() => {
+    api.classAccess(username).then(({ allowed }) => setAccessAllowed(allowed)).catch(() => setAccessAllowed(false));
+  }, [username]);
+
+  useEffect(() => {
+    if (!accessAllowed) return;
     // Checked once — if LiveKit isn't configured on the server this stays
     // false forever and the player below behaves exactly as before.
     api.livekitStatus().then((s) => setPlayback({ enabled: Boolean(s?.enabled), mode: s?.playbackMode || "auto" })).catch(() => {});
-  }, []);
+  }, [accessAllowed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,7 +52,9 @@ export default function ChannelPage({ params }) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [username]);
+  }, [username, accessAllowed]);
+
+  if (accessAllowed === false) return <div className="flex-1 flex items-center justify-center px-4 text-center">برای ورود به کلاس باید از لینک سایت اصلی یا لینک همگانی کلاس استفاده کنید.</div>;
 
   if (notFound) {
     return (
@@ -56,7 +64,7 @@ export default function ChannelPage({ params }) {
     );
   }
 
-  if (!channel) {
+  if (accessAllowed === null || !channel) {
     return (
       <div className="flex-1 flex items-center justify-center">
         در حال بارگذاری...

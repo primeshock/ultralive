@@ -75,6 +75,10 @@ export const api = {
     apiFetch(`/api/admin/channels/${channel}/chat-mode`, { method: "POST", body: JSON.stringify({ chatMode }) }),
   setViewerCount: (channel, enabled) =>
     apiFetch(`/api/admin/channels/${channel}/viewer-count`, { method: "POST", body: JSON.stringify({ enabled }) }),
+  clearChat: (channel) => apiFetch(`/api/admin/channels/${channel}/clear-chat`, { method: "POST" }),
+  endSession: (channel) => apiFetch(`/api/admin/channels/${channel}/end-session`, { method: "POST" }),
+  setClassAccess: (channel, mode, regenerate = false) => apiFetch(`/api/admin/channels/${channel}/access`, { method: "POST", body: JSON.stringify({ mode, regenerate }) }),
+  classAccess: (channel) => apiFetch(`/api/session/access/${channel}`),
   uploadChannelThumbnail: (channel, file) => {
     const formData = new FormData();
     formData.append("thumbnail", file);

@@ -1,7 +1,7 @@
 const NodeMediaServer = require('node-media-server');
 const User = require('../models/User');
 const { rtmpPort, httpMediaPort, ffmpegPath } = require('../config/env');
-const { stopAutoReminder, syncAutoReminder, broadcastSystemMessage, setChatEnabled } = require('./chat');
+const { stopAutoReminder, syncAutoReminder, broadcastSystemMessage, setChatEnabled, clearChat } = require('./chat');
 
 // StreamPath looks like "/live/{username}" — the RTMP publish path is the public
 // channel name. The secret streamKey travels only as a query arg (?key=...) used
@@ -82,6 +82,7 @@ function createMediaServer() {
 
     await User.findOneAndUpdate({ username }, { isLive: false });
     stopAutoReminder(username);
+    await clearChat(username);
   });
 
   return nms;

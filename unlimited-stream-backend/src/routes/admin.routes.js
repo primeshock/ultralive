@@ -12,6 +12,7 @@ const chat = require('../services/chat');
 const { hashPassword } = require('../utils/password');
 const { uploadChannelThumbnail } = require('../controllers/user.controller');
 const { thumbnailUpload } = require('../utils/upload');
+const { clearChat, stopAutoReminder } = require('../services/chat');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner'));
@@ -75,6 +76,28 @@ router.post('/channels/:channel/viewer-count', loadOwnedChannel, async (req, res
   req.targetChannel.showViewerCount = req.body.enabled;
   await req.targetChannel.save();
   res.json({ showViewerCount: req.targetChannel.showViewerCount });
+});
+
+router.post('/channels/:channel/clear-chat', loadOwnedChannel, async (req, res) => {
+  await clearChat(req.targetChannel.username);
+  res.json({ ok: true });
+});
+
+router.post('/channels/:channel/end-session', loadOwnedChannel, async (req, res) => {
+  req.targetChannel.isLive = false;
+  await req.targetChannel.save();
+  stopAutoReminder(req.targetChannel.username);
+  await clearChat(req.targetChannel.username);
+  res.json({ ok: true });
+});
+
+router.post('/channels/:channel/access', loadOwnedChannel, async (req, res) => {
+  const mode = req.body?.mode;
+  if (!['private', 'public'].includes(mode)) return res.status(400).json({ error: 'حالت دسترسی نامعتبر است.' });
+  if (mode === 'public' && (!req.targetChannel.publicAccessToken || req.body?.regenerate)) req.targetChannel.publicAccessToken = crypto.randomBytes(24).toString('hex');
+  req.targetChannel.accessMode = mode;
+  await req.targetChannel.save();
+  res.json({ mode, publicUrl: mode === 'public' ? `${publicBaseUrl}/api/session/public/${req.targetChannel.publicAccessToken}` : null });
 });
 
 router.post('/channels/:channel/thumbnail', loadOwnedChannel, thumbnailUpload.single('thumbnail'), uploadChannelThumbnail);

@@ -1,7 +1,7 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
-const { checkStudentAccess } = require('../utils/checkStudentAccess');
+const { canAccessClass } = require('../utils/classAccess');
 
 const router = express.Router();
 
@@ -24,12 +24,8 @@ async function isRealAccount(req) {
 
 router.use('/live/:channel', async (req, res, next) => {
   const channel = req.params.channel.toLowerCase();
-  if (await isRealAccount(req)) return next();
-
-  try {
-    await checkStudentAccess(channel, req.cookies || {});
-    return next();
-  } catch {
+  if (await isRealAccount(req) || await canAccessClass(channel, req.cookies || {})) return next();
+  {
     return res.status(401).send('برای مشاهده این کلاس باید از طریق سایت اصلی وارد شوید.');
   }
 });

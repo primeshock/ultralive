@@ -3,6 +3,7 @@ const User = require('../models/User');
 const { requireAuth } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/requireRole');
 const { checkStudentAccess } = require('../utils/checkStudentAccess');
+const { canAccessClass } = require('../utils/classAccess');
 const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
 const { createStudentToken, createStaffToken, ensureIngress, deleteIngress, roomName } = require('../services/livekit');
 const { livekitEnabled, livekitWsUrl } = require('../config/env');
@@ -46,13 +47,17 @@ router.get('/token', async (req, res) => {
     }
   }
 
-  try {
+  if (await canAccessClass(channel, req.cookies || {})) {
+    try {
     const access = await checkStudentAccess(channel, req.cookies || {});
     const participantToken = await createStudentToken({ channel, identity: access.externalUserId, name: access.displayName });
     return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: 'student' });
-  } catch {
-    return res.status(401).json({ error: 'برای ورود به کلاس احراز هویت لازم است.' });
+    } catch {
+      const participantToken = await createStudentToken({ channel, identity: `public:${req.cookies[`public_class_${channel}`]}`, name: 'مهمان' });
+      return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: 'student' });
+    }
   }
+  return res.status(401).json({ error: 'برای ورود به کلاس احراز هویت لازم است.' });
 });
 
 router.get('/monitor-token/:token', async (req, res) => {

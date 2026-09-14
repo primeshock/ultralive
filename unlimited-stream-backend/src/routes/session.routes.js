@@ -65,6 +65,19 @@ router.get('/join', async (req, res) => {
   }).catch(() => {});
 });
 
+router.get('/public/:token', async (req, res) => {
+  const teacher = await User.findOne({ publicAccessToken: req.params.token, accessMode: 'public', role: 'teacher' }).select('+publicAccessToken');
+  if (!teacher) return res.status(404).send('لینک همگانی نامعتبر یا غیرفعال است.');
+  res.cookie(`public_class_${teacher.username}`, teacher.publicAccessToken, { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_TTL_MS });
+  res.redirect(`/channel/${teacher.username}`);
+});
+
+router.get('/access/:channel', async (req, res) => {
+  const { canAccessClass } = require('../utils/classAccess');
+  const channel = String(req.params.channel || '').toLowerCase();
+  res.json({ allowed: await canAccessClass(channel, req.cookies || {}) });
+});
+
 function issueCookiesAndRedirect(res, channel, session) {
   const token = signRoomSession({
     channel,

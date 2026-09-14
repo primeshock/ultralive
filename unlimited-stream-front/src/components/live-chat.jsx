@@ -71,6 +71,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
     function onState({ enabled }) {
       setChatEnabled(enabled);
     }
+    function onClear() { setMessages([]); setReplyTarget(null); }
     function onError({ message }) {
       setSendError(message);
       setTimeout(() => setSendError(""), 3000);
@@ -82,6 +83,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
     socket.on("chat:message", onMessage);
     socket.on("chat:system", onSystem);
     socket.on("chat:state", onState);
+    socket.on("chat:clear", onClear);
     socket.on("chat:error", onError);
 
     if (socket.connected) onConnect();
@@ -92,7 +94,8 @@ export function LiveChat({ channel, initialEnabled = true }) {
       socket.off("chat:history", onHistory);
       socket.off("chat:message", onMessage);
       socket.off("chat:system", onSystem);
-      socket.off("chat:state", onState);
+    socket.off("chat:state", onState);
+    socket.off("chat:clear", onClear);
       socket.off("chat:error", onError);
       socket.disconnect();
     };

@@ -6,6 +6,7 @@ const ChatMessage = require('../models/ChatMessage');
 const Moderation = require('../models/Moderation');
 const { corsOrigin } = require('../config/env');
 const { checkStudentAccess } = require('../utils/checkStudentAccess');
+const { canAccessClass } = require('../utils/classAccess');
 
 const HISTORY_LIMIT = 50;
 
@@ -87,8 +88,12 @@ function initChat(httpServer) {
           socket.data.studentId = access.externalUserId; // internal identity key
           socket.data.displayName = access.displayName || access.externalUserId;
         } catch {
-          socket.emit('chat:error', { message: 'برای چت باید از طریق سایت اصلی وارد شوید.' });
-          return;
+          if (!(await canAccessClass(room, socket.data.cookies || {}))) {
+            socket.emit('chat:error', { message: 'برای چت باید از طریق سایت اصلی وارد شوید.' });
+            return;
+          }
+          socket.data.studentId = `public:${socket.data.cookies[`public_class_${room}`]}`;
+          socket.data.displayName = 'مهمان';
         }
       }
 
@@ -211,6 +216,12 @@ function setChatEnabled(channel, enabled) {
   io?.to(room).emit('chat:state', { enabled });
 }
 
+async function clearChat(channel) {
+  const room = channel.toLowerCase();
+  await ChatMessage.deleteMany({ channel: room });
+  io?.to(room).emit('chat:clear');
+}
+
 function isMuted(channel, username) {
   const set = mutedUsersState.get(channel.toLowerCase());
   return set ? set.has(username.toLowerCase()) : false;
@@ -274,6 +285,7 @@ module.exports = {
   syncAutoReminder,
   isChatEnabled,
   setChatEnabled,
+  clearChat,
   isMuted,
   muteUser,
   unmuteUser,
