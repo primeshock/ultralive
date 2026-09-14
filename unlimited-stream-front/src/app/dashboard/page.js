@@ -177,7 +177,6 @@ function ThumbnailCard({ user, onSaved }) {
       setError(err.message || "برش تصویر انجام نشد");
     } finally {
       setUploading(false);
-      e.target.value = "";
     }
   }
 

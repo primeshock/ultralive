@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,22 +57,17 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (user && ["admin", "owner"].includes(user.role)) {
-      api.myManagedChannels().then((list) => {
-        setChannels(list);
-        if (list[0]) setSelected(list[0].username);
-      });
+      api.myManagedChannels()
+        .then((list) => {
+          setChannels(list);
+          if (list[0]) setSelected(list[0].username);
+        })
+        .catch((err) => setMsg(err.message || "دریافت لیست کلاس‌ها انجام نشد."));
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!selected) return;
-    refreshChannelData();
-    const id = setInterval(refreshChannelData, 15000);
-    return () => clearInterval(id);
-  }, [selected]);
-
-  async function refreshChannelData() {
-    const [mod, active, att, pollList, dates] = await Promise.all([
+  const refreshChannelData = useCallback(async () => {
+    const [mod, active, allAttendance, datedAttendance, pollList, dates] = await Promise.all([
       api.listModeration(selected).catch(() => []),
       api.activeStudents(selected).catch(() => []),
       api.attendance(selected).catch(() => []),
@@ -82,10 +77,20 @@ export default function AdminPage() {
     ]);
     setModList(mod);
     setActiveStudents(active);
-    setAttendance(att);
-      setAttendanceDates(dates);
+    setAttendance(attendanceDate ? datedAttendance : allAttendance);
+    setAttendanceDates(dates);
     setPolls(pollList.filter((poll) => poll.isOpen));
-  }
+  }, [attendanceDate, selected]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const initial = setTimeout(() => { void refreshChannelData(); }, 0);
+    const id = setInterval(refreshChannelData, 15000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+    };
+  }, [selected, refreshChannelData]);
 
   function handleChannelChange(username) {
     const current = channels.find((channel) => channel.username === username);

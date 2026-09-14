@@ -9,20 +9,32 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 
+function storedThemeIsDark() {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem("koosha-theme") === "dark";
+  } catch {
+    return false;
+  }
+}
+
 export function SiteHeader() {
   const { user, loading, setUser } = useAuth();
   const router = useRouter();
-  const [dark, setDark] = useState(() => typeof window !== "undefined" && localStorage.getItem("koosha-theme") === "dark");
+  const [dark, setDark] = useState(storedThemeIsDark);
 
   useEffect(() => {
-    const saved = localStorage.getItem("koosha-theme") === "dark";
-    document.documentElement.classList.toggle("dark", saved);
-  }, []);
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
   function toggleTheme() {
     const next = !dark;
     setDark(next);
-    localStorage.setItem("koosha-theme", next ? "dark" : "light");
+    try {
+      localStorage.setItem("koosha-theme", next ? "dark" : "light");
+    } catch {
+      // Keep the in-memory choice even when persistent storage is unavailable.
+    }
     document.documentElement.classList.toggle("dark", next);
   }
 

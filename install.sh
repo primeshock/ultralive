@@ -84,6 +84,75 @@ MONGO_VOLUME="unlimited-stream-mongo-data"
 NODE_MAJOR=20
 
 # ---------------------------------------------------------------------------
+# Existing installation: source-only update
+# ---------------------------------------------------------------------------
+# The public update command intentionally reuses this installer. Once the app
+# already exists, do not re-provision the machine: packages, Docker/Mongo,
+# Nginx, firewall rules, LiveKit files, and .env files are operational state.
+# Updating them during an ordinary source deploy is both slow and risky.
+update_existing_installation() {
+  log "به‌روزرسانی فقطِ source برای نصب موجود"
+
+  local rel backup_dir changes
+  backup_dir="/root/koosha-source-update-backups"
+  mkdir -p "$backup_dir"
+
+  # npm install from older deploys may have modified a lockfile. Preserve a
+  # copy, then restore only that generated file so it cannot block a fast-
+  # forward source update. Any other tracked change is deliberately left
+  # untouched and stops the deploy rather than being overwritten silently.
+  for rel in unlimited-stream-front/package-lock.json unlimited-stream-backend/package-lock.json; do
+    if ! git -C "$APP_DIR" diff --quiet -- "$rel"; then
+      cp "$APP_DIR/$rel" "$backup_dir/$(basename "$(dirname "$rel")")-$(basename "$rel").$(date +%Y%m%d%H%M%S)"
+      git -C "$APP_DIR" restore --source=HEAD --staged --worktree -- "$rel"
+      echo "نسخهٔ محلی $rel backup شد تا update متوقف نشود."
+    fi
+  done
+
+  changes="$(git -C "$APP_DIR" status --porcelain --untracked-files=no)"
+  if [[ -n "$changes" ]]; then
+    echo "❌ source روی سرور تغییر محلی دارد؛ برای جلوگیری از overwrite، update متوقف شد:"
+    echo "$changes"
+    echo "اول این تغییرات را commit/stash کن یا دستی بررسی‌شان کن؛ .env و داده‌ها دست‌نخورده مانده‌اند."
+    return 1
+  fi
+
+  git -C "$APP_DIR" fetch --prune origin "$REPO_BRANCH"
+  git -C "$APP_DIR" checkout -q "$REPO_BRANCH"
+  git -C "$APP_DIR" merge --ff-only "origin/$REPO_BRANCH"
+
+  # `npm ci` reads the committed lockfile and never rewrites it. The frontend
+  # needs devDependencies at build time; the backend does not.
+  (cd "$BACKEND_DIR" && npm ci --omit=dev)
+  (cd "$FRONTEND_DIR" && npm ci && npm run build -- --webpack)
+
+  if [[ ! -f "$APP_DIR/ecosystem.config.js" ]]; then
+    echo "❌ ecosystem.config.js پیدا نشد؛ این سرور نصب کامل ندارد."
+    return 1
+  fi
+  pm2 reload "$APP_DIR/ecosystem.config.js" --update-env
+  pm2 save
+
+  local attempt
+  for attempt in {1..15}; do
+    if curl -fsS --max-time 3 http://127.0.0.1/api/health >/dev/null; then
+      echo "✅ source update، build و reload با موفقیت انجام شد."
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "❌ PM2 reload شد، اما /api/health هنوز پاسخ درست نمی‌دهد."
+  echo "   بررسی کن: pm2 logs --lines 100"
+  return 1
+}
+
+if [[ -d "$APP_DIR/.git" ]]; then
+  update_existing_installation
+  exit $?
+fi
+
+# ---------------------------------------------------------------------------
 # 1/9 — base packages
 # ---------------------------------------------------------------------------
 log "1/9 آپدیت apt و نصب پکیج‌های پایه"

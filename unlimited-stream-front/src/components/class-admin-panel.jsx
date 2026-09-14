@@ -28,7 +28,7 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
     async function load() {
       try {
         const list = await api.listPolls(channel);
-        setPolls(list.filter((poll) => poll.isOpen));
+        setPolls(list.filter((poll) => poll.isOpen && Array.isArray(poll.options)));
         const loadedResults = await Promise.all(list.map(async (poll) => [poll._id, await api.pollResults(poll._id).catch(() => null)]));
         setResults(Object.fromEntries(loadedResults.filter(([, result]) => result)));
       } catch {
@@ -66,7 +66,7 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
       if (action === "reveal") await api.revealPoll(id);
       if (action === "reset") await api.resetPoll(id);
       const list = await api.listPolls(channel);
-      setPolls(list.filter((poll) => poll.isOpen));
+      setPolls(list.filter((poll) => poll.isOpen && Array.isArray(poll.options)));
       await loadResults(id);
       setMessage("انجام شد");
     } catch (error) {
@@ -75,21 +75,33 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
   }
 
   async function toggleResults(poll, showResults) {
-    const updated = await api.updatePoll(poll._id, { showResults });
-    setPolls((current) => current.map((item) => item._id === updated._id ? updated : item));
+    try {
+      const updated = await api.updatePoll(poll._id, { showResults });
+      setPolls((current) => current.map((item) => item._id === updated._id ? updated : item));
+    } catch (error) {
+      setMessage(error.message || "ذخیرهٔ تنظیمات انجام نشد.");
+    }
   }
 
   async function addOption(poll) {
     const text = (newOptions[poll._id] || "").trim();
     if (!text) return;
-    const updated = await api.addPollOption(poll._id, { text });
-    setPolls((current) => current.map((item) => item._id === updated._id ? updated : item));
-    setNewOptions((current) => ({ ...current, [poll._id]: "" }));
+    try {
+      const updated = await api.addPollOption(poll._id, { text });
+      setPolls((current) => current.map((item) => item._id === updated._id ? updated : item));
+      setNewOptions((current) => ({ ...current, [poll._id]: "" }));
+    } catch (error) {
+      setMessage(error.message || "افزودن گزینه انجام نشد.");
+    }
   }
 
   async function removeOption(poll, optionId) {
-    const updated = await api.removePollOption(poll._id, optionId);
-    setPolls((current) => current.map((item) => item._id === updated._id ? updated : item));
+    try {
+      const updated = await api.removePollOption(poll._id, optionId);
+      setPolls((current) => current.map((item) => item._id === updated._id ? updated : item));
+    } catch (error) {
+      setMessage(error.message || "حذف گزینه انجام نشد.");
+    }
   }
 
   async function setCorrectOption(poll, optionId, isCorrect) {
@@ -103,8 +115,28 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
   }
 
   async function loadResults(pollId) {
-    const result = await api.pollResults(pollId);
-    setResults((current) => ({ ...current, [pollId]: result }));
+    try {
+      const result = await api.pollResults(pollId);
+      setResults((current) => ({ ...current, [pollId]: result }));
+    } catch (error) {
+      setMessage(error.message || "دریافت نتایج انجام نشد.");
+    }
+  }
+
+  async function changeChatMode(mode) {
+    try {
+      await onChatMode(mode);
+    } catch (error) {
+      setMessage(error.message || "تغییر حالت چت انجام نشد.");
+    }
+  }
+
+  async function changeViewerCount(enabled) {
+    try {
+      await onViewerCount(enabled);
+    } catch (error) {
+      setMessage(error.message || "تغییر نمایش تعداد حاضرین انجام نشد.");
+    }
   }
 
   async function createIngress() {
@@ -133,9 +165,9 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
     <section className="glass-panel flex flex-col gap-3 rounded-3xl p-4">
       <div className="flex flex-wrap items-center gap-2">
         <strong className="text-sm">کنترل کلاس</strong>
-        <Button size="sm" variant={chatMode === "private" ? "outline" : "default"} onClick={() => onChatMode("public")}>چت عمومی</Button>
-        <Button size="sm" variant={chatMode === "private" ? "default" : "outline"} onClick={() => onChatMode("private")}>چت خصوصی</Button>
-        <AppleSwitch checked={showViewerCount} onChange={onViewerCount} label="نمایش تعداد حاضرین" />
+        <Button size="sm" variant={chatMode === "private" ? "outline" : "default"} onClick={() => changeChatMode("public")}>چت عمومی</Button>
+        <Button size="sm" variant={chatMode === "private" ? "default" : "outline"} onClick={() => changeChatMode("private")}>چت خصوصی</Button>
+        <AppleSwitch checked={Boolean(showViewerCount)} onChange={changeViewerCount} label="نمایش تعداد حاضرین" />
         <span className="rounded-full bg-black/5 px-3 py-1 text-xs dark:bg-white/10">حاضرین: {viewerCount}</span>
         <Button size="sm" variant="outline" onClick={createIngress}>دریافت کلید LiveKit</Button>
       </div>
@@ -172,13 +204,13 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
         <div key={poll._id} className="flex flex-col gap-3 border-t border-black/10 pt-3 text-sm dark:border-white/10">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-medium">{poll.question}</span>
-            <AppleSwitch checked={poll.showResults} onChange={(checked) => toggleResults(poll, checked)} label="نتیجه برای دانش‌آموز" />
+            <AppleSwitch checked={Boolean(poll.showResults)} onChange={(checked) => toggleResults(poll, checked)} label="نتیجه برای دانش‌آموز" />
           </div>
           <div className="grid gap-2">
             {poll.options.map((option, index) => <div key={option._id} className="flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index + 1}</span><span className="flex-1">{option.text}</span>{poll.mode === "quiz" && <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={Boolean(option.isCorrect)} onChange={(event) => setCorrectOption(poll, option._id, event.target.checked)} /> صحیح</label>}{poll.options.length > 2 && <Button size="sm" variant="ghost" onClick={() => removeOption(poll, option._id)}>حذف</Button>}</div>)}
           </div>
           <div className="flex gap-2"><Input placeholder="گزینه جدید" value={newOptions[poll._id] || ""} onChange={(event) => setNewOptions((current) => ({ ...current, [poll._id]: event.target.value }))} /><Button size="sm" variant="outline" onClick={() => addOption(poll)}>افزودن</Button><Button size="sm" variant="outline" onClick={() => loadResults(poll._id)}>نمودار</Button></div>
-          {results[poll._id] && <PollResultsChart results={results[poll._id].results} />}
+          {Array.isArray(results[poll._id]?.results) && <PollResultsChart results={results[poll._id].results} />}
           <span className="flex gap-1">
             <Button size="sm" variant="outline" onClick={() => pollAction(poll._id, "close")}>بستن</Button>
             <Button size="sm" variant="outline" onClick={() => pollAction(poll._id, "reveal")}>اعلام نتیجه</Button>
