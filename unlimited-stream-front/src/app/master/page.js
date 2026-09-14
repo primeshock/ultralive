@@ -25,6 +25,7 @@ export default function MasterPage() {
   const [msg, setMsg] = useState("");
 
   const [adminForm, setAdminForm] = useState({ username: "", password: "" });
+  const [adminEdits, setAdminEdits] = useState({});
   const [logoFile, setLogoFile] = useState(null);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function MasterPage() {
       api.activityLog().catch(() => []),
     ]);
     setAdmins(a);
+    setAdminEdits(Object.fromEntries((a || []).map((admin) => [admin._id || admin.id, { username: admin.username, password: "" }])));
     setSettings(s);
     setStats(st);
     setActivity(log);
@@ -59,6 +61,25 @@ export default function MasterPage() {
       await api.createAdmin(adminForm.username, adminForm.password);
       setAdminForm({ username: "", password: "" });
       flash("ادمین ساخته شد.");
+      loadAll();
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  async function handleUpdateAdmin(id) {
+    const edit = adminEdits[id] || {};
+    const payload = {};
+    if (edit.username) payload.username = edit.username.trim();
+    if (edit.password) payload.password = edit.password;
+    if (!payload.username && !payload.password) {
+      flash("یوزرنیم یا رمز جدید را وارد کنید.");
+      return;
+    }
+    try {
+      await api.updateAdmin(id, payload);
+      setAdminEdits((current) => ({ ...current, [id]: { ...current[id], password: "" } }));
+      flash("اطلاعات ادمین ذخیره شد.");
       loadAll();
     } catch (err) {
       flash(err.message);
@@ -203,10 +224,35 @@ export default function MasterPage() {
             <Button type="submit">ساخت</Button>
           </form>
           <Separator className="my-3" />
-          <ul className="text-sm flex flex-col gap-1">
-            {admins.map((a) => (
-              <li key={a._id}>{a.username}</li>
-            ))}
+          <p className="text-xs text-muted-foreground mb-2">رمز فعلی ذخیره نمی‌شود و قابل نمایش نیست. برای تغییر، رمز جدید وارد کنید.</p>
+          <ul className="text-sm flex flex-col gap-3">
+            {admins.map((a) => {
+              const id = a._id || a.id;
+              const edit = adminEdits[id] || { username: a.username, password: "" };
+              return (
+                <li key={id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] items-end border rounded-md p-3">
+                  <div className="grid gap-1.5">
+                    <Label>یوزرنیم</Label>
+                    <Input
+                      value={edit.username}
+                      onChange={(e) => setAdminEdits((current) => ({ ...current, [id]: { ...edit, username: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label>رمز عبور جدید</Label>
+                    <Input
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="بدون تغییر"
+                      value={edit.password}
+                      onChange={(e) => setAdminEdits((current) => ({ ...current, [id]: { ...edit, password: e.target.value } }))}
+                    />
+                  </div>
+                  <Button type="button" onClick={() => handleUpdateAdmin(id)}>ذخیره</Button>
+                </li>
+              );
+            })}
+            {admins.length === 0 && <li className="text-muted-foreground">ادمینی ساخته نشده است.</li>}
           </ul>
         </CardContent>
       </Card>

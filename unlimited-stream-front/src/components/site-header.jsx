@@ -48,7 +48,7 @@ export function SiteHeader() {
     <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between gap-4">
         <Link href="/" className="font-bold text-lg">
-          Koosha Live
+          Ultra Live
         </Link>
 
         <nav className="flex items-center gap-2">

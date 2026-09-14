@@ -12,6 +12,7 @@ const { requireAuth } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/requireRole');
 const { hashPassword } = require('../utils/password');
 const { generateStreamKey } = require('../utils/streamKey');
+const { allocateClassUsername, normalizeDisplayName, normalizeStreamTitle } = require('../utils/classIdentity');
 const { publicBaseUrl } = require('../config/env');
 
 const router = express.Router();
@@ -41,34 +42,81 @@ router.post('/admins', async (req, res) => {
 
 router.get('/admins', async (_req, res) => {
   const admins = await User.find({ role: 'admin' }).select('username displayName createdAt');
-  res.json(admins);
+  res.json(admins.map((admin) => ({
+    _id: admin._id,
+    id: admin._id,
+    username: admin.username,
+    displayName: admin.displayName,
+    createdAt: admin.createdAt,
+  })));
 });
 
-// Create a channel (= a class). teacherPassword is a real login the teacher
-// can use directly if you want them able to log in too; otherwise generate
-// something random and never share it — the admin manages the channel instead.
-router.post('/channels', async (req, res) => {
-  const { username, password, managedBy, displayName, streamTitle } = req.body || {};
-  if (!USERNAME_RE.test(username || '') || !password || password.length < 8 || !managedBy) {
-    return res.status(400).json({ error: 'یوزرنیم، رمز عبور، و شناسه ادمین مدیر لازم است.' });
+router.patch('/admins/:id', async (req, res) => {
+  const admin = await User.findOne({ _id: req.params.id, role: 'admin' });
+  if (!admin) return res.status(404).json({ error: 'ادمین پیدا نشد.' });
+
+  const { username, password, displayName } = req.body || {};
+  if (username === undefined && password === undefined && displayName === undefined) {
+    return res.status(400).json({ error: 'حداقل یوزرنیم یا رمز عبور جدید لازم است.' });
   }
+  if (username !== undefined) {
+    if (!USERNAME_RE.test(username || '')) {
+      return res.status(400).json({ error: 'یوزرنیم باید ۳ تا ۲۴ کاراکتر انگلیسی، عدد یا _ باشد.' });
+    }
+    const next = username.toLowerCase();
+    const taken = await User.findOne({ username: next, _id: { $ne: admin._id } });
+    if (taken) return res.status(409).json({ error: 'این یوزرنیم قبلاً استفاده شده.' });
+    const previousUsername = admin.username;
+    admin.username = next;
+    if (!displayName && (!admin.displayName || admin.displayName === previousUsername)) admin.displayName = next;
+  }
+  if (displayName !== undefined) {
+    const name = String(displayName).trim();
+    if (!name || name.length > 80) return res.status(400).json({ error: 'نام نمایشی نامعتبر است.' });
+    admin.displayName = name;
+  }
+  if (password !== undefined) {
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'رمز عبور جدید باید حداقل ۸ کاراکتر باشد.' });
+    }
+    admin.passwordHash = await hashPassword(password);
+  }
+  await admin.save();
+  res.json({ id: admin._id, username: admin.username, displayName: admin.displayName, role: admin.role });
+});
+
+// Create a channel (= a class). Internal username is allocated automatically.
+router.post('/channels', async (req, res) => {
+  const { password, managedBy } = req.body || {};
+  const displayName = normalizeDisplayName(req.body?.displayName || req.body?.username);
+  const streamTitle = normalizeStreamTitle(req.body?.streamTitle ?? '');
+  if (!displayName || !managedBy) {
+    return res.status(400).json({ error: 'نام کلاس و شناسه ادمین مدیر لازم است.' });
+  }
+  if (streamTitle === null) return res.status(400).json({ error: 'عنوان کلاس بیش از حد طولانی است.' });
   const admin = await User.findOne({ _id: managedBy, role: 'admin' });
   if (!admin) return res.status(400).json({ error: 'ادمین مدیر پیدا نشد.' });
 
-  const exists = await User.findOne({ username: username.toLowerCase() });
-  if (exists) return res.status(409).json({ error: 'این یوزرنیم قبلاً استفاده شده.' });
+  let username;
+  const requested = String(req.body?.username || '').trim().toLowerCase();
+  if (requested && USERNAME_RE.test(requested)) {
+    if (await User.findOne({ username: requested })) return res.status(409).json({ error: 'این کلاس قبلاً ثبت شده است.' });
+    username = requested;
+  } else {
+    username = await allocateClassUsername();
+  }
 
-  const passwordHash = await hashPassword(password);
+  const passwordHash = await hashPassword(password && password.length >= 8 ? password : require('crypto').randomBytes(32).toString('hex'));
   const channel = await User.create({
-    username: username.toLowerCase(),
+    username,
     passwordHash,
     streamKey: generateStreamKey(),
-    displayName: displayName || username,
+    displayName,
     streamTitle: streamTitle || '',
     role: 'teacher',
     managedBy: admin._id,
   });
-  res.status(201).json({ id: channel._id, username: channel.username, streamKey: channel.streamKey });
+  res.status(201).json({ id: channel._id, username: channel.username, displayName: channel.displayName, streamTitle: channel.streamTitle, streamKey: channel.streamKey });
 });
 
 router.get('/channels', async (_req, res) => {

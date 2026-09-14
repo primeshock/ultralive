@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +36,8 @@ export default function AdminPage() {
   const [channels, setChannels] = useState([]);
   const [selected, setSelected] = useState("");
   const [msg, setMsg] = useState("");
-  const [classForm, setClassForm] = useState({ username: "", displayName: "", streamTitle: "" });
+  const [classForm, setClassForm] = useState({ displayName: "", streamTitle: "" });
+  const [editForm, setEditForm] = useState({ displayName: "", streamTitle: "", donateUrl: "" });
 
   const [testLink, setTestLink] = useState("");
   const [monitorLink, setMonitorLink] = useState("");
@@ -60,7 +62,17 @@ export default function AdminPage() {
       api.myManagedChannels()
         .then((list) => {
           setChannels(list);
-          if (list[0]) setSelected(list[0].username);
+          if (list[0]) {
+            setSelected(list[0].username);
+            setEditForm({
+              displayName: list[0].displayName || "",
+              streamTitle: list[0].streamTitle || "",
+              donateUrl: list[0].donateUrl || "",
+            });
+            if (list[0].livekitIngressUrl && list[0].livekitStreamKey) {
+              setIngressInfo({ url: list[0].livekitIngressUrl, streamKey: list[0].livekitStreamKey });
+            }
+          }
         })
         .catch((err) => setMsg(err.message || "دریافت لیست کلاس‌ها انجام نشد."));
     }
@@ -92,12 +104,21 @@ export default function AdminPage() {
     };
   }, [selected, refreshChannelData]);
 
+  function classLabel(channel) {
+    return channel.displayName || channel.streamTitle || "کلاس";
+  }
+
   function handleChannelChange(username) {
     const current = channels.find((channel) => channel.username === username);
     setSelected(username);
     setTestLink("");
     setMonitorLink("");
     setIngressInfo(current?.livekitIngressUrl && current?.livekitStreamKey ? { url: current.livekitIngressUrl, streamKey: current.livekitStreamKey } : null);
+    setEditForm({
+      displayName: current?.displayName || "",
+      streamTitle: current?.streamTitle || "",
+      donateUrl: current?.donateUrl || "",
+    });
   }
 
   function flash(text) {
@@ -130,8 +151,20 @@ export default function AdminPage() {
       const channel = await api.createManagedChannel(classForm);
       setChannels((current) => [...current, channel]);
       setSelected(channel.username);
-      setClassForm({ username: "", displayName: "", streamTitle: "" });
+      setClassForm({ displayName: "", streamTitle: "" });
+      setEditForm({ displayName: channel.displayName || "", streamTitle: channel.streamTitle || "", donateUrl: channel.donateUrl || "" });
       flash("کلاس ساخته شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  async function handleUpdateClass(e) {
+    e.preventDefault();
+    try {
+      const updated = await api.updateManagedChannel(selected, editForm);
+      setChannels((current) => current.map((channel) => channel.username === selected ? { ...channel, ...updated } : channel));
+      flash("اطلاعات کلاس ذخیره شد.");
     } catch (err) {
       flash(err.message);
     }
@@ -233,9 +266,8 @@ export default function AdminPage() {
         <CardHeader><CardTitle>ساخت کلاس جدید</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleCreateClass} className="grid gap-3 sm:grid-cols-2">
-            <Input placeholder="نام کاربری کلاس، مثل algebra1" value={classForm.username} onChange={(e) => setClassForm({ ...classForm, username: e.target.value })} required />
-            <Input placeholder="نام نمایشی کلاس" value={classForm.displayName} onChange={(e) => setClassForm({ ...classForm, displayName: e.target.value })} />
-            <Input placeholder="عنوان استریم" value={classForm.streamTitle} onChange={(e) => setClassForm({ ...classForm, streamTitle: e.target.value })} />
+            <Input placeholder="نام کلاس" value={classForm.displayName} onChange={(e) => setClassForm({ ...classForm, displayName: e.target.value })} required />
+            <Input placeholder="عنوان کلاس (اختیاری)" value={classForm.streamTitle} onChange={(e) => setClassForm({ ...classForm, streamTitle: e.target.value })} />
             <Button type="submit" className="sm:col-span-2 justify-self-start">ساخت کلاس</Button>
           </form>
         </CardContent>
@@ -246,7 +278,7 @@ export default function AdminPage() {
         <select className="border rounded-md h-9 px-2 text-sm bg-background" value={selected} onChange={(e) => handleChannelChange(e.target.value)}>
           {channels.map((c) => (
             <option key={c.username} value={c.username}>
-              {c.username} {c.isLive ? "· لایو" : ""}
+              {classLabel(c)} {c.isLive ? "· لایو" : ""}
             </option>
           ))}
         </select>
@@ -254,6 +286,20 @@ export default function AdminPage() {
 
       {selected && (
         <>
+          <Card>
+            <CardHeader><CardTitle>ویرایش اطلاعات کلاس</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpdateClass} className="grid gap-3 sm:grid-cols-2">
+                <Input placeholder="نام کلاس" value={editForm.displayName} onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })} required />
+                <Input placeholder="عنوان کلاس" value={editForm.streamTitle} onChange={(e) => setEditForm({ ...editForm, streamTitle: e.target.value })} />
+                <Input className="sm:col-span-2" placeholder="لینک دونیت (اختیاری)" value={editForm.donateUrl} onChange={(e) => setEditForm({ ...editForm, donateUrl: e.target.value })} />
+                <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+                  <Button type="submit">ذخیره تغییرات</Button>
+                  <Button type="button" variant="outline" nativeButton={false} render={<Link href={`/channel/${selected}`} />}>باز کردن صفحه کلاس</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
           {/* Chat mode + links */}
           <Card>
             <CardHeader><CardTitle>چت و دسترسی</CardTitle></CardHeader>

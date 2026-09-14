@@ -7,13 +7,14 @@ import { api } from "@/lib/api";
 export function LiveKitPlayer({ channel, className, poster, connection }) {
   const mediaRef = useRef(null);
   const roomRef = useRef(null);
-  const attachedTracksRef = useRef(new Set());
+  const attachedRef = useRef(new Set());
 
   const [state, setState] = useState("CONNECTING");
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [hasVideo, setHasVideo] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,31 +38,48 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
 
         roomRef.current = room;
 
-        const attachTrack = (track) => {
+        function attachTrack(track) {
           const media = mediaRef.current;
-          if (!media || !track) return;
 
-          if (attachedTracksRef.current.has(track.sid)) return;
+          if (!media || cancelled || !track) return;
+
+          if (
+            track.kind !== lk.Track.Kind.Video &&
+            track.kind !== lk.Track.Kind.Audio
+          ) {
+            return;
+          }
+
+          if (attachedRef.current.has(track)) return;
 
           track.attach(media);
-          attachedTracksRef.current.add(track.sid);
+          attachedRef.current.add(track);
 
-          if (media.paused) {
-            media.play()
-              .then(() => setPlaying(true))
-              .catch(() => setPlaying(false));
+          if (track.kind === lk.Track.Kind.Video) {
+            setHasVideo(true);
           }
-        };
 
-        const detachTrack = (track) => {
+          media
+            .play()
+            .then(() => setPlaying(true))
+            .catch(() => setPlaying(false));
+        }
+
+        function detachTrack(track) {
           if (!track) return;
 
-          track.detach();
-
-          if (track.sid) {
-            attachedTracksRef.current.delete(track.sid);
+          try {
+            track.detach();
+          } catch {
+            // already detached
           }
-        };
+
+          attachedRef.current.delete(track);
+
+          if (track.kind === lk.Track.Kind.Video) {
+            setHasVideo(false);
+          }
+        }
 
         room.on(lk.RoomEvent.ConnectionStateChanged, (s) => {
           if (s === "connected") setState("LIVE");
@@ -85,12 +103,7 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
         });
 
         room.on(lk.RoomEvent.TrackSubscribed, (track) => {
-          if (
-            track.kind === lk.Track.Kind.Video ||
-            track.kind === lk.Track.Kind.Audio
-          ) {
-            attachTrack(track);
-          }
+          attachTrack(track);
         });
 
         room.on(lk.RoomEvent.TrackUnsubscribed, (track) => {
@@ -105,13 +118,7 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
 
         for (const participant of room.remoteParticipants.values()) {
           for (const publication of participant.trackPublications.values()) {
-            if (
-              publication.track &&
-              (
-                publication.kind === lk.Track.Kind.Video ||
-                publication.kind === lk.Track.Kind.Audio
-              )
-            ) {
+            if (publication.track) {
               attachTrack(publication.track);
             }
           }
@@ -129,111 +136,119 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
     return () => {
       cancelled = true;
 
-      for (const track of attachedTracksRef.current) {
-        attachedTracksRef.current.delete(track);
+      for (const track of attachedRef.current) {
+        try {
+          track.detach();
+        } catch {
+          // already detached
+        }
       }
+
+      attachedRef.current.clear();
 
       room?.disconnect();
       roomRef.current = null;
 
       const media = mediaRef.current;
+
       if (media) {
         media.srcObject = null;
       }
     };
   }, [channel, connection, attempt]);
 
-  function togglePlayback() {
+  const retry = () => {
+    setError("");
+    setState("CONNECTING");
+    setPlaying(false);
+    setHasVideo(false);
+    setAttempt((value) => value + 1);
+  };
+
+  const togglePlay = async () => {
     const media = mediaRef.current;
+
     if (!media) return;
 
-    if (media.paused) {
-      media.play()
-        .then(() => setPlaying(true))
-        .catch(() => {});
-    } else {
-      media.pause();
+    try {
+      if (media.paused) {
+        await media.play();
+        setPlaying(true);
+      } else {
+        media.pause();
+        setPlaying(false);
+      }
+    } catch {
       setPlaying(false);
     }
-  }
+  };
 
-  function toggleMute() {
+  const toggleMute = () => {
     const media = mediaRef.current;
+
     if (!media) return;
 
     media.muted = !media.muted;
     setMuted(media.muted);
-  }
-
-  function reconnect() {
-    roomRef.current?.disconnect();
-    setError("");
-    setState("CONNECTING");
-    setAttempt((value) => value + 1);
-  }
+  };
 
   return (
-    <div className={`relative bg-black ${className || ""}`}>
+    <div className={`relative overflow-hidden bg-black ${className || ""}`}>
       <video
         ref={mediaRef}
-        className="w-full h-full object-contain"
+        className="h-full w-full object-contain"
         poster={poster}
+        autoPlay
         playsInline
+        muted={muted}
+        controls={false}
       />
 
-      <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
-        <div className="rounded-full bg-black/60 px-3 py-1 text-xs text-white backdrop-blur">
-          {state === "LIVE"
-            ? "پخش زنده"
-            : state === "CONNECTING"
-              ? "در حال اتصال"
-              : "قطع شده"}
-        </div>
+      {!hasVideo && state !== "LIVE" && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white">
+          <div className="text-center">
+            <div className="mb-2 text-sm">
+              {error || "در حال اتصال به پخش زنده..."}
+            </div>
 
-        <span className="rounded-full bg-red-600 px-3 py-1 text-xs text-white">
-          SHADOWKIT
-        </span>
-      </div>
-
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent p-4 pt-10">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={togglePlayback}
-            className="rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
-            aria-label={playing ? "توقف" : "پخش"}
-          >
-            {playing ? (
-              <Pause className="size-4" />
-            ) : (
-              <Play className="size-4" />
+            {error && (
+              <button
+                type="button"
+                onClick={retry}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20"
+              >
+                <RefreshCw className="h-4 w-4" />
+                تلاش مجدد
+              </button>
             )}
-          </button>
-
-          <button
-            type="button"
-            onClick={toggleMute}
-            className="rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
-            aria-label={muted ? "فعال‌کردن صدا" : "بی‌صدا کردن"}
-          >
-            {muted ? (
-              <VolumeX className="size-4" />
-            ) : (
-              <Volume2 className="size-4" />
-            )}
-          </button>
+          </div>
         </div>
+      )}
 
-        {state === "OFFLINE" && (
-          <button
-            type="button"
-            onClick={reconnect}
-            className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-2 text-xs text-white hover:bg-white/25"
-          >
-            <RefreshCw className="size-4" />
-            تلاش دوباره
-          </button>
-        )}
+      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={togglePlay}
+          className="rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+        >
+          {playing ? (
+            <Pause className="h-4 w-4" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleMute}
+          className="rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+        >
+          {muted ? (
+            <VolumeX className="h-4 w-4" />
+          ) : (
+            <Volume2 className="h-4 w-4" />
+          )}
+        </button>
       </div>
     </div>
   );

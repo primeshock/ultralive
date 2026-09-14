@@ -56,6 +56,8 @@ export const api = {
   createAdmin: (username, password) =>
     apiFetch("/api/master/admins", { method: "POST", body: JSON.stringify({ username, password }) }),
   listAdmins: () => apiFetch("/api/master/admins"),
+  updateAdmin: (id, payload) =>
+    apiFetch(`/api/master/admins/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   createChannel: (payload) => apiFetch("/api/master/channels", { method: "POST", body: JSON.stringify(payload) }),
   listAllChannels: () => apiFetch("/api/master/channels"),
   getSettings: () => apiFetch("/api/master/settings"),
@@ -71,6 +73,8 @@ export const api = {
   // --- Admin panel (admin + owner) ---
   myManagedChannels: () => apiFetch("/api/admin/channels"),
   createManagedChannel: (payload) => apiFetch("/api/admin/channels", { method: "POST", body: JSON.stringify(payload) }),
+  updateManagedChannel: (channel, payload) =>
+    apiFetch(`/api/admin/channels/${channel}`, { method: "PATCH", body: JSON.stringify(payload) }),
   setChatMode: (channel, chatMode) =>
     apiFetch(`/api/admin/channels/${channel}/chat-mode`, { method: "POST", body: JSON.stringify({ chatMode }) }),
   setViewerCount: (channel, enabled) =>

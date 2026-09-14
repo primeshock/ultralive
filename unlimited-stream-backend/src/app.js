@@ -34,7 +34,7 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 // application/json bodies and leaves this one alone, but this route is kept
 // explicit and right after cors/helmet so nothing else can ever intercept the
 // stream first.
-app.use('/api/livekit/webhook', express.raw({ type: 'application/webhook+json' }), livekitWebhookRoutes);
+app.use('/api/livekit/webhook', express.raw({ type: () => true, limit: '1mb' }), livekitWebhookRoutes);
 app.use(express.json());
 app.use(cookieParser());
 

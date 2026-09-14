@@ -21,7 +21,7 @@ KooshaLive یک پلتفرم کلاس آنلاین زنده برای یک مؤس
 
 - IP: `37.202.246.54`
 - branch deploy: `koosha-live-current`
-- آخرین deploy تأییدشده در زمان این سند: `3997cc8`؛ تغییرات بعدی این workspace باید پس از push جداگانه روی VPS update شوند.
+- آخرین commit این workspace و branch deploy: `e1d36d8`؛ قبل از این سند، deploy موفق `3997cc8` تأیید شده بود. تغییرات بعدی باید پس از push جداگانه روی VPS update شوند.
 - Backend و frontend با PM2 آنلاین بودند.
 - `GET http://127.0.0.1/api/health` پاسخ `{"ok":true}` داده است.
 - LiveKit، Redis و LiveKit Ingress در Docker اجرا شدند.

@@ -5,20 +5,6 @@ const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
 
 const router = express.Router();
 
-async function identify(req) {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (token) {
-    try {
-      const { sub } = verifyToken(token);
-      return `staff:${sub}`; // real accounts can also vote, tracked separately from students
-    } catch {
-      /* fall through */
-    }
-  }
-  const access = await checkStudentAccess(req.params.channel.toLowerCase(), req.cookies || {});
-  return access.externalUserId;
-}
-
 async function getIdentity(req) {
   const token = req.cookies?.[COOKIE_NAME];
   if (token) {
