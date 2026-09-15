@@ -11,7 +11,9 @@ router.post('/', async (req, res) => {
     // req.body must be the raw Buffer/string here — see the express.raw()
     // middleware applied to this route's mount point in app.js. Signature
     // verification fails silently (wrong secret error) if JSON-parsed first.
-    const event = await receiver.receive(req.body, req.get('Authorization'));
+    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
+    if (!raw.length) return res.status(400).json({ error: 'Empty webhook' });
+    const event = await receiver.receive(raw, req.get('Authorization'));
     await handleWebhook(event);
     res.json({ ok: true });
   } catch (err) {

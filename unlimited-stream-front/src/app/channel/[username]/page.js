@@ -47,7 +47,7 @@ export default function ChannelPage({ params }) {
     }
 
     load();
-    const id = setInterval(load, 10000);
+    const id = setInterval(load, 3000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -117,10 +117,10 @@ export default function ChannelPage({ params }) {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">
-              {channel.streamTitle || `پخش زنده ${channel.username}`}
+              {channel.streamTitle || channel.displayName || "کلاس زنده"}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {channel.displayName || channel.username}{channel.showViewerCount && ` · ${channel.viewerCount || 0} بیننده`}
+              {channel.displayName || "کلاس"}{channel.showViewerCount && ` · ${channel.viewerCount || 0} بیننده`}
             </p>
           </div>
           <div className="flex items-center gap-2">

@@ -10,6 +10,7 @@ const { requireRole } = require('../middleware/requireRole');
 const { publicBaseUrl, wpJoinSecret } = require('../config/env');
 const chat = require('../services/chat');
 const { hashPassword } = require('../utils/password');
+const { allocateClassUsername, normalizeDisplayName, normalizeStreamTitle } = require('../utils/classIdentity');
 const { uploadChannelThumbnail } = require('../controllers/user.controller');
 const { thumbnailUpload } = require('../utils/upload');
 const { clearChat, stopAutoReminder } = require('../services/chat');
@@ -20,7 +21,7 @@ router.use(requireAuth, requireRole('admin', 'owner'));
 async function myChannels(req) {
   const filter = { role: 'teacher' };
   if (req.user.role === 'admin') filter.managedBy = req.user._id;
-  return User.find(filter).select('username displayName streamTitle streamKey livekitIngressUrl livekitStreamKey isLive chatEnabled chatMode showViewerCount managedBy');
+  return User.find(filter).select('username displayName streamTitle donateUrl streamKey livekitIngressUrl livekitStreamKey isLive chatEnabled chatMode showViewerCount managedBy');
 }
 
 router.get('/channels', async (req, res) => res.json(await myChannels(req)));
@@ -35,19 +36,28 @@ async function loadOwnedChannel(req, res, next) {
 }
 
 router.post('/channels', async (req, res) => {
-  const { username, displayName, streamTitle } = req.body || {};
-  if (!/^[a-z0-9_]{3,24}$/i.test(username || '')) {
-    return res.status(400).json({ error: 'نام کلاس معتبر لازم است.' });
+  const displayName = normalizeDisplayName(req.body?.displayName);
+  const streamTitle = normalizeStreamTitle(req.body?.streamTitle ?? '');
+  if (!displayName) return res.status(400).json({ error: 'نام کلاس لازم است (حداکثر ۸۰ کاراکتر).' });
+  if (streamTitle === null) return res.status(400).json({ error: 'عنوان کلاس بیش از حد طولانی است.' });
+
+  // Keep supporting an existing internal slug if a legacy client sends one;
+  // new UI never collects a class username.
+  let username;
+  const requested = String(req.body?.username || '').trim().toLowerCase();
+  if (requested) {
+    if (!/^[a-z0-9_]{3,24}$/.test(requested)) return res.status(400).json({ error: 'شناسه داخلی کلاس نامعتبر است.' });
+    if (await User.findOne({ username: requested })) return res.status(409).json({ error: 'این کلاس قبلاً ثبت شده است.' });
+    username = requested;
+  } else {
+    username = await allocateClassUsername();
   }
-  const normalizedUsername = username.toLowerCase();
-  const exists = await User.findOne({ username: normalizedUsername });
-  if (exists) return res.status(409).json({ error: 'این نام قبلاً استفاده شده است.' });
 
   const channel = await User.create({
-    username: normalizedUsername,
-    passwordHash: await hashPassword(require('crypto').randomBytes(32).toString('hex')),
+    username,
+    passwordHash: await hashPassword(crypto.randomBytes(32).toString('hex')),
     streamKey: require('../utils/streamKey').generateStreamKey(),
-    displayName: displayName || normalizedUsername,
+    displayName,
     streamTitle: streamTitle || '',
     role: 'teacher',
     managedBy: req.user.role === 'admin' ? req.user._id : null,
@@ -56,8 +66,33 @@ router.post('/channels', async (req, res) => {
     username: channel.username,
     displayName: channel.displayName,
     streamTitle: channel.streamTitle,
+    donateUrl: channel.donateUrl,
     streamKey: channel.streamKey,
     managedBy: channel.managedBy,
+  });
+});
+
+router.patch('/channels/:channel', loadOwnedChannel, async (req, res) => {
+  const { displayName, streamTitle, donateUrl } = req.body || {};
+  if (displayName !== undefined) {
+    const name = normalizeDisplayName(displayName);
+    if (!name) return res.status(400).json({ error: 'نام کلاس لازم است (حداکثر ۸۰ کاراکتر).' });
+    req.targetChannel.displayName = name;
+  }
+  if (streamTitle !== undefined) {
+    const title = normalizeStreamTitle(streamTitle);
+    if (title === null) return res.status(400).json({ error: 'عنوان کلاس بیش از حد طولانی است.' });
+    req.targetChannel.streamTitle = title;
+  }
+  if (donateUrl !== undefined) {
+    req.targetChannel.donateUrl = String(donateUrl || '').trim().slice(0, 500);
+  }
+  await req.targetChannel.save();
+  res.json({
+    username: req.targetChannel.username,
+    displayName: req.targetChannel.displayName,
+    streamTitle: req.targetChannel.streamTitle,
+    donateUrl: req.targetChannel.donateUrl,
   });
 });
 

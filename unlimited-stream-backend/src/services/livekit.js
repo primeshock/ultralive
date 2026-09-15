@@ -43,11 +43,9 @@ async function createStaffToken({ channel, identity, name, publish = false }) {
   return token.toJwt();
 }
 
-// Creates (or returns the existing) RTMP ingress for a channel. The teacher
-// adds the returned url+streamKey as an ADDITIONAL output in OBS (alongside
-// the existing rtmp://SERVER:1935/live output) — this is a real limitation:
-// LiveKit's Ingress is a separate RTMP endpoint, not something that can sit
-// behind our own node-media-server transparently. See LIVEKIT.md.
+// Creates (or returns the existing) RTMP ingress for a class. OBS uses this
+// single LiveKit destination; the legacy RTMP/HLS pipeline remains only as
+// compatibility code and is not required for the current viewer path.
 async function ensureIngress(channelDoc) {
   assertEnabled();
   if (channelDoc.livekitIngressId && channelDoc.livekitIngressUrl && channelDoc.livekitStreamKey) {
@@ -85,18 +83,59 @@ async function deleteIngress(channelDoc) {
   await channelDoc.save();
 }
 
+function webhookIdentity(event) {
+  return String(event.ingressInfo?.participantIdentity || event.participant?.identity || '');
+}
+
+function webhookRoomName(event) {
+  return String(event.ingressInfo?.roomName || event.room?.name || '');
+}
+
+function isIngressParticipant(identity) {
+  return identity.toLowerCase().startsWith('ingress:');
+}
+
+async function resolveWebhookChannel(event) {
+  const ingressId = event.ingressInfo?.ingressId;
+  if (ingressId) {
+    const byIngress = await User.findOne({ livekitIngressId: ingressId, role: 'teacher' }).select('username');
+    if (byIngress) return byIngress.username;
+  }
+
+  const identity = webhookIdentity(event);
+  const room = webhookRoomName(event);
+  const candidates = [];
+  if (isIngressParticipant(identity)) candidates.push(identity.slice('ingress:'.length).toLowerCase());
+  if (room.toLowerCase().startsWith('class_')) candidates.push(room.slice('class_'.length).toLowerCase());
+
+  for (const username of candidates) {
+    if (!username) continue;
+    const doc = await User.findOne({ username, role: 'teacher' }).select('username');
+    if (doc) return doc.username;
+  }
+  return null;
+}
+
 // Keeps User.isLive in sync when the stream arrives via LiveKit Ingress
 // instead of (or in addition to) the existing RTMP→node-media-server path.
 async function handleWebhook(event) {
-  const type = event.event;
-  const identity = event.ingressInfo?.participantIdentity || event.participant?.identity || '';
-  const channel = identity.startsWith('ingress:') ? identity.slice('ingress:'.length).toLowerCase() : null;
+  const type = String(event.event || '');
+  const identity = webhookIdentity(event);
+  const ingressParticipant = isIngressParticipant(identity);
+
+  // Student/staff join/leave must never flip isLive. Viewers cannot publish, so
+  // track_published is always the Ingress publisher for this product.
+  const goLive =
+    type === 'ingress_started' ||
+    type === 'track_published' ||
+    (type === 'participant_joined' && ingressParticipant);
+  const goOffline = type === 'ingress_ended' || (type === 'participant_left' && ingressParticipant);
+  if (!goLive && !goOffline) return;
+
+  const channel = await resolveWebhookChannel(event);
   if (!channel) return;
-  if (type === 'ingress_started' || type === 'participant_joined') {
-    await User.findOneAndUpdate({ username: channel, role: 'teacher' }, { isLive: true });
-  } else if (type === 'ingress_ended' || type === 'participant_left') {
-    await User.findOneAndUpdate({ username: channel, role: 'teacher' }, { isLive: false });
-  }
+
+  await User.findOneAndUpdate({ username: channel, role: 'teacher' }, { isLive: goLive });
 }
 
 module.exports = { createStudentToken, createStaffToken, ensureIngress, deleteIngress, handleWebhook, roomName };

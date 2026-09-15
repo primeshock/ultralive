@@ -7,32 +7,17 @@ import { api } from "@/lib/api";
 export function LiveKitPlayer({ channel, className, poster, connection }) {
   const mediaRef = useRef(null);
   const roomRef = useRef(null);
-  const streamRef = useRef(null);
+  const attachedRef = useRef(new Set());
   const [state, setState] = useState("CONNECTING");
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [hasVideo, setHasVideo] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     let room;
-    const tracks = new Map();
-
-    function syncMedia() {
-      const media = mediaRef.current;
-      if (!media) return;
-      const stream = streamRef.current || new MediaStream();
-      for (const track of stream.getTracks()) {
-        if (![...tracks.values()].includes(track)) stream.removeTrack(track);
-      }
-      for (const track of tracks.values()) {
-        if (!stream.getTracks().includes(track)) stream.addTrack(track);
-      }
-      streamRef.current = stream;
-      if (media.srcObject !== stream) media.srcObject = stream;
-      if (media.paused) media.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-    }
 
     async function start() {
       try {
@@ -42,6 +27,17 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
         const lk = await import("livekit-client");
         room = new lk.Room({ adaptiveStream: true, dynacast: false });
         roomRef.current = room;
+
+        function attachTrack(track) {
+          const media = mediaRef.current;
+          if (!media || cancelled) return;
+          if (track.kind !== lk.Track.Kind.Video && track.kind !== lk.Track.Kind.Audio) return;
+          track.attach(media);
+          attachedRef.current.add(track);
+          if (track.kind === lk.Track.Kind.Video) setHasVideo(true);
+          media.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+        }
+
         room.on(lk.RoomEvent.ConnectionStateChanged, (s) => {
           if (s === "connected") setState("LIVE");
           else if (s === "reconnecting") setState("CONNECTING");
@@ -55,27 +51,20 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
             setState("OFFLINE");
           }
         });
-        room.on(lk.RoomEvent.TrackSubscribed, (track) => {
-          if (track.kind === lk.Track.Kind.Video || track.kind === lk.Track.Kind.Audio) {
-            tracks.set(track.sid, track.mediaStreamTrack);
-            syncMedia();
-          }
-        });
+        room.on(lk.RoomEvent.TrackSubscribed, (track) => attachTrack(track));
         room.on(lk.RoomEvent.TrackUnsubscribed, (track) => {
-          tracks.delete(track.sid);
-          syncMedia();
+          track.detach();
+          attachedRef.current.delete(track);
+          if (track.kind === lk.Track.Kind.Video) setHasVideo(false);
         });
         await room.connect(serverUrl, participantToken);
         if (cancelled) return;
         setState("LIVE");
         for (const participant of room.remoteParticipants.values()) {
           for (const publication of participant.trackPublications.values()) {
-            if (publication.track && (publication.kind === lk.Track.Kind.Video || publication.kind === lk.Track.Kind.Audio)) {
-              tracks.set(publication.track.sid, publication.track.mediaStreamTrack);
-            }
+            if (publication.track) attachTrack(publication.track);
           }
         }
-        syncMedia();
       } catch (err) {
         if (!cancelled) {
           setError(err.message || "LiveKit unavailable");
@@ -85,13 +74,14 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
     }
 
     start();
-    const media = mediaRef.current;
     return () => {
       cancelled = true;
+      for (const track of attachedRef.current) {
+        try { track.detach(); } catch { /* already detached */ }
+      }
+      attachedRef.current.clear();
       room?.disconnect();
       roomRef.current = null;
-      streamRef.current = null;
-      if (media) media.srcObject = null;
     };
   }, [channel, connection, attempt]);
 
@@ -121,7 +111,14 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
 
   return (
     <div className={`relative bg-black ${className || ""}`}>
-      <video ref={mediaRef} className="w-full h-full object-contain" poster={poster} playsInline />
+      <video
+        ref={mediaRef}
+        className="w-full h-full object-contain"
+        poster={hasVideo ? undefined : poster}
+        playsInline
+        autoPlay
+        muted={muted}
+      />
       <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
         <div className="rounded-full bg-black/60 px-3 py-1 text-xs text-white backdrop-blur">
           {state === "LIVE" ? "پخش زنده" : state === "CONNECTING" ? "در حال اتصال" : "قطع شده"}
@@ -138,7 +135,7 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
           </button>
         </div>
         {state === "OFFLINE" && (
-          <button type="button" onClick={reconnect} className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-2 text-xs text-white hover:bg-white/25">
+          <button type="button" onClick={reconnect} className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-2 text-xs text-white hover:bg-white/25" title={error || "تلاش دوباره"}>
             <RefreshCw className="size-4" /> تلاش دوباره
           </button>
         )}
