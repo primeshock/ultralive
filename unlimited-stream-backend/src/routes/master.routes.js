@@ -1,8 +1,7 @@
 const express = require('express');
 const fs = require('fs/promises');
 const path = require('path');
-const { thumbnailUpload } = require('../utils/upload');
-const { isJpeg } = require('../utils/upload');
+const { thumbnailUpload, logoUpload, isJpeg, isPng } = require('../utils/upload');
 const os = require('os');
 const { execSync } = require('child_process');
 const User = require('../models/User');
@@ -132,7 +131,11 @@ router.get('/settings', async (_req, res) => res.json(await SiteSettings.get()))
 router.patch('/settings', async (req, res) => {
   const { siteName, logoUrl, allowPublicRegister, playbackMode } = req.body || {};
   const update = {};
-  if (siteName !== undefined) update.siteName = siteName;
+  if (siteName !== undefined) {
+    const name = String(siteName).trim();
+    if (!name || name.length > 80) return res.status(400).json({ error: 'نام سایت نامعتبر است.' });
+    update.siteName = name;
+  }
   if (logoUrl !== undefined) update.logoUrl = logoUrl;
   if (allowPublicRegister !== undefined) update.allowPublicRegister = Boolean(allowPublicRegister);
   if (playbackMode !== undefined && ['auto', 'livekit', 'hls'].includes(playbackMode)) update.playbackMode = playbackMode;
@@ -140,11 +143,24 @@ router.patch('/settings', async (req, res) => {
   res.json(doc);
 });
 
-router.post('/logo', thumbnailUpload.single('logo'), async (req, res) => {
-  if (!req.file || !isJpeg(req.file.buffer)) return res.status(400).json({ error: 'لوگو باید JPG باشد.' });
-  await fs.mkdir(path.join(process.cwd(), 'media'), { recursive: true });
-  await fs.writeFile(path.join(process.cwd(), 'media', 'site-logo.jpg'), req.file.buffer);
-  const settings = await SiteSettings.findOneAndUpdate({ key: 'main' }, { logoUrl: `${publicBaseUrl}/site-logo` }, { upsert: true, new: true });
+router.post('/logo', logoUpload.single('logo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'فایل لوگو لازم است.' });
+  const png = isPng(req.file.buffer);
+  const jpeg = isJpeg(req.file.buffer);
+  if (!png && !jpeg) return res.status(400).json({ error: 'لوگو باید PNG یا JPG باشد.' });
+  const dir = path.join(process.cwd(), 'media');
+  await fs.mkdir(dir, { recursive: true });
+  const nextFile = path.join(dir, png ? 'site-logo.png' : 'site-logo.jpg');
+  const staleFile = path.join(dir, png ? 'site-logo.jpg' : 'site-logo.png');
+  await fs.writeFile(nextFile, req.file.buffer);
+  await fs.unlink(staleFile).catch(() => {});
+  const current = await SiteSettings.get();
+  const logoVersion = (current.logoVersion || 0) + 1;
+  const settings = await SiteSettings.findOneAndUpdate(
+    { key: 'main' },
+    { logoUrl: `${publicBaseUrl}/site-logo?v=${logoVersion}`, logoVersion },
+    { upsert: true, new: true }
+  );
   res.json(settings);
 });
 

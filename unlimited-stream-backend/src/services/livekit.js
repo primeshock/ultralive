@@ -1,4 +1,4 @@
-const { AccessToken, IngressClient, IngressInput } = require('livekit-server-sdk');
+const { AccessToken, IngressClient, IngressInput, RoomServiceClient } = require('livekit-server-sdk');
 const User = require('../models/User');
 const { livekitEnabled, livekitUrl, livekitApiKey, livekitApiSecret } = require('../config/env');
 
@@ -92,7 +92,61 @@ function webhookRoomName(event) {
 }
 
 function isIngressParticipant(identity) {
-  return identity.toLowerCase().startsWith('ingress:');
+  return String(identity || '').toLowerCase().startsWith('ingress:');
+}
+
+function classifyLiveEvent(type, identity) {
+  const eventType = String(type || '').toLowerCase();
+  const ingress = isIngressParticipant(identity);
+  if (eventType === 'ingress_started' || eventType === 'track_published') return true;
+  if (eventType === 'participant_joined' && ingress) return true;
+  if (eventType === 'ingress_ended' || eventType === 'room_finished') return false;
+  if (eventType === 'participant_left' && ingress) return false;
+  return null;
+}
+
+function roomService() {
+  assertEnabled();
+  return new RoomServiceClient(livekitUrl, livekitApiKey, livekitApiSecret);
+}
+
+async function publisherIsLive(username) {
+  if (!livekitEnabled || !livekitUrl || !livekitApiKey || !livekitApiSecret) return null;
+  try {
+    const participants = await roomService().listParticipants(roomName(username));
+    return participants.some((participant) => isIngressParticipant(participant.identity));
+  } catch (err) {
+    const message = String(err.message || err);
+    if (/not found|does not exist|no room/i.test(message)) return false;
+    console.error('[livekit sync]', { channel: username, error: message });
+    return null;
+  }
+}
+
+async function syncChannelLiveState(username) {
+  const live = await publisherIsLive(username);
+  if (live === null) return null;
+  await User.findOneAndUpdate({ username: String(username).toLowerCase(), role: 'teacher' }, { isLive: live });
+  return live;
+}
+
+function startLiveStateSync() {
+  if (!livekitEnabled) return;
+  const tick = async () => {
+    try {
+      const channels = await User.find({ role: 'teacher', livekitIngressId: { $gt: '' } }).select('username isLive');
+      for (const channel of channels) {
+        const live = await publisherIsLive(channel.username);
+        if (live === null || live === channel.isLive) continue;
+        await User.updateOne({ _id: channel._id }, { isLive: live });
+        console.log('[livekit sync]', { channel: channel.username, isLive: live });
+      }
+    } catch (err) {
+      console.error('[livekit sync]', err.message);
+    }
+  };
+  tick();
+  setInterval(tick, 5000);
 }
 
 async function resolveWebhookChannel(event) {
@@ -121,21 +175,35 @@ async function resolveWebhookChannel(event) {
 async function handleWebhook(event) {
   const type = String(event.event || '');
   const identity = webhookIdentity(event);
-  const ingressParticipant = isIngressParticipant(identity);
-
-  // Student/staff join/leave must never flip isLive. Viewers cannot publish, so
-  // track_published is always the Ingress publisher for this product.
-  const goLive =
-    type === 'ingress_started' ||
-    type === 'track_published' ||
-    (type === 'participant_joined' && ingressParticipant);
-  const goOffline = type === 'ingress_ended' || (type === 'participant_left' && ingressParticipant);
-  if (!goLive && !goOffline) return;
+  const room = webhookRoomName(event);
+  const goLive = classifyLiveEvent(type, identity);
+  console.log('[livekit webhook]', {
+    event: type,
+    room,
+    identity,
+    ingressId: event.ingressInfo?.ingressId || null,
+    action: goLive === true ? 'live' : goLive === false ? 'offline' : 'ignored',
+  });
+  if (goLive === null) return;
 
   const channel = await resolveWebhookChannel(event);
-  if (!channel) return;
+  if (!channel) {
+    console.warn('[livekit webhook] unresolved channel', { event: type, room, identity });
+    return;
+  }
 
   await User.findOneAndUpdate({ username: channel, role: 'teacher' }, { isLive: goLive });
 }
 
-module.exports = { createStudentToken, createStaffToken, ensureIngress, deleteIngress, handleWebhook, roomName };
+module.exports = {
+  createStudentToken,
+  createStaffToken,
+  ensureIngress,
+  deleteIngress,
+  handleWebhook,
+  roomName,
+  classifyLiveEvent,
+  isIngressParticipant,
+  syncChannelLiveState,
+  startLiveStateSync,
+};

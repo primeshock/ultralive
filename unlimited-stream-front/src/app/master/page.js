@@ -27,6 +27,7 @@ export default function MasterPage() {
   const [adminForm, setAdminForm] = useState({ username: "", password: "" });
   const [adminEdits, setAdminEdits] = useState({});
   const [logoFile, setLogoFile] = useState(null);
+  const [siteNameDraft, setSiteNameDraft] = useState("");
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "owner")) router.replace("/");

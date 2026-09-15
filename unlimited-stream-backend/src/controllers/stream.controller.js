@@ -2,6 +2,7 @@ const User = require('../models/User');
 const { publicUser } = require('../utils/serialize');
 const { getViewerCount } = require('../services/chat');
 const { serverIp, publicPort: apiPort } = require('../config/env');
+const { syncChannelLiveState } = require('../services/livekit');
 
 const mediaCtx = { serverIp, apiPort };
 
@@ -13,8 +14,11 @@ async function listLive(req, res) {
 }
 
 async function getChannel(req, res) {
-  const user = await User.findOne({ username: req.params.username.toLowerCase(), role: 'teacher' });
+  const username = req.params.username.toLowerCase();
+  let user = await User.findOne({ username, role: 'teacher' });
   if (!user) return res.status(404).json({ error: 'Channel not found' });
+  const live = await syncChannelLiveState(username);
+  if (live !== null) user.isLive = live;
   res.json({ channel: { ...publicUser(user, mediaCtx), ...(user.showViewerCount ? { viewerCount: getViewerCount(user.username) } : {}) } });
 }
 

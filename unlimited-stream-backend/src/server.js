@@ -3,6 +3,7 @@ const app = require('./app');
 const { connectDb } = require('./config/db');
 const { initChat } = require('./services/chat');
 const { createMediaServer } = require('./services/mediaServer');
+const { startLiveStateSync } = require('./services/livekit');
 const { port } = require('./config/env');
 
 async function main() {
@@ -13,6 +14,7 @@ async function main() {
 
   const mediaServer = createMediaServer();
   mediaServer.run();
+  startLiveStateSync();
 
   httpServer.listen(port, () => {
     console.log(`[api] listening on :${port}`);

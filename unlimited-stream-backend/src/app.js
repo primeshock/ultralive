@@ -39,6 +39,10 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.get('/api/site', async (_req, res) => {
+  const settings = await require('./models/SiteSettings').get();
+  res.json({ siteName: settings.siteName || 'Koosha Live', logoUrl: settings.logoUrl || '' });
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/streams', streamRoutes);

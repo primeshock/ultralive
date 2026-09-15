@@ -68,8 +68,12 @@ function createMediaServer() {
     const username = parseUsername(StreamPath);
     if (!username) return;
 
-    const user = await User.findOneAndUpdate({ username }, { isLive: true }, { new: true });
+    const user = await User.findOne({ username });
     if (!user) return;
+    if (!user.livekitIngressId) {
+      user.isLive = true;
+      await user.save();
+    }
 
     setChatEnabled(username, user.chatEnabled);
     broadcastSystemMessage(username, `${user.displayName || username} is now live!`);
@@ -80,7 +84,10 @@ function createMediaServer() {
     const username = parseUsername(StreamPath);
     if (!username) return;
 
-    await User.findOneAndUpdate({ username }, { isLive: false });
+    const user = await User.findOne({ username });
+    if (!user || user.livekitIngressId) return;
+    user.isLive = false;
+    await user.save();
     stopAutoReminder(username);
     await clearChat(username);
   });

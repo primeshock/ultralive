@@ -49,7 +49,7 @@ export const api = {
     formData.append("thumbnail", file);
     return apiUpload("/api/user/thumbnail", formData);
   },
-  liveStreams: () => apiFetch("/api/streams/live"),
+  site: () => apiFetch("/api/site"),
   channel: (username) => apiFetch(`/api/streams/${username}`),
 
   // --- Master panel (owner) ---

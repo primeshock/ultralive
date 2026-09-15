@@ -22,6 +22,15 @@ export function SiteHeader() {
   const { user, loading, setUser } = useAuth();
   const router = useRouter();
   const [dark, setDark] = useState(storedThemeIsDark);
+  const [brand, setBrand] = useState({ siteName: "Koosha Live", logoUrl: "" });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
+
+  useEffect(() => {
+    api.site().then(setBrand).catch(() => {});
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -47,8 +56,12 @@ export function SiteHeader() {
   return (
     <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between gap-4">
-        <Link href="/" className="font-bold text-lg">
-          Ultra Live
+        <Link href="/" className="font-bold text-lg flex items-center gap-2 min-w-0">
+          {brand.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={brand.logoUrl} alt="" className="h-8 w-auto max-w-[140px] object-contain bg-transparent" />
+          ) : null}
+          <span className="truncate">{brand.siteName || "Koosha Live"}</span>
         </Link>
 
         <nav className="flex items-center gap-2">
