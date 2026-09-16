@@ -13,6 +13,128 @@
 - LiveKit server SDK: `2.19.0`
 - LiveKit server/Ingress: Docker، با پورت‌های جداگانه برای signaling، media و RTMP ingress
 
+## کارت سریع عملیات
+
+### اتصال به سرور
+
+```bash
+ssh root@PUBLIC_IP
+cd /opt/unlimited-stream
+```
+
+اگر در `~/.ssh/config` یک alias به نام `livekit` تعریف شده باشد، این هم قابل استفاده است:
+
+```bash
+ssh livekit
+```
+
+### نصب تازه
+
+روی Ubuntu/Debian تازه، از سیستم محلی یا بعد از ورود به سرور:
+
+```bash
+cd /opt
+git clone -b koosha-live-current https://github.com/primeshock/ultralive.git unlimited-stream
+cd /opt/unlimited-stream
+sudo bash install.sh PUBLIC_IP --with-livekit
+```
+
+اگر LiveKit از قبل جداگانه نصب شده یا فعلاً HLS کافی است، فلگ `--with-livekit` را حذف کنید:
+
+```bash
+sudo bash install.sh PUBLIC_IP
+```
+
+### به‌روزرسانی عادی
+
+```bash
+cd /opt/unlimited-stream
+git status --short --branch
+sudo bash install.sh
+```
+
+`install.sh` فقط وقتی source روی سرور clean باشد ادامه می‌دهد؛ فایل‌های `.env`، MongoDB، Docker، Nginx و state لایو را overwrite نمی‌کند.
+
+### بررسی سریع بعد از نصب یا update
+
+```bash
+pm2 status
+curl -fsS http://127.0.0.1/api/health && echo
+curl -fsS http://127.0.0.1:7880/ && echo
+docker compose -f /opt/livekit/docker-compose.yml ps
+```
+
+خروجی مطلوب: هر دو برنامهٔ PM2 در حالت `online`، health با `{"ok":true}`، پاسخ `OK` از پورت LiveKit و کانتینرهای LiveKit در حالت running.
+
+### پایش لحظه‌ای
+
+```bash
+# پایش PM2 و مصرف هر برنامه
+pm2 monit
+
+# لاگ backend و frontend؛ خروج با Ctrl-C
+pm2 logs unlimited-stream-backend --lines 100
+pm2 logs unlimited-stream-frontend --lines 100
+
+# مصرف CPU/RAM کل سرور
+top -o %CPU
+
+# فهرست processهای پرمصرف
+ps -eo pid,ppid,comm,%cpu,%mem,args --sort=-%cpu | head -15
+
+# مصرف کانتینرها
+docker stats --no-stream
+```
+
+`Restarts` در `pm2 status` شمارندهٔ تجمعی است. افزایش آن بعد از deploy معمولاً طبیعی است؛ اگر بدون deploy مرتب زیاد می‌شود، این‌ها را بررسی کنید:
+
+```bash
+pm2 describe unlimited-stream-backend
+pm2 describe unlimited-stream-frontend
+pm2 logs --lines 200
+tail -n 200 /var/log/unlimited-stream-install.log
+```
+
+### بررسی شبکه و پورت‌ها
+
+```bash
+ss -lntup | grep -E ':(80|3000|5050|7880|7881|1935|1936|3478)\\b'
+ufw status verbose
+docker compose -f /opt/livekit/docker-compose.yml ps
+```
+
+برای پخش LiveKit، پورت‌های `7880/tcp`، `7881/tcp`، بازهٔ `50000-50100/udp` و در صورت استفاده `3478/udp` باید در firewall و provider باز باشند.
+
+### تست branding و quiz
+
+```bash
+curl -fsS http://127.0.0.1/api/site
+curl -I http://127.0.0.1/site-logo
+curl -I http://127.0.0.1/site-favicon
+```
+
+برای quiz زمان‌دار، پس از ساخت quiz این رفتار را تست کنید: timer در دو مرورگر نمایش داده شود، با صفر شدن فقط submit بسته شود، سؤال باقی بماند، و فقط دکمهٔ «بستن» آن را حذف کند.
+
+### انتشار نسخه در GitHub
+
+```bash
+cd /path/to/KooshaLive
+git switch koosha-live-current
+git status --short
+
+# قبل از commit
+cd unlimited-stream-front && npm run lint && npm run build
+cd ../unlimited-stream-backend && node -e "require('./src/app.js'); console.log('backend load passed')"
+cd ..
+git diff --check
+
+git add path/to/intended/files
+git commit -m "describe the release"
+git push origin koosha-live-current
+```
+
+پس از push، روی سرور فقط `sudo bash install.sh` را اجرا کنید؛ روی production مستقیماً `git reset`، `git clean` یا حذف MongoDB انجام ندهید.
+
 ## معماری پخش
 
 مسیر اصلی فعلی:
