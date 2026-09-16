@@ -39,7 +39,6 @@ export default function MasterPage() {
   const router = useRouter();
 
   const [admins, setAdmins] = useState([]);
-  const [channels, setChannels] = useState([]);
   const [settings, setSettings] = useState(null);
   const [stats, setStats] = useState(null);
   const [activity, setActivity] = useState([]);
@@ -59,15 +58,13 @@ export default function MasterPage() {
   }, [loading, user, router]);
 
   async function loadAll() {
-    const [a, c, s, st, log] = await Promise.all([
+    const [a, s, st, log] = await Promise.all([
       api.listAdmins(),
-      api.listAllChannels(),
       api.getSettings(),
       api.systemStats().catch(() => null),
       api.activityLog().catch(() => []),
     ]);
     setAdmins(a);
-    setChannels(c || []);
     setAdminEdits(Object.fromEntries((a || []).map((admin) => [admin._id || admin.id, { username: admin.username, password: "" }])));
     setSettings(s);
     setLivekitForm(s?.livekit || recommendedLivekitSettings());
@@ -214,17 +211,6 @@ export default function MasterPage() {
     }
   }
 
-  async function handleDeleteChannel(id, label) {
-    if (!window.confirm(`حذف کلاس ${label} انجام شود؟ این عملیات قابل بازگشت نیست.`)) return;
-    try {
-      await api.deleteChannel(id);
-      flash("کلاس حذف شد.");
-      loadAll();
-    } catch (err) {
-      flash(err.message);
-    }
-  }
-
   async function handleLogoUpload() {
     if (!logoFile) return;
     try {
@@ -363,10 +349,10 @@ export default function MasterPage() {
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-white/15 bg-slate-950/70 text-white shadow-2xl backdrop-blur-xl">
+      <Card className="overflow-hidden border-border bg-card text-card-foreground shadow-2xl backdrop-blur-xl dark:border-white/15 dark:bg-slate-950/70 dark:text-white">
         <CardHeader>
           <CardTitle>Spatial Appearance</CardTitle>
-          <CardDescription className="text-white/55">پس‌زمینه و عمق شیشه‌ای که همه کاربران در کلاس می‌بینند</CardDescription>
+          <CardDescription className="text-muted-foreground dark:text-white/55">پس‌زمینه و عمق شیشه‌ای که همه کاربران در کلاس می‌بینند</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-5 lg:grid-cols-[1fr_280px]">
           <div className="grid gap-4">
@@ -382,10 +368,10 @@ export default function MasterPage() {
               </label>
             ))}
             <div className="flex flex-wrap items-center gap-2">
-              <Input type="file" accept="image/png" onChange={(event) => setBackgroundFile(event.target.files?.[0] || null)} className="max-w-sm border-white/15 bg-white/5" />
+              <Input type="file" accept="image/png" onChange={(event) => setBackgroundFile(event.target.files?.[0] || null)} className="max-w-sm border-border bg-background dark:border-white/15 dark:bg-white/5" />
               <Button type="button" onClick={handleBackgroundUpload} disabled={!backgroundFile} className="rounded-full">آپلود PNG</Button>
-              <Button type="button" variant="outline" onClick={handleBackgroundRemove} className="rounded-full border-white/15">حذف پس‌زمینه</Button>
-              <Button type="button" variant="ghost" onClick={resetAppearance} className="rounded-full text-white/65">بازنشانی</Button>
+              <Button type="button" variant="outline" onClick={handleBackgroundRemove} className="rounded-full border-border dark:border-white/15">حذف پس‌زمینه</Button>
+              <Button type="button" variant="ghost" onClick={resetAppearance} className="rounded-full text-muted-foreground dark:text-white/65">بازنشانی</Button>
             </div>
           </div>
           <div className="relative min-h-48 overflow-hidden rounded-3xl border border-white/15 bg-[radial-gradient(circle_at_20%_20%,#19d8ff,transparent_34%),radial-gradient(circle_at_80%_25%,#9c5cff,transparent_35%),linear-gradient(135deg,#11152e,#080a16)] p-4" style={{ filter: `saturate(${0.8 + appearanceForm.glowIntensity / 100})`, "--preview-darkness": `${appearanceForm.backgroundDarkness / 100}` }}>
@@ -584,32 +570,6 @@ export default function MasterPage() {
               );
             })}
             {admins.length === 0 && <li className="text-muted-foreground">ادمینی ساخته نشده است.</li>}
-          </ul>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>حذف کلاس‌ها</CardTitle>
-          <CardDescription>حذف کامل کلاس به‌همراه داده‌های چت، حضور، نظرسنجی و دسترسی‌ها</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="text-sm flex flex-col gap-3">
-            {channels.map((channel) => {
-              const id = channel._id || channel.id;
-              const manager = channel.managedBy?.username ? `مدیر: ${channel.managedBy.username}` : "بدون مدیر";
-              const label = channel.displayName || channel.username;
-              return (
-                <li key={id} className="flex flex-wrap items-center justify-between gap-2 border rounded-md p-3">
-                  <div>
-                    <p className="font-medium">{label}</p>
-                    <p className="text-xs text-muted-foreground">{channel.username} · {manager}</p>
-                  </div>
-                  <Button type="button" variant="destructive" onClick={() => handleDeleteChannel(id, label)}>حذف کلاس</Button>
-                </li>
-              );
-            })}
-            {channels.length === 0 && <li className="text-muted-foreground">کلاسی ثبت نشده است.</li>}
           </ul>
         </CardContent>
       </Card>

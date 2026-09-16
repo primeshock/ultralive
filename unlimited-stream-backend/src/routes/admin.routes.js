@@ -5,6 +5,8 @@ const Moderation = require('../models/Moderation');
 const MonitorLink = require('../models/MonitorLink');
 const RoomSession = require('../models/RoomSession');
 const AttendanceLog = require('../models/AttendanceLog');
+const ChatMessage = require('../models/ChatMessage');
+const { Poll, PollResponse } = require('../models/Poll');
 const { requireAuth } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/requireRole');
 const { publicBaseUrl, wpJoinSecret } = require('../config/env');
@@ -94,6 +96,25 @@ router.patch('/channels/:channel', loadOwnedChannel, async (req, res) => {
     streamTitle: req.targetChannel.streamTitle,
     donateUrl: req.targetChannel.donateUrl,
   });
+});
+
+router.delete('/channels/:channel', loadOwnedChannel, async (req, res) => {
+  const channel = req.targetChannel.username;
+  const polls = await Poll.find({ channel }).select('_id');
+  const pollIds = polls.map((poll) => poll._id);
+
+  if (pollIds.length) await PollResponse.deleteMany({ pollId: { $in: pollIds } });
+  await Promise.all([
+    Poll.deleteMany({ channel }),
+    ChatMessage.deleteMany({ channel }),
+    Moderation.deleteMany({ channel }),
+    MonitorLink.deleteMany({ channel }),
+    RoomSession.deleteMany({ channel }),
+    AttendanceLog.deleteMany({ channel }),
+  ]);
+
+  await req.targetChannel.deleteOne();
+  res.status(204).end();
 });
 
 // ---- Chat privacy mode ----

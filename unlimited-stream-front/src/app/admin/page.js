@@ -170,6 +170,23 @@ export default function AdminPage() {
     }
   }
 
+  async function handleDeleteClass() {
+    const current = channels.find((channel) => channel.username === selected);
+    if (!current || !window.confirm(`حذف کلاس ${classLabel(current)} انجام شود؟ این عملیات قابل بازگشت نیست.`)) return;
+    try {
+      await api.deleteManagedChannel(selected);
+      const remaining = channels.filter((channel) => channel.username !== selected);
+      setChannels(remaining);
+      setSelected(remaining[0]?.username || "");
+      setTestLink("");
+      setMonitorLink("");
+      setIngressInfo(null);
+      flash("کلاس حذف شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
   async function handleMonitorLink() {
     try {
       const { url } = await api.createMonitorLink(selected);
@@ -296,6 +313,7 @@ export default function AdminPage() {
                 <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
                   <Button type="submit">ذخیره تغییرات</Button>
                   <Button type="button" variant="outline" nativeButton={false} render={<Link href={`/channel/${selected}`} />}>باز کردن صفحه کلاس</Button>
+                  <Button type="button" variant="destructive" onClick={handleDeleteClass}>حذف این کلاس</Button>
                 </div>
               </form>
             </CardContent>

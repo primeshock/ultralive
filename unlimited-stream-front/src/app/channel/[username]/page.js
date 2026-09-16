@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { use as usePromise } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Radio, Users, Sparkles } from "lucide-react";
+import { Radio, Users, Sparkles, Activity } from "lucide-react";
 import { LiveKitPlayer } from "@/components/livekit-player";
 import { LiveChat } from "@/components/live-chat";
 import { PollWidget } from "@/components/poll-widget";
@@ -23,6 +23,7 @@ export default function ChannelPage({ params }) {
   const [chatMode, setChatMode] = useState("public");
   const [livekitStatus, setLivekitStatus] = useState(null);
   const [networkStats, setNetworkStats] = useState(null);
+  const [networkOpen, setNetworkOpen] = useState(false);
   const [appearance, setAppearance] = useState(null);
 
   useEffect(() => {
@@ -175,10 +176,27 @@ export default function ChannelPage({ params }) {
         {canManageClass && <ClassAdminPanel channel={username} thumbnailUrl={channel.thumbnailUrl} chatMode={chatMode} showViewerCount={channel.showViewerCount} viewerCount={channel.viewerCount || 0} onChatMode={handleChatMode} onViewerCount={handleViewerCount} onThumbnail={(thumbnailUrl) => setChannel((current) => ({ ...current, thumbnailUrl }))} />}
       </div>
 
-      <div className="flex min-h-0 flex-col gap-4 xl:sticky xl:top-20 xl:h-[calc(100dvh_-_6.5rem)]">
-        <NetworkMonitor stats={networkStats} compact />
-        <div className="glass-float flex min-h-[480px] flex-1 flex-col overflow-hidden rounded-[2rem]">
+      <div className="flex min-h-0 flex-col gap-3 xl:sticky xl:top-20 xl:h-[calc(100dvh_-_6.5rem)]">
+        <div className="relative flex min-h-[480px] flex-1 flex-col overflow-visible">
+          <button
+            type="button"
+            onClick={() => setNetworkOpen((open) => !open)}
+            aria-expanded={networkOpen}
+            aria-controls="network-monitor-panel"
+            className="absolute left-3 top-3 z-30 inline-flex h-8 items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/75 px-3 text-[11px] font-medium text-white/80 shadow-lg backdrop-blur-xl transition hover:border-cyan-300/45 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
+            <Activity className="size-3.5 text-cyan-200" />
+            Network
+            <span className={`size-1.5 rounded-full ${networkStats?.reconnecting ? "bg-amber-300" : networkStats?.state === "connected" ? "bg-emerald-400" : "bg-white/35"}`} />
+          </button>
+          {networkOpen && (
+            <div id="network-monitor-panel" className="absolute inset-x-0 top-12 z-20">
+              <NetworkMonitor stats={networkStats} compact />
+            </div>
+          )}
+          <div className="glass-float flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2rem]">
           <LiveChat key={username} channel={username} initialEnabled={channel.chatEnabled} />
+          </div>
         </div>
       </div>
       </div>

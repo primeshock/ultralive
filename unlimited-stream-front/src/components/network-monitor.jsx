@@ -54,11 +54,11 @@ export function NetworkMonitor({ stats, compact = false }) {
         </div>
         <Badge variant="outline" className={colorForQuality(quality)}>{quality}</Badge>
       </div>
-      <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 xl:grid-cols-2">
+      <div className="grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-3 xl:grid-cols-4">
         {items.map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-border/70 bg-background/55 p-3 shadow-sm backdrop-blur-sm dark:border-white/15 dark:bg-black/20">
+          <div key={label} className="rounded-xl border border-white/10 bg-black/20 px-2 py-1.5 shadow-sm backdrop-blur-sm">
             <p className="text-[10px] uppercase tracking-wide text-white/40">{label}</p>
-            <p className="mt-1 text-sm font-medium">{value}</p>
+            <p className="mt-0.5 text-xs font-medium">{value}</p>
           </div>
         ))}
       </div>

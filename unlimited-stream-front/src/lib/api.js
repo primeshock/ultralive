@@ -90,6 +90,7 @@ export const api = {
   createManagedChannel: (payload) => apiFetch("/api/admin/channels", { method: "POST", body: JSON.stringify(payload) }),
   updateManagedChannel: (channel, payload) =>
     apiFetch(`/api/admin/channels/${channel}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteManagedChannel: (channel) => apiFetch(`/api/admin/channels/${channel}`, { method: "DELETE" }),
   setChatMode: (channel, chatMode) =>
     apiFetch(`/api/admin/channels/${channel}/chat-mode`, { method: "POST", body: JSON.stringify({ chatMode }) }),
   setViewerCount: (channel, enabled) =>

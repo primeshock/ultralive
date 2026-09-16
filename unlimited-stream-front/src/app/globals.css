@@ -123,7 +123,7 @@
   }
   body {
     @apply text-foreground;
-    background: #070914;
+    background: var(--background);
   }
   html {
     @apply font-sans;
@@ -131,17 +131,35 @@
 }
 
 .glass-panel {
-  border: 1px solid rgb(255 255 255 / 0.14);
-  background: linear-gradient(135deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.045));
-  box-shadow: 0 24px 70px rgb(0 0 0 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.16);
-  backdrop-filter: blur(22px) saturate(135%);
-  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  border: 1px solid rgb(15 23 42 / 0.12);
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.92), rgb(241 245 249 / 0.78));
+  box-shadow: 0 24px 70px rgb(15 23 42 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.9);
+  backdrop-filter: blur(22px) saturate(120%);
+  -webkit-backdrop-filter: blur(22px) saturate(120%);
 }
 
 .dark .glass-panel {
   border-color: rgb(255 255 255 / 0.14);
   background: linear-gradient(135deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.04));
   box-shadow: 0 24px 70px rgb(0 0 0 / 0.24), inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+select,
+option {
+  color: var(--foreground);
+  background-color: var(--background);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.82;
+}
+
+.dark select,
+.dark option {
+  color: var(--foreground);
+  background-color: var(--card);
 }
 
 .dark .border, .dark [class*="border-"] { border-color: color-mix(in oklab, var(--border) 85%, white 15%); }
