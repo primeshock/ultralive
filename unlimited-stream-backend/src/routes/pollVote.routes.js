@@ -28,6 +28,7 @@ router.get('/:channel/polls/active', async (req, res) => {
   }
   const poll = await Poll.findOne({ channel: req.params.channel.toLowerCase() }).sort({ createdAt: -1 });
   if (!poll || !poll.isOpen) return res.json(null);
+  const votingOpen = poll.isEffectivelyOpen();
   const response = {
     id: poll._id,
     question: poll.question,
@@ -37,7 +38,8 @@ router.get('/:channel/polls/active', async (req, res) => {
       text: o.text,
       isCorrect: poll.mode === 'quiz' && poll.isEffectivelyRevealed() ? o.isCorrect : undefined,
     })),
-    isOpen: poll.isEffectivelyOpen(),
+    isOpen: poll.isOpen,
+    votingOpen,
     showResults: poll.showResults,
     closesAt: poll.closesAt,
     revealAt: poll.revealAt,
@@ -70,6 +72,7 @@ router.post('/:channel/polls/:pollId/vote', async (req, res) => {
   }
   const poll = await Poll.findById(req.params.pollId);
   if (!poll || !poll.isOpen) return res.status(400).json({ error: 'این نظرسنجی بسته شده است.' });
+  if (!poll.isEffectivelyOpen()) return res.status(400).json({ error: 'مهلت پاسخ‌گویی تمام شده است.' });
   if (!poll.options.some((o) => String(o._id) === req.body?.optionId)) {
     return res.status(400).json({ error: 'گزینه نامعتبر.' });
   }

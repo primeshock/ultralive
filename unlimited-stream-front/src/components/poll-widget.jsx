@@ -49,7 +49,7 @@ export function PollWidget({ channel }) {
 
   const remaining = poll.closesAt ? Math.max(0, Math.ceil((new Date(poll.closesAt).getTime() - clock) / 1000)) : null;
   const timerOpen = remaining === null || remaining > 0;
-  const isOpen = Boolean(poll.isOpen && timerOpen);
+  const isOpen = poll.votingOpen === undefined ? Boolean(poll.isOpen && timerOpen) : Boolean(poll.votingOpen);
 
   async function submitVote() {
     if (!selectedOption || poll.votedOptionId || !isOpen || submitting) return;

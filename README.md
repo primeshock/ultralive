@@ -5,7 +5,7 @@
 ## وضعیت فعلی
 
 - Branch deploy: `koosha-live-current`
-- آخرین commit فعلی: `d567855` (`fix: repair LiveKit reconnect and ingress payload`)
+- آخرین commit فعلی: شاخهٔ `koosha-live-current` روی GitHub
 - Repository: `https://github.com/primeshock/ultralive`
 - Backend: Node.js + Express + MongoDB + Socket.io
 - Frontend: Next.js 16.3.3 + React 19.2.8
@@ -41,6 +41,17 @@ OBS
 - متغیرهای محیطی: `unlimited-stream-backend/src/config/env.js`
 - فرایندهای PM2: `ecosystem.config.js`
 - نصب و update: `install.sh`
+
+## نظرسنجی و کوئیز زمان‌دار
+
+- از پنل ادمین یا داشبورد کلاس، mode را روی `quiz` بگذارید و مدت را بر حسب ثانیه وارد کنید.
+- تا قبل از پایان زمان، دانش‌آموز می‌تواند یک پاسخ ثبت کند.
+- با رسیدن timer به صفر، فقط ثبت پاسخ بسته می‌شود؛ سؤال، گزینه‌ها و نتیجه‌ها روی صفحه باقی می‌مانند.
+- کوئیز فقط با دکمهٔ «بستن» از صفحهٔ دانش‌آموز حذف می‌شود.
+- گزینهٔ «نمایش نتیجه» و «نمایش پاسخ صحیح» مستقل از پایان timer هستند.
+- برای شروع دوباره، از «ریست گزینه‌ها» استفاده کنید؛ رأی‌ها پاک و زمان‌بندی دوباره فعال می‌شود.
+
+منطق deadline در backend هم بررسی می‌شود؛ بنابراین تغییر ساعت یا دست‌کاری UI نمی‌تواند بعد از پایان مهلت رأی ثبت کند.
 
 ## اصلاحات LiveKit انجام‌شده
 
@@ -146,6 +157,15 @@ pm2 reload ecosystem.config.js --update-env
 pm2 save
 health check /api/health
 ```
+
+### Update عادی روی سرور موجود
+
+```bash
+cd /opt/unlimited-stream
+sudo bash install.sh
+```
+
+اسکریپت branch `koosha-live-current` را fast-forward می‌کند، dependencyها را نصب می‌کند، frontend را build می‌کند، PM2 را reload می‌کند و health check می‌گیرد.
 
 بعد از update:
 
