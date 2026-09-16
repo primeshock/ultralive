@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Volume2, VolumeX, Pause, Play, RefreshCw, Maximize2 } from "lucide-react";
 import { api } from "@/lib/api";
-import { LoadingIndicator } from "@/components/loading-indicator";
 import { collectRtcStats, qualityLabel } from "@/lib/livekit-stats";
 import { connectOptionsFromLivekit, normalizeLivekitSettings, roomOptionsFromLivekit } from "@/lib/livekit-settings";
 
@@ -300,10 +299,12 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
       />
       <audio ref={audioRef} autoPlay playsInline muted={muted} aria-hidden="true" />
 
-      {!hasVideo && state !== "LIVE" && (
+      {!hasVideo && state !== "LIVE" && state !== "RECONNECTING" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white backdrop-blur-sm">
           <div className="text-center">
-            {error ? <div className="mb-2 text-sm font-medium">{error}</div> : <LoadingIndicator overlay={false} label={state === "RECONNECTING" ? "در حال اتصال مجدد به پخش زنده..." : "در حال اتصال به پخش زنده..."} className="text-white" />}
+            <div className="mb-2 text-sm font-medium">
+              {error || "در حال اتصال به پخش زنده..."}
+            </div>
 
             {error && (
               <button

@@ -10,7 +10,6 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { LoadingIndicator } from "@/components/loading-indicator";
 import { recommendedLivekitSettings } from "@/lib/livekit-settings";
 
 function fmtMb(mb) {
@@ -282,7 +281,7 @@ export default function MasterPage() {
   }
 
   if (loading || !user || user.role !== "owner") {
-    return <LoadingIndicator className="min-h-[40vh]" />;
+    return <div className="flex-1 flex items-center justify-center">در حال بارگذاری...</div>;
   }
 
   return (
