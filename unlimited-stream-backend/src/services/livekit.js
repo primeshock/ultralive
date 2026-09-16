@@ -22,12 +22,19 @@ function ingressClient() {
 function ingressVideoOptions(settings, username, displayName) {
   const livekit = settings?.livekit || recommendedLivekitSettings();
   const video = livekit.video || recommendedLivekitSettings().video;
+
   return {
     options: {
-      width: video.width,
-      height: video.height,
+      videoCodec: 2,
       frameRate: video.fps,
-      bitrate: Math.max(150000, Math.round(video.maxBitrateKbps * 1000)),
+      layers: [
+        {
+          quality: 2,
+          width: video.width,
+          height: video.height,
+          bitrate: Math.max(150000, Math.round(video.maxBitrateKbps * 1000)),
+        },
+      ],
     },
   };
 }
