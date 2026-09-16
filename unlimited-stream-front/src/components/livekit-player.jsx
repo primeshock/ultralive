@@ -303,7 +303,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
       {!hasVideo && state !== "LIVE" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white backdrop-blur-sm">
           <div className="text-center">
-            {error ? <div className="mb-2 text-sm font-medium">{error}</div> : <LoadingIndicator label={state === "RECONNECTING" ? "در حال اتصال مجدد به پخش زنده..." : "در حال اتصال به پخش زنده..."} className="text-white" />}
+            {error ? <div className="mb-2 text-sm font-medium">{error}</div> : <LoadingIndicator overlay={false} label={state === "RECONNECTING" ? "در حال اتصال مجدد به پخش زنده..." : "در حال اتصال به پخش زنده..."} className="text-white" />}
 
             {error && (
               <button

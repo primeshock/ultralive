@@ -1,16 +1,19 @@
-import { LoaderCircle } from "lucide-react";
-
-const sizes = {
-  sm: "size-4",
-  md: "size-7",
-  lg: "size-10",
-};
-
-export function LoadingIndicator({ label = "در حال بارگذاری...", size = "md", className = "" }) {
-  return (
-    <div className={`flex flex-col items-center justify-center gap-3 text-muted-foreground ${className}`} role="status" aria-live="polite">
-      <LoaderCircle className={`${sizes[size] || sizes.md} animate-spin text-cyan-400`} aria-hidden="true" />
-      <span className="text-sm">{label}</span>
+export function LoadingIndicator({ label = "در حال بارگذاری...", className = "", overlay = true }) {
+  const content = (
+    <div className={`loading-orbital-content ${className}`} role="status" aria-live="polite">
+      <div className="loading-orbit" aria-hidden="true">
+        <span className="loading-orb loading-orb-one" />
+        <span className="loading-orb loading-orb-two" />
+        <span className="loading-orb loading-orb-three" />
+        <span className="loading-orb loading-orb-four" />
+        <span className="loading-orb loading-orb-five" />
+        <span className="loading-orbital-core" />
+      </div>
+      <span className="loading-orbital-label">{label}</span>
     </div>
   );
+
+  if (!overlay) return content;
+
+  return <div className="loading-overlay">{content}</div>;
 }
