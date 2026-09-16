@@ -48,7 +48,7 @@ export function PollWidget({ channel }) {
   if (!poll) return null;
 
   const remaining = poll.closesAt ? Math.max(0, Math.ceil((new Date(poll.closesAt).getTime() - clock) / 1000)) : null;
-  const isOpen = Boolean(poll.isOpen && (remaining === null || remaining > 0));
+  const isOpen = Boolean(poll.isOpen);
 
   async function submitVote() {
     if (!selectedOption || poll.votedOptionId || !isOpen || submitting) return;
@@ -68,11 +68,12 @@ export function PollWidget({ channel }) {
     <section className="glass-float rounded-[1.75rem] p-5 text-white">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div><p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200/65">{poll.mode === "quiz" ? "Quick quiz" : "Live poll"}</p><h2 className="text-lg font-semibold">{poll.question}</h2></div>
-        <div className="rounded-full bg-white/8 px-3 py-1 text-xs text-white/60">{remaining !== null && `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`}</div>
+        <div className={`rounded-full px-3 py-1 text-xs ${remaining === 0 ? "bg-amber-400/15 text-amber-200" : "bg-white/8 text-white/60"}`}>{remaining !== null && `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`}</div>
       </div>
         <div className="mb-3 flex items-center justify-between text-xs text-white/45">
           <span>{poll.mode === "quiz" ? "کوئیز" : "نظرسنجی"}</span>
         </div>
+        {remaining === 0 && isOpen && <p className="mb-2 text-sm text-amber-200/75">زمان پیشنهادی تمام شده است؛ تا زمان بستن توسط مدیر، پاسخ‌گویی باز است.</p>}
         {!isOpen && <p className="mb-2 text-sm text-white/50">این نظرسنجی بسته شده است.</p>}
         {poll.options.map((o, index) => (
           <Button

@@ -46,7 +46,7 @@ export function NetworkMonitor({ stats, compact = false }) {
   ];
 
   return (
-    <section className={`glass-float flex flex-col gap-3 rounded-[1.75rem] text-white ${compact ? "p-4" : "p-5"}`}>
+    <section className={`network-monitor-panel flex flex-col gap-3 rounded-[1.75rem] text-white ${compact ? "p-4" : "p-5"}`}>
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">Network Monitor</p>

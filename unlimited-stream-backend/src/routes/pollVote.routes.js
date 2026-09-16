@@ -27,7 +27,7 @@ router.get('/:channel/polls/active', async (req, res) => {
     return res.status(401).json({ error: 'دسترسی ندارید.' });
   }
   const poll = await Poll.findOne({ channel: req.params.channel.toLowerCase() }).sort({ createdAt: -1 });
-  if (!poll || !poll.isOpen || (poll.closesAt && poll.closesAt <= new Date())) return res.json(null);
+  if (!poll || !poll.isOpen) return res.json(null);
   const response = {
     id: poll._id,
     question: poll.question,
@@ -69,7 +69,7 @@ router.post('/:channel/polls/:pollId/vote', async (req, res) => {
     return res.status(401).json({ error: 'دسترسی ندارید.' });
   }
   const poll = await Poll.findById(req.params.pollId);
-  if (!poll || !poll.isEffectivelyOpen()) return res.status(400).json({ error: 'این نظرسنجی بسته شده است.' });
+  if (!poll || !poll.isOpen) return res.status(400).json({ error: 'این نظرسنجی بسته شده است.' });
   if (!poll.options.some((o) => String(o._id) === req.body?.optionId)) {
     return res.status(400).json({ error: 'گزینه نامعتبر.' });
   }

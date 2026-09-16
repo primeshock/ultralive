@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -21,12 +21,15 @@ function storedThemeIsDark() {
 export function SiteHeader() {
   const { user, loading, setUser } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const isStudentStream = /^\/(channel|monitor)(\/|$)/.test(pathname || "");
   const [dark, setDark] = useState(storedThemeIsDark);
   const [brand, setBrand] = useState({ siteName: "Ultra Live", logoUrl: "" });
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
+    const streamDark = isStudentStream || dark;
+    document.documentElement.classList.toggle("dark", streamDark);
+  }, [dark, isStudentStream]);
 
   useEffect(() => {
     api.site().then(setBrand).catch(() => {});
@@ -61,7 +64,7 @@ export function SiteHeader() {
         </Link>
 
         <nav className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="تغییر تم">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>
+          {!isStudentStream && <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="تغییر تم">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>}
           {loading ? null : user ? (
             <>
               {user.role === "owner" && (

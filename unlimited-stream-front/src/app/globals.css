@@ -204,6 +204,12 @@ textarea::placeholder {
   -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(135%);
 }
 
+.network-monitor-panel {
+  border: 1px solid rgb(148 163 184 / 0.34);
+  background: #101936;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.42), inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+
 .spatial-shell[data-appearance="gemini"] { filter: saturate(1.12); }
 .spatial-shell[data-appearance="apple-dark"] { background-color: #050609; }
 .spatial-shell[data-appearance="custom"] { background-color: #0b1020; }
