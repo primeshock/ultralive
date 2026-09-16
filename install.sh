@@ -368,6 +368,14 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
+    # Branding assets are served by the backend at the site root. Keep these
+    # paths ahead of the catch-all Next.js location so uploaded files render.
+    location ~ ^/(site-logo|site-favicon|site-background)$ {
+        proxy_pass http://127.0.0.1:5050;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
     location /thumbnails/ {
         proxy_pass http://127.0.0.1:8000;
     }
