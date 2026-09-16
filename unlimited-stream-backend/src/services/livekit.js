@@ -25,7 +25,7 @@ function ingressVideoOptions(settings, username, displayName) {
 
   return {
     options: {
-      videoCodec: 2,
+      videoCodec: 1,
       frameRate: video.fps,
       layers: [
         {
