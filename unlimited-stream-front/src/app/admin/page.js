@@ -424,7 +424,7 @@ export default function AdminPage() {
                     <option value="poll">نظرسنجی</option>
                     <option value="quiz">کوئیز</option>
                   </select>
-                  <Input type="number" placeholder="تایمر (ثانیه، اختیاری)" value={pollForm.timerSeconds} onChange={(e) => setPollForm({ ...pollForm, timerSeconds: e.target.value })} />
+                  <Input type="number" min="1" placeholder="تایمر (خالی = بدون محدودیت)" value={pollForm.timerSeconds} onChange={(e) => setPollForm({ ...pollForm, timerSeconds: e.target.value })} />
                   <Input type="datetime-local" value={pollForm.revealAt} onChange={(e) => setPollForm({ ...pollForm, revealAt: e.target.value })} title="زمان اعلام نتیجه (اختیاری)" />
                 </div>
                 {pollForm.options.map((o, i) => (

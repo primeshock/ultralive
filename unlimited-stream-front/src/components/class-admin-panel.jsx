@@ -215,7 +215,7 @@ export function ClassAdminPanel({ channel, thumbnailUrl, chatMode, showViewerCou
             <option value="poll">نظرسنجی</option>
             <option value="quiz">کوئیز</option>
           </select>
-          <Input type="number" min="1" placeholder="زمان (ثانیه)" value={form.timerSeconds} onChange={(event) => setForm({ ...form, timerSeconds: event.target.value })} />
+          <Input type="number" min="1" placeholder="زمان (خالی = بدون محدودیت)" value={form.timerSeconds} onChange={(event) => setForm({ ...form, timerSeconds: event.target.value })} />
         </div>
         {form.options.map((option, index) => (
           <div key={index} className="flex items-center gap-2">

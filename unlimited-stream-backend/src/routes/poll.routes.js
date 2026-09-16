@@ -12,6 +12,12 @@ async function canManagePoll(req, poll) {
   return Boolean(channel);
 }
 
+async function canManageChannel(req, channel) {
+  const filter = { username: channel.toLowerCase(), role: 'teacher' };
+  if (req.user.role !== 'owner') filter.managedBy = req.user._id;
+  return Boolean(await User.exists(filter));
+}
+
 async function loadManagedPoll(req, res) {
   const poll = await Poll.findById(req.params.pollId);
   if (!poll) {
@@ -26,21 +32,30 @@ async function loadManagedPoll(req, res) {
 }
 
 router.get('/channels/:channel/polls', async (req, res) => {
+  if (!(await canManageChannel(req, req.params.channel))) return res.status(404).json({ error: 'کانال پیدا نشد.' });
   const polls = await Poll.find({ channel: req.params.channel.toLowerCase() }).sort({ createdAt: -1 }).limit(50);
   res.json(polls);
 });
 
 router.post('/channels/:channel/polls', async (req, res) => {
+  if (!(await canManageChannel(req, req.params.channel))) return res.status(404).json({ error: 'کانال پیدا نشد.' });
   const { question, mode, options, timerSeconds, revealAt, showResults } = req.body || {};
-  if (!question || !Array.isArray(options) || options.length < 2) {
+  const normalizedQuestion = String(question || '').trim();
+  const normalizedOptions = Array.isArray(options)
+    ? options.map((option) => ({ ...option, text: String(option?.text || '').trim() })).filter((option) => option.text)
+    : [];
+  const hasTimer = timerSeconds !== undefined && timerSeconds !== null && String(timerSeconds).trim() !== '';
+  const timer = Number(timerSeconds);
+  if (!normalizedQuestion || normalizedQuestion.length > 500 || normalizedOptions.length < 2) {
     return res.status(400).json({ error: 'سوال و حداقل دو گزینه لازم است.' });
   }
+  if (hasTimer && (!Number.isFinite(timer) || timer <= 0)) return res.status(400).json({ error: 'مدت تایمر باید بیشتر از صفر باشد.' });
   const poll = await Poll.create({
     channel: req.params.channel.toLowerCase(),
-    question,
+    question: normalizedQuestion,
     mode: mode === 'quiz' ? 'quiz' : 'poll',
-    options,
-    closesAt: timerSeconds ? new Date(Date.now() + timerSeconds * 1000) : null,
+    options: normalizedOptions,
+    closesAt: hasTimer ? new Date(Date.now() + timer * 1000) : null,
     revealAt: revealAt ? new Date(revealAt) : null,
     showResults: Boolean(showResults),
     createdBy: String(req.user._id),
@@ -115,6 +130,10 @@ router.post('/polls/:pollId/reset', async (req, res) => {
   await PollResponse.deleteMany({ pollId: poll._id });
   poll.isOpen = true;
   poll.revealed = false;
+  if (poll.closesAt && poll.closesAt <= new Date()) {
+    const durationMs = poll.closesAt.getTime() - poll.createdAt.getTime();
+    poll.closesAt = durationMs > 0 ? new Date(Date.now() + durationMs) : null;
+  }
   await poll.save();
   res.json(poll);
 });

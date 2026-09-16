@@ -12,7 +12,7 @@ const pollSchema = new mongoose.Schema(
     mode: { type: String, enum: ['poll', 'quiz'], default: 'poll' },
     options: { type: [optionSchema], required: true, validate: (v) => v.length >= 2 },
     isOpen: { type: Boolean, default: true },
-    closesAt: { type: Date, default: null }, // informational countdown; closing is manual
+    closesAt: { type: Date, default: null }, // voting deadline; null means unlimited
     revealAt: { type: Date, default: null }, // scheduled result/answer reveal (quiz mode)
     revealed: { type: Boolean, default: false }, // manual reveal override
     showResults: { type: Boolean, default: false },
@@ -22,7 +22,7 @@ const pollSchema = new mongoose.Schema(
 );
 
 pollSchema.methods.isEffectivelyOpen = function () {
-  return this.isOpen;
+  return this.isOpen && (!this.closesAt || this.closesAt > new Date());
 };
 pollSchema.methods.isEffectivelyRevealed = function () {
   return this.revealed || (this.revealAt && this.revealAt <= new Date());

@@ -48,7 +48,8 @@ export function PollWidget({ channel }) {
   if (!poll) return null;
 
   const remaining = poll.closesAt ? Math.max(0, Math.ceil((new Date(poll.closesAt).getTime() - clock) / 1000)) : null;
-  const isOpen = Boolean(poll.isOpen);
+  const timerOpen = remaining === null || remaining > 0;
+  const isOpen = Boolean(poll.isOpen && timerOpen);
 
   async function submitVote() {
     if (!selectedOption || poll.votedOptionId || !isOpen || submitting) return;
@@ -73,8 +74,8 @@ export function PollWidget({ channel }) {
         <div className="mb-3 flex items-center justify-between text-xs text-white/45">
           <span>{poll.mode === "quiz" ? "کوئیز" : "نظرسنجی"}</span>
         </div>
-        {remaining === 0 && isOpen && <p className="mb-2 text-sm text-amber-200/75">زمان پیشنهادی تمام شده است؛ تا زمان بستن توسط مدیر، پاسخ‌گویی باز است.</p>}
-        {!isOpen && <p className="mb-2 text-sm text-white/50">این نظرسنجی بسته شده است.</p>}
+        {remaining === 0 && <p className="mb-2 text-sm text-amber-200/75">مهلت پاسخ‌گویی تمام شده است.</p>}
+        {!isOpen && remaining !== 0 && <p className="mb-2 text-sm text-white/50">این نظرسنجی بسته شده است.</p>}
         {poll.options.map((o, index) => (
           <Button
             key={o.id}
