@@ -56,15 +56,16 @@ function clampInt(value, min, max, fallback) {
 
 export function roomOptionsFromLivekit(settings) {
   const livekit = normalizeLivekitSettings(settings);
+  const retryDelays = Array.from({ length: livekit.connection.maxRetries + 1 }, (_, index) => {
+    if (index === 0) return 0;
+    return Math.min(livekit.connection.maxRetryDelayMs, livekit.connection.retryDelayMs * (2 ** (index - 1)));
+  });
+
   return {
     adaptiveStream: livekit.connection.adaptiveStream,
     dynacast: livekit.connection.dynacast,
     singlePeerConnection: true,
-    reconnectPolicy: new DefaultReconnectPolicy({
-      maxRetryCount: livekit.connection.maxRetries,
-      nextRetryDelayInMs: livekit.connection.retryDelayMs,
-      maxRetryDelayInMs: livekit.connection.maxRetryDelayMs,
-    }),
+    reconnectPolicy: new DefaultReconnectPolicy(retryDelays),
   };
 }
 

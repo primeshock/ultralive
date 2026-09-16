@@ -1,4 +1,4 @@
-const { AccessToken, IngressClient, IngressInput, RoomServiceClient } = require('livekit-server-sdk');
+const { AccessToken, IngressClient, IngressInput, RoomServiceClient, TrackSource, AudioCodec, VideoCodec } = require('livekit-server-sdk');
 const User = require('../models/User');
 const SiteSettings = require('../models/SiteSettings');
 const { livekitEnabled, livekitUrl, livekitApiKey, livekitApiSecret } = require('../config/env');
@@ -24,26 +24,42 @@ function ingressVideoOptions(settings, username, displayName) {
   const video = livekit.video || recommendedLivekitSettings().video;
 
   return {
-    options: {
-      videoCodec: 1,
-      frameRate: video.fps,
-      layers: [
-        {
-          quality: 2,
-          width: video.width,
-          height: video.height,
-          bitrate: Math.max(150000, Math.round(video.maxBitrateKbps * 1000)),
-        },
-      ],
+    name: `${displayName || username}-video`,
+    source: TrackSource.CAMERA,
+    encodingOptions: {
+      case: 'options',
+      value: {
+        videoCodec: video.codec === 'vp8' ? VideoCodec.VP8 : VideoCodec.H264_MAIN,
+        frameRate: video.fps,
+        layers: [
+          {
+            quality: 2,
+            width: video.width,
+            height: video.height,
+            bitrate: Math.max(150000, Math.round(video.maxBitrateKbps * 1000)),
+            ssrc: 0,
+            spatialLayer: 0,
+            rid: 'f',
+            repairSsrc: 0,
+          },
+        ],
+      },
     },
   };
 }
 
 function ingressAudioOptions(username, displayName) {
   return {
-    options: {
-      bitrate: 64000,
-      channels: 1,
+    name: `${displayName || username}-audio`,
+    source: TrackSource.MICROPHONE,
+    encodingOptions: {
+      case: 'options',
+      value: {
+        audioCodec: AudioCodec.OPUS,
+        bitrate: 64000,
+        disableDtx: false,
+        channels: 1,
+      },
     },
   };
 }

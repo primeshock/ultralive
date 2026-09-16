@@ -7,6 +7,17 @@ import { api } from "@/lib/api";
 import { collectRtcStats, qualityLabel } from "@/lib/livekit-stats";
 import { connectOptionsFromLivekit, normalizeLivekitSettings, roomOptionsFromLivekit } from "@/lib/livekit-settings";
 
+function describeLivekitError(error, context = {}) {
+  return {
+    name: error?.name || "Error",
+    message: error?.message || String(error),
+    stack: error?.stack || null,
+    code: error?.code ?? null,
+    reason: error?.reason ?? null,
+    ...context,
+  };
+}
+
 export function LiveKitPlayer({ channel, className, poster, connection, livekitSettings, onTelemetry }) {
   const mediaRef = useRef(null);
   const audioRef = useRef(null);
@@ -116,9 +127,10 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
     }
 
     async function start() {
+      let credentials = null;
       try {
         setState("CONNECTING");
-        const credentials = connection || await api.livekitToken(channel);
+        credentials = connection || await api.livekitToken(channel);
         const { serverUrl, participantToken } = credentials;
 
         if (cancelled || !serverUrl || !participantToken) {
@@ -132,6 +144,10 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         roomRef.current = room;
 
         room.on(lk.RoomEvent.ConnectionStateChanged, (nextState) => {
+          console.info("[LiveKit] ConnectionStateChanged", {
+            room: credentials?.roomName || null,
+            state: nextState,
+          });
           if (nextState === lk.ConnectionState.Connected) setState("LIVE");
           else if (nextState === lk.ConnectionState.Reconnecting || nextState === lk.ConnectionState.SignalReconnecting) setState("RECONNECTING");
           else if (nextState === lk.ConnectionState.Disconnected) setState("OFFLINE");
@@ -139,6 +155,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         });
 
         room.on(lk.RoomEvent.Reconnecting, () => {
+          console.warn("[LiveKit] Reconnecting", { room: credentials?.roomName || null });
           if (!cancelled) {
             setState("RECONNECTING");
             refreshStats(room, currentVideoTrack || currentTrackRef.current);
@@ -146,13 +163,18 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         });
 
         room.on(lk.RoomEvent.Reconnected, () => {
+          console.info("[LiveKit] Reconnected", { room: credentials?.roomName || null });
           if (!cancelled) {
             setState("LIVE");
             void refreshStats(room, currentVideoTrack || currentTrackRef.current);
           }
         });
 
-        room.on(lk.RoomEvent.Disconnected, () => {
+        room.on(lk.RoomEvent.Disconnected, (reason) => {
+          console.warn("[LiveKit] Disconnected", {
+            room: credentials?.roomName || null,
+            reason: reason || null,
+          });
           if (!cancelled) {
             setError("LiveKit disconnected");
             setState("OFFLINE");
@@ -160,11 +182,20 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
           }
         });
 
-        room.on(lk.RoomEvent.ParticipantConnected, () => {
+        room.on(lk.RoomEvent.ParticipantConnected, (participant) => {
+          console.info("[LiveKit] ParticipantConnected", {
+            room: credentials?.roomName || null,
+            participant: participant?.identity || null,
+          });
           void refreshStats(room, currentVideoTrack || currentTrackRef.current);
         });
 
-        room.on(lk.RoomEvent.ParticipantDisconnected, () => {
+        room.on(lk.RoomEvent.ParticipantDisconnected, (participant, reason) => {
+          console.info("[LiveKit] ParticipantDisconnected", {
+            room: credentials?.roomName || null,
+            participant: participant?.identity || null,
+            reason: reason || null,
+          });
           void refreshStats(room, currentVideoTrack || currentTrackRef.current);
         });
 
@@ -172,43 +203,63 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
           void refreshStats(room, currentVideoTrack || currentTrackRef.current);
         });
 
-        room.on(lk.RoomEvent.TrackSubscribed, (...args) => {
-          try {
-            const track = args && args.length ? args[0] : null;
-            if (!track) throw new Error('no track in TrackSubscribed args');
-            void attachTrack(track);
-          } catch (err) {
-            console.error('TrackSubscribed handler error:', err);
+        room.on(lk.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          console.info("[LiveKit] TrackSubscribed", {
+            room: room.name,
+            participant: participant?.identity || null,
+            trackSid: publication?.trackSid || publication?.sid || null,
+            kind: track?.kind || null,
+          });
+          void attachTrack(track).catch((err) => {
+            console.error("[LiveKit] TrackSubscribed handler error", describeLivekitError(err, {
+              room: room.name,
+              participant: participant?.identity || null,
+            }));
             if (!cancelled) setError(String(err.message || err));
-          }
+          });
         });
 
-        room.on(lk.RoomEvent.TrackUnsubscribed, (...args) => {
-          try {
-            const track = args && args.length ? args[0] : null;
-            if (track) detachTrack(track);
-            void refreshStats(room, currentVideoTrack || currentTrackRef.current);
-          } catch (err) {
-            console.error('TrackUnsubscribed handler error:', err);
-            if (!cancelled) setError(String(err.message || err));
-          }
+        room.on(lk.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+          console.info("[LiveKit] TrackUnsubscribed", {
+            room: room.name,
+            participant: participant?.identity || null,
+            trackSid: publication?.trackSid || publication?.sid || null,
+            kind: track?.kind || null,
+          });
+          detachTrack(track);
+          void refreshStats(room, currentVideoTrack || currentTrackRef.current);
         });
 
-        room.on(lk.RoomEvent.TrackSubscriptionFailed, (_trackSid, _participant, err) => {
+        room.on(lk.RoomEvent.TrackSubscriptionFailed, (trackSid, participant) => {
+          const subscriptionError = new Error("LiveKit track subscription failed");
+          console.error("[LiveKit] TrackSubscriptionFailed", describeLivekitError(subscriptionError, {
+            room: room.name,
+            participant: participant?.identity || null,
+            trackSid: trackSid || null,
+          }));
           if (!cancelled) {
-            setError(err?.message || "Track subscription failed");
+            setError("Track subscription failed");
             void refreshStats(room, currentVideoTrack || currentTrackRef.current);
           }
         });
-
-        await room.prepareConnection(serverUrl, participantToken).catch(() => {});
 
         if (cancelled) return;
 
+        console.info("[LiveKit] connecting", {
+          roomName: credentials.roomName || room.name || null,
+          serverUrl,
+          hasToken: Boolean(participantToken),
+        });
         await room.connect(serverUrl, participantToken, connectOptionsFromLivekit(normalizedSettings));
 
         if (cancelled) return;
 
+        console.info("[LiveKit] connected", {
+          room: credentials.roomName || null,
+          serverUrl,
+          state: room.state,
+          participants: room.remoteParticipants?.size || 0,
+        });
         setState("LIVE");
 
         stopStatsTimer();
@@ -219,7 +270,13 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         await refreshStats(room, currentVideoTrack || currentTrackRef.current);
       } catch (err) {
         if (!cancelled) {
-          setError(err.message || "LiveKit unavailable");
+          const details = describeLivekitError(err, {
+            room: room?.name || credentials?.roomName || null,
+            state: room?.state || "not-created",
+            serverUrl: credentials?.serverUrl || null,
+          });
+          console.error("[LiveKit] connection failed", details);
+          setError(details.message || "LiveKit unavailable");
           setState("OFFLINE");
           stopStatsTimer();
         }
