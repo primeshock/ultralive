@@ -12,6 +12,7 @@ import { ClassAdminPanel } from "@/components/class-admin-panel";
 import { NetworkMonitor } from "@/components/network-monitor";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { LoadingIndicator } from "@/components/loading-indicator";
 
 export default function ChannelPage({ params }) {
   const { username } = usePromise(params);
@@ -79,11 +80,7 @@ export default function ChannelPage({ params }) {
   }
 
   if (authLoading || accessAllowed === null || !channel) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        در حال بارگذاری...
-      </div>
-    );
+    return <LoadingIndicator className="min-h-[40vh]" />;
   }
 
   const useLiveKit = playback.enabled || playback.mode === "livekit";

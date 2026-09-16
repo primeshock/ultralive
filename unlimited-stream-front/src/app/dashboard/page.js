@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { LoadingIndicator } from "@/components/loading-indicator";
 import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardPage() {
@@ -33,7 +34,7 @@ export default function DashboardPage() {
   }, [loading, user, router]);
 
   if (loading || !user || user.role !== "teacher") {
-    return <div className="flex-1 flex items-center justify-center">در حال بارگذاری...</div>;
+    return <LoadingIndicator className="min-h-[40vh]" />;
   }
 
   async function copy(text, label) {

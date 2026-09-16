@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { LoadingIndicator } from "@/components/loading-indicator";
 
 function Bar({ label, count, total, isCorrect, revealed }) {
   const pct = total ? Math.round((count / total) * 100) : 0;
@@ -271,7 +272,7 @@ export default function AdminPage() {
   }
 
   if (loading || !user || !["admin", "owner"].includes(user.role)) {
-    return <div className="flex-1 flex items-center justify-center">در حال بارگذاری...</div>;
+    return <LoadingIndicator className="min-h-[40vh]" />;
   }
 
   return (
