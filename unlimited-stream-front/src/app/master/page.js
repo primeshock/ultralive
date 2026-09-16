@@ -58,19 +58,23 @@ export default function MasterPage() {
   }, [loading, user, router]);
 
   async function loadAll() {
-    const [a, s, st, log] = await Promise.all([
-      api.listAdmins(),
-      api.getSettings(),
-      api.systemStats().catch(() => null),
-      api.activityLog().catch(() => []),
-    ]);
-    setAdmins(a);
-    setAdminEdits(Object.fromEntries((a || []).map((admin) => [admin._id || admin.id, { username: admin.username, password: "" }])));
-    setSettings(s);
-    setLivekitForm(s?.livekit || recommendedLivekitSettings());
-    setAppearanceForm(s?.appearance || { preset: "aurora", backgroundUrl: "", backgroundDarkness: 52, glassOpacity: 62, glassBlur: 22, glowIntensity: 55 });
-    setStats(st);
-    setActivity(log);
+    try {
+      const [a, s, st, log] = await Promise.all([
+        api.listAdmins(),
+        api.getSettings(),
+        api.systemStats().catch(() => null),
+        api.activityLog().catch(() => []),
+      ]);
+      setAdmins(a);
+      setAdminEdits(Object.fromEntries((a || []).map((admin) => [admin._id || admin.id, { username: admin.username, password: "" }])));
+      setSettings(s);
+      setLivekitForm(s?.livekit || recommendedLivekitSettings());
+      setAppearanceForm(s?.appearance || { preset: "aurora", backgroundUrl: "", backgroundDarkness: 52, glassOpacity: 62, glassBlur: 22, glowIntensity: 55 });
+      setStats(st);
+      setActivity(log);
+    } catch (err) {
+      setMsg(err.message || "دریافت تنظیمات پنل انجام نشد.");
+    }
   }
 
   useEffect(() => {

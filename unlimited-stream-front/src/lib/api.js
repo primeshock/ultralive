@@ -1,33 +1,50 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
 export const MEDIA_URL = process.env.NEXT_PUBLIC_MEDIA_URL || "http://localhost:8000";
 export const RTMP_URL = process.env.NEXT_PUBLIC_RTMP_URL || "rtmp://localhost:1935/live";
+const API_TIMEOUT_MS = 15000;
 
 async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_URL}${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...options.headers },
-    ...options,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || "درخواست با خطا مواجه شد");
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...options.headers },
+      ...options,
+      signal: options.signal || controller.signal,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "درخواست با خطا مواجه شد");
+    }
+    return data;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return data;
 }
 
 async function apiUpload(path, formData) {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    credentials: "include",
-    body: formData,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || "آپلود با خطا مواجه شد");
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+      signal: controller.signal,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "آپلود با خطا مواجه شد");
+    }
+    return data;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return data;
 }
 
 export const api = {
