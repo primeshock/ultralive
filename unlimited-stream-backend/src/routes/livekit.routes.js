@@ -8,6 +8,7 @@ const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
 const { createStudentToken, createStaffToken, ensureIngress, deleteIngress, roomName } = require('../services/livekit');
 const { livekitEnabled, livekitWsUrl } = require('../config/env');
 const SiteSettings = require('../models/SiteSettings');
+const { withLivekitSettings } = require('../utils/livekitSettings');
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ const router = express.Router();
 // attempt a LiveKit connection before falling back to HLS.
 router.get('/status', async (_req, res) => {
   const settings = await SiteSettings.get();
-  res.json({ enabled: livekitEnabled, playbackMode: settings.playbackMode || 'auto' });
+  res.json({ enabled: livekitEnabled, playbackMode: settings.playbackMode || 'auto', livekit: withLivekitSettings(settings).livekit });
 });
 
 // Either a real staff login (owner/admin) or a valid student room-session

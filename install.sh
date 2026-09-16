@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Easy-install for Koosha Live (Unlimited Stream engine).
+# Easy-install for Ultra Live (Unlimited Stream engine).
 # Sets up a fresh Ubuntu/Debian server end-to-end: Docker + MongoDB (in Docker,
 # random credentials), Node.js + ffmpeg + PM2, Nginx as a reverse proxy on :80,
 # firewall locked down to only what needs to be public, then starts everything.
@@ -94,7 +94,7 @@ update_existing_installation() {
   log "به‌روزرسانی فقطِ source برای نصب موجود"
 
   local rel backup_dir changes
-  backup_dir="/root/koosha-source-update-backups"
+  backup_dir="/root/ultra-live-source-update-backups"
   mkdir -p "$backup_dir"
 
   # npm install from older deploys may have modified a lockfile. Preserve a
@@ -164,12 +164,12 @@ export DEBIAN_FRONTEND=noninteractive
 # existing Docker source files before the first apt update.
 for apt_source in /etc/apt/sources.list.d/*; do
   if [[ -f "$apt_source" ]] && grep -q 'download\.docker\.com' "$apt_source"; then
-    mv "$apt_source" "${apt_source}.koosha-disabled"
+      mv "$apt_source" "${apt_source}.ultra-live-disabled"
     echo "Docker apt source غیرفعال شد: $apt_source"
   fi
 done
 if [[ -f /etc/apt/sources.list ]] && grep -q 'download\.docker\.com' /etc/apt/sources.list; then
-  sed -i.bak '/download\.docker\.com/s/^/# disabled by Koosha Live installer: /' /etc/apt/sources.list
+  sed -i.bak '/download\.docker\.com/s/^/# disabled by Ultra Live installer: /' /etc/apt/sources.list
   echo "Docker apt source داخل /etc/apt/sources.list غیرفعال شد."
 fi
 
@@ -244,8 +244,10 @@ if [[ -d "$APP_DIR/.git" ]]; then
   FRONT_LOCK_REL="unlimited-stream-front/package-lock.json"
   if ! git -C "$APP_DIR" diff --quiet -- "$FRONT_LOCK_REL"; then
     cp "$APP_DIR/$FRONT_LOCK_REL" "/root/koosha-package-lock.backup"
+    cp "$APP_DIR/$FRONT_LOCK_REL" "/root/ultra-live-package-lock.backup"
     git -C "$APP_DIR" restore --source=HEAD --staged --worktree -- "$FRONT_LOCK_REL"
     echo "package-lock محلی backup شد و نسخه repository استفاده می‌شود."
+    cp "$APP_DIR/$FRONT_LOCK_REL" "/root/ultra-live-package-lock.backup"
   fi
   git -C "$APP_DIR" pull --ff-only
 else

@@ -42,10 +42,12 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/site', async (_req, res) => {
   const settings = await require('./models/SiteSettings').get();
   res.json({
-    siteName: settings.siteName || 'Koosha Live',
-    browserTabTitle: settings.browserTabTitle || settings.siteName || 'Koosha Live',
+    siteName: settings.siteName || 'Ultra Live',
+    browserTabTitle: settings.browserTabTitle || settings.siteName || 'Ultra Live',
     logoUrl: settings.logoUrl || '',
     faviconUrl: settings.faviconUrl || '',
+    livekit: settings.livekit || undefined,
+    appearance: settings.appearance || undefined,
   });
 });
 app.use('/api/auth', authRoutes);

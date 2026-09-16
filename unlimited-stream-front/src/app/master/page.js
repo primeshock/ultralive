@@ -7,12 +7,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { recommendedLivekitSettings } from "@/lib/livekit-settings";
 
 function fmtMb(mb) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} گیگ` : `${mb} مگ`;
 }
+
+function FieldHint({ text }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex size-4 items-center justify-center rounded-full border text-[10px] text-muted-foreground">?</span>} />
+        <TooltipContent>{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+const APPEARANCE_PRESETS = {
+  aurora: { backgroundDarkness: 52, glassOpacity: 62, glassBlur: 22, glowIntensity: 55 },
+  gemini: { backgroundDarkness: 44, glassOpacity: 56, glassBlur: 26, glowIntensity: 78 },
+  "apple-dark": { backgroundDarkness: 72, glassOpacity: 70, glassBlur: 18, glowIntensity: 28 },
+  custom: { backgroundDarkness: 52, glassOpacity: 62, glassBlur: 22, glowIntensity: 55 },
+};
 
 export default function MasterPage() {
   const { user, loading, refresh } = useAuth();
@@ -30,6 +50,9 @@ export default function MasterPage() {
   const [ownerForm, setOwnerForm] = useState({ username: "", currentPassword: "", password: "" });
   const [logoFile, setLogoFile] = useState(null);
   const [faviconFile, setFaviconFile] = useState(null);
+  const [backgroundFile, setBackgroundFile] = useState(null);
+  const [livekitForm, setLivekitForm] = useState(recommendedLivekitSettings());
+  const [appearanceForm, setAppearanceForm] = useState({ preset: "aurora", backgroundUrl: "", backgroundDarkness: 52, glassOpacity: 62, glassBlur: 22, glowIntensity: 55 });
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "owner")) router.replace("/");
@@ -47,6 +70,8 @@ export default function MasterPage() {
     setChannels(c || []);
     setAdminEdits(Object.fromEntries((a || []).map((admin) => [admin._id || admin.id, { username: admin.username, password: "" }])));
     setSettings(s);
+    setLivekitForm(s?.livekit || recommendedLivekitSettings());
+    setAppearanceForm(s?.appearance || { preset: "aurora", backgroundUrl: "", backgroundDarkness: 52, glassOpacity: 62, glassBlur: 22, glowIntensity: 55 });
     setStats(st);
     setActivity(log);
   }
@@ -95,10 +120,57 @@ export default function MasterPage() {
     try {
       const updated = await api.updateSettings(patch);
       setSettings(updated);
+      setLivekitForm(updated?.livekit || recommendedLivekitSettings());
       flash("تنظیمات ذخیره شد.");
     } catch (err) {
       flash(err.message);
     }
+  }
+
+  async function handleSaveLivekit(e) {
+    e.preventDefault();
+    const next = {
+      video: {
+        width: Number(livekitForm.video.width),
+        height: Number(livekitForm.video.height),
+        fps: Number(livekitForm.video.fps),
+        maxBitrateKbps: Number(livekitForm.video.maxBitrateKbps),
+        codec: livekitForm.video.codec,
+        simulcast: Boolean(livekitForm.video.simulcast),
+        simulcastLayers: Number(livekitForm.video.simulcastLayers),
+      },
+      connection: {
+        adaptiveStream: Boolean(livekitForm.connection.adaptiveStream),
+        dynacast: Boolean(livekitForm.connection.dynacast),
+        maxRetries: Number(livekitForm.connection.maxRetries),
+        peerConnectionTimeoutMs: Number(livekitForm.connection.peerConnectionTimeoutMs),
+        retryDelayMs: Number(livekitForm.connection.retryDelayMs),
+        maxRetryDelayMs: Number(livekitForm.connection.maxRetryDelayMs),
+        iceTransportPolicy: livekitForm.connection.iceTransportPolicy,
+      },
+    };
+
+    if (next.video.width < 320 || next.video.width > 3840) return flash("عرض ویدیو نامعتبر است.");
+    if (next.video.height < 240 || next.video.height > 2160) return flash("ارتفاع ویدیو نامعتبر است.");
+    if (next.video.fps < 1 || next.video.fps > 60) return flash("FPS نامعتبر است.");
+    if (next.video.maxBitrateKbps < 150 || next.video.maxBitrateKbps > 20000) return flash("حداکثر bitrate نامعتبر است.");
+    if (!["vp8", "h264"].includes(next.video.codec)) return flash("codec نامعتبر است.");
+    if (next.video.simulcastLayers < 1 || next.video.simulcastLayers > 3) return flash("تعداد simulcast layers نامعتبر است.");
+    if (next.connection.retryDelayMs < 100 || next.connection.retryDelayMs > 10000) return flash("تاخیر retry نامعتبر است.");
+    if (next.connection.maxRetryDelayMs < next.connection.retryDelayMs || next.connection.maxRetryDelayMs > 30000) return flash("حداکثر تاخیر retry نامعتبر است.");
+
+    try {
+      const updated = await api.updateSettings({ livekit: next });
+      setSettings(updated);
+      setLivekitForm(updated?.livekit || next);
+      flash("تنظیمات LiveKit ذخیره شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  function resetLivekitRecommended() {
+    setLivekitForm(recommendedLivekitSettings());
   }
 
   async function handleUpdateOwner(event) {
@@ -177,20 +249,64 @@ export default function MasterPage() {
     }
   }
 
+  async function saveAppearance(patch) {
+    const next = { ...appearanceForm, ...patch };
+    setAppearanceForm(next);
+    try {
+      const updated = await api.updateSettings({ appearance: next });
+      setSettings(updated);
+      setAppearanceForm(updated?.appearance || next);
+      flash("تنظیمات ظاهری ذخیره شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  async function handleBackgroundUpload() {
+    if (!backgroundFile) return;
+    try {
+      const updated = await api.uploadBackground(backgroundFile);
+      setSettings(updated);
+      setAppearanceForm(updated?.appearance || appearanceForm);
+      setBackgroundFile(null);
+      flash("پس‌زمینه ذخیره شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  async function handleBackgroundRemove() {
+    try {
+      const updated = await api.removeBackground();
+      setSettings(updated);
+      setAppearanceForm(updated?.appearance || appearanceForm);
+      flash("پس‌زمینه حذف شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  function resetAppearance() {
+    saveAppearance({ preset: "aurora", backgroundUrl: "", backgroundDarkness: 52, glassOpacity: 62, glassBlur: 22, glowIntensity: 55 });
+  }
+
+  function selectAppearancePreset(preset) {
+    saveAppearance({ preset, ...APPEARANCE_PRESETS[preset] });
+  }
+
   if (loading || !user || user.role !== "owner") {
     return <div className="flex-1 flex items-center justify-center">در حال بارگذاری...</div>;
   }
 
   return (
     <div className="mx-auto max-w-4xl w-full px-4 py-8 flex-1 flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">پنل مادر</h1>
+      <h1 className="text-2xl font-bold">Ultra Live · پنل مادر</h1>
       {msg && <p className="text-sm text-primary">{msg}</p>}
 
-      {/* --- Settings --- */}
       <Card>
         <CardHeader>
           <CardTitle>تنظیمات ظاهری و فنی</CardTitle>
-          <CardDescription>نام سایت، لوگو، و باز/بسته بودن ثبت‌نام عمومی</CardDescription>
+          <CardDescription>نام سایت، عنوان تب، لوگو، favicon و ثبت‌نام عمومی</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {settings && (
@@ -208,26 +324,26 @@ export default function MasterPage() {
                 </select>
               </div>
               <div className="grid gap-1.5">
-                <Label>نام سایت</Label>
+                <Label className="flex items-center gap-2">نام سایت <FieldHint text="نام نمایشی سایت در هدر و بخش‌های عمومی" /></Label>
                 <Input
                   defaultValue={settings.siteName}
                   onBlur={(e) => e.target.value !== settings.siteName && handleSettingsChange({ siteName: e.target.value })}
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>عنوان تب مرورگر</Label>
+                <Label className="flex items-center gap-2">عنوان تب مرورگر <FieldHint text="متن tab browser و title page" /></Label>
                 <Input
                   defaultValue={settings.browserTabTitle || settings.siteName}
                   onBlur={(e) => e.target.value !== (settings.browserTabTitle || settings.siteName) && handleSettingsChange({ browserTabTitle: e.target.value })}
                 />
               </div>
               <div className="grid gap-2">
-                <Label>آپلود لوگو (PNG)</Label>
+                <Label className="flex items-center gap-2">آپلود لوگو (PNG) <FieldHint text="لوگو باید PNG واقعی باشد" /></Label>
                 <div className="flex flex-wrap items-center gap-2"><Input type="file" accept="image/png" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} /><Button type="button" onClick={handleLogoUpload} disabled={!logoFile}>آپلود لوگو</Button></div>
                 {settings.logoUrl && <img src={settings.logoUrl} alt="لوگوی سایت" className="h-14 w-fit rounded-xl object-contain" />}
               </div>
               <div className="grid gap-2">
-                <Label>آپلود favicon (PNG)</Label>
+                <Label className="flex items-center gap-2">آپلود favicon (PNG) <FieldHint text="فقط PNG واقعی؛ بعد از ذخیره tab icon به‌روزرسانی می‌شود" /></Label>
                 <div className="flex flex-wrap items-center gap-2">
                   <Input type="file" accept="image/png" onChange={(event) => setFaviconFile(event.target.files?.[0] || null)} />
                   <Button type="button" onClick={handleFaviconUpload} disabled={!faviconFile}>آپلود favicon</Button>
@@ -244,6 +360,112 @@ export default function MasterPage() {
               </label>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden border-white/15 bg-slate-950/70 text-white shadow-2xl backdrop-blur-xl">
+        <CardHeader>
+          <CardTitle>Spatial Appearance</CardTitle>
+          <CardDescription className="text-white/55">پس‌زمینه و عمق شیشه‌ای که همه کاربران در کلاس می‌بینند</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-5 lg:grid-cols-[1fr_280px]">
+          <div className="grid gap-4">
+            <div className="flex flex-wrap gap-2">
+              {[['aurora', 'Aurora'], ['gemini', 'Gemini'], ['apple-dark', 'Apple Dark'], ['custom', 'Custom']].map(([value, label]) => (
+                <Button key={value} type="button" variant={appearanceForm.preset === value ? "default" : "outline"} className="rounded-full" onClick={() => selectAppearancePreset(value)}>{label}</Button>
+              ))}
+            </div>
+            {[['backgroundDarkness', 'تاریکی پس‌زمینه'], ['glassOpacity', 'شفافیت شیشه'], ['glassBlur', 'میزان blur'], ['glowIntensity', 'شدت glow']].map(([key, label]) => (
+              <label key={key} className="grid gap-2 text-sm">
+                <span className="flex justify-between"><span>{label}</span><b>{appearanceForm[key]}{key === 'glassBlur' ? ' px' : '%'}</b></span>
+                <input type="range" min="0" max="100" value={appearanceForm[key]} onChange={(event) => setAppearanceForm((current) => ({ ...current, [key]: Number(event.target.value) }))} onPointerUp={() => saveAppearance({ [key]: appearanceForm[key] })} onBlur={() => saveAppearance({ [key]: appearanceForm[key] })} className="accent-cyan-400" />
+              </label>
+            ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <Input type="file" accept="image/png" onChange={(event) => setBackgroundFile(event.target.files?.[0] || null)} className="max-w-sm border-white/15 bg-white/5" />
+              <Button type="button" onClick={handleBackgroundUpload} disabled={!backgroundFile} className="rounded-full">آپلود PNG</Button>
+              <Button type="button" variant="outline" onClick={handleBackgroundRemove} className="rounded-full border-white/15">حذف پس‌زمینه</Button>
+              <Button type="button" variant="ghost" onClick={resetAppearance} className="rounded-full text-white/65">بازنشانی</Button>
+            </div>
+          </div>
+          <div className="relative min-h-48 overflow-hidden rounded-3xl border border-white/15 bg-[radial-gradient(circle_at_20%_20%,#19d8ff,transparent_34%),radial-gradient(circle_at_80%_25%,#9c5cff,transparent_35%),linear-gradient(135deg,#11152e,#080a16)] p-4" style={{ filter: `saturate(${0.8 + appearanceForm.glowIntensity / 100})`, "--preview-darkness": `${appearanceForm.backgroundDarkness / 100}` }}>
+            {appearanceForm.backgroundUrl && <img src={appearanceForm.backgroundUrl} alt="پیش‌نمایش پس‌زمینه" className="absolute inset-0 size-full object-cover opacity-50" />}
+            <div className="relative mt-16 rounded-2xl border border-white/20 p-4" style={{ backgroundColor: `rgb(255 255 255 / ${appearanceForm.glassOpacity / 1000})`, backdropFilter: `blur(${appearanceForm.glassBlur}px)` }}><p className="text-xs uppercase tracking-widest text-cyan-100/70">Live preview</p><p className="mt-1 font-semibold">Ultra Live classroom</p></div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>LiveKit / Streaming Settings</CardTitle>
+          <CardDescription>تنظیمات streaming فقط توسط Mother Admin قابل تغییر است</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSaveLivekit} className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label className="flex items-center gap-2">Resolution width <FieldHint text="رزولوشن پیشنهادی 1280×720 برای تعادل کیفیت و پایداری" /></Label>
+                <Input type="number" min="320" max="3840" value={livekitForm.video.width} onChange={(e) => setLivekitForm((current) => ({ ...current, video: { ...current.video, width: e.target.value } }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Resolution height</Label>
+                <Input type="number" min="240" max="2160" value={livekitForm.video.height} onChange={(e) => setLivekitForm((current) => ({ ...current, video: { ...current.video, height: e.target.value } }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>FPS</Label>
+                <Input type="number" min="1" max="60" value={livekitForm.video.fps} onChange={(e) => setLivekitForm((current) => ({ ...current, video: { ...current.video, fps: e.target.value } }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Maximum bitrate (kbps)</Label>
+                <Input type="number" min="150" max="20000" value={livekitForm.video.maxBitrateKbps} onChange={(e) => setLivekitForm((current) => ({ ...current, video: { ...current.video, maxBitrateKbps: e.target.value } }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Video codec</Label>
+                <select className="border rounded-md h-9 px-2 text-sm bg-background" value={livekitForm.video.codec} onChange={(e) => setLivekitForm((current) => ({ ...current, video: { ...current.video, codec: e.target.value } }))}>
+                  <option value="h264">H264</option>
+                  <option value="vp8">VP8</option>
+                </select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Simulcast layers</Label>
+                <Input type="number" min="1" max="3" value={livekitForm.video.simulcastLayers} onChange={(e) => setLivekitForm((current) => ({ ...current, video: { ...current.video, simulcastLayers: e.target.value } }))} />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={livekitForm.video.simulcast} onChange={(e) => setLivekitForm((current) => ({ ...current, video: { ...current.video, simulcast: e.target.checked } }))} /> Simulcast</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={livekitForm.connection.adaptiveStream} onChange={(e) => setLivekitForm((current) => ({ ...current, connection: { ...current.connection, adaptiveStream: e.target.checked } }))} /> Adaptive Stream</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={livekitForm.connection.dynacast} onChange={(e) => setLivekitForm((current) => ({ ...current, connection: { ...current.connection, dynacast: e.target.checked } }))} /> Dynacast</label>
+              <div className="grid gap-1.5">
+                <Label>Reconnect attempts</Label>
+                <Input type="number" min="0" max="12" value={livekitForm.connection.maxRetries} onChange={(e) => setLivekitForm((current) => ({ ...current, connection: { ...current.connection, maxRetries: e.target.value } }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Peer connection timeout (ms)</Label>
+                <Input type="number" min="3000" max="60000" value={livekitForm.connection.peerConnectionTimeoutMs} onChange={(e) => setLivekitForm((current) => ({ ...current, connection: { ...current.connection, peerConnectionTimeoutMs: e.target.value } }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="flex items-center gap-2">Retry backoff (ms) <FieldHint text="تاخیر شروع reconnect برای جلوگیری از فشار روی شبکه‌های ضعیف" /></Label>
+                <Input type="number" min="100" max="10000" value={livekitForm.connection.retryDelayMs} onChange={(e) => setLivekitForm((current) => ({ ...current, connection: { ...current.connection, retryDelayMs: e.target.value } }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="flex items-center gap-2">Max retry backoff (ms) <FieldHint text="سقف فاصله بین تلاش‌های reconnect" /></Label>
+                <Input type="number" min="500" max="30000" value={livekitForm.connection.maxRetryDelayMs} onChange={(e) => setLivekitForm((current) => ({ ...current, connection: { ...current.connection, maxRetryDelayMs: e.target.value } }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>ICE transport policy</Label>
+                <select className="border rounded-md h-9 px-2 text-sm bg-background" value={livekitForm.connection.iceTransportPolicy} onChange={(e) => setLivekitForm((current) => ({ ...current, connection: { ...current.connection, iceTransportPolicy: e.target.value } }))}>
+                  <option value="all">all</option>
+                  <option value="relay">relay only</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={resetLivekitRecommended}>Reset to Recommended</Button>
+              <Button type="submit">Save Changes</Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
 

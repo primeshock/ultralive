@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { PollResultsChart } from "@/components/poll-results-chart";
 
@@ -66,34 +65,32 @@ export function PollWidget({ channel }) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{poll.question}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+    <section className="glass-float rounded-[1.75rem] p-5 text-white">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div><p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200/65">{poll.mode === "quiz" ? "Quick quiz" : "Live poll"}</p><h2 className="text-lg font-semibold">{poll.question}</h2></div>
+        <div className="rounded-full bg-white/8 px-3 py-1 text-xs text-white/60">{remaining !== null && `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`}</div>
+      </div>
+        <div className="mb-3 flex items-center justify-between text-xs text-white/45">
           <span>{poll.mode === "quiz" ? "کوئیز" : "نظرسنجی"}</span>
-          {remaining !== null && <span>زمان باقی‌مانده: {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</span>}
         </div>
-        {!isOpen && <p className="text-sm text-muted-foreground">این نظرسنجی بسته شده است.</p>}
+        {!isOpen && <p className="mb-2 text-sm text-white/50">این نظرسنجی بسته شده است.</p>}
         {poll.options.map((o, index) => (
           <Button
             key={o.id}
-            variant={selectedOption === o.id ? "default" : "outline"}
+            variant="outline"
             disabled={!isOpen || Boolean(poll.votedOptionId)}
             onClick={() => setSelectedOption(o.id)}
-            className="justify-start"
+            className={`relative h-12 w-full justify-start overflow-hidden border-white/12 bg-white/[0.055] text-white hover:bg-white/10 ${selectedOption === o.id ? "border-cyan-300/70 bg-cyan-300/12 shadow-[0_0_24px_rgb(34_211_238_/_0.14)]" : ""}`}
           >
             <span className="me-2 flex size-6 items-center justify-center rounded-full bg-black/10 text-xs font-bold">{index + 1}</span>
             <span className="flex-1 text-start">{o.text}</span>
             {poll.mode === "quiz" && poll.revealed && o.isCorrect !== undefined && <span>{o.isCorrect ? "✓ صحیح" : "✕ غلط"}</span>}
           </Button>
         ))}
-        {!poll.votedOptionId && <Button onClick={submitVote} disabled={!selectedOption || !isOpen || submitting}>{submitting ? "در حال ثبت..." : "ثبت پاسخ"}</Button>}
-        {poll.votedOptionId && <p className="text-xs text-muted-foreground">پاسخ شما ثبت شد و قابل تغییر نیست.</p>}
+        {!poll.votedOptionId && <Button onClick={submitVote} disabled={!selectedOption || !isOpen || submitting} className="accent-gradient mt-2 rounded-full text-white">{submitting ? "در حال ثبت..." : "ثبت پاسخ"}</Button>}
+        {poll.votedOptionId && <p className="text-xs text-white/50">پاسخ شما ثبت شد و قابل تغییر نیست.</p>}
         {poll.showResults && poll.results && <PollResultsChart results={poll.results} />}
         {error && <p className="text-xs text-destructive">{error}</p>}
-      </CardContent>
-    </Card>
+    </section>
   );
 }

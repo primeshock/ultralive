@@ -18,7 +18,9 @@ const { requireRole } = require('../middleware/requireRole');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { generateStreamKey } = require('../utils/streamKey');
 const { allocateClassUsername, normalizeDisplayName, normalizeStreamTitle } = require('../utils/classIdentity');
+const { normalizeLivekitSettings, withLivekitSettings } = require('../utils/livekitSettings');
 const { publicBaseUrl } = require('../config/env');
+const { ensureIngress } = require('../services/livekit');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('owner'));
@@ -218,10 +220,10 @@ router.delete('/channels/:id', async (req, res) => {
 });
 
 // ---- Branding & technical settings ----
-router.get('/settings', async (_req, res) => res.json(await SiteSettings.get()));
+router.get('/settings', async (_req, res) => res.json(withLivekitSettings(await SiteSettings.get())));
 
 router.patch('/settings', async (req, res) => {
-  const { siteName, browserTabTitle, logoUrl, allowPublicRegister, playbackMode } = req.body || {};
+  const { siteName, browserTabTitle, logoUrl, allowPublicRegister, playbackMode, livekit, appearance } = req.body || {};
   const update = {};
   if (siteName !== undefined) {
     const name = String(siteName).trim();
@@ -236,8 +238,44 @@ router.patch('/settings', async (req, res) => {
   if (logoUrl !== undefined) update.logoUrl = logoUrl;
   if (allowPublicRegister !== undefined) update.allowPublicRegister = Boolean(allowPublicRegister);
   if (playbackMode !== undefined && ['auto', 'livekit', 'hls'].includes(playbackMode)) update.playbackMode = playbackMode;
+  if (livekit !== undefined) update.livekit = normalizeLivekitSettings(livekit);
+  if (appearance !== undefined) {
+    const current = await SiteSettings.get();
+    const next = { ...(current.appearance?.toObject?.() || current.appearance || {}), ...appearance };
+    if (!['aurora', 'gemini', 'apple-dark', 'custom'].includes(next.preset)) return res.status(400).json({ error: 'پریست ظاهری نامعتبر است.' });
+    for (const key of ['backgroundDarkness', 'glassOpacity', 'glassBlur', 'glowIntensity']) {
+      const value = Number(next[key]);
+      if (!Number.isFinite(value) || value < 0 || value > 100) return res.status(400).json({ error: 'مقدار تنظیمات ظاهری نامعتبر است.' });
+      next[key] = value;
+    }
+    update.appearance = next;
+  }
   const doc = await SiteSettings.findOneAndUpdate({ key: 'main' }, update, { upsert: true, new: true });
+  if (livekit !== undefined) {
+    const activeChannels = await User.find({ role: 'teacher', livekitIngressId: { $gt: '' } });
+    const results = await Promise.allSettled(activeChannels.map((channel) => ensureIngress(channel)));
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed) return res.status(502).json({ error: 'اعمال تنظیمات LiveKit روی یکی از ورودی‌های فعال ناموفق بود.' });
+  }
   res.json(doc);
+});
+
+router.post('/appearance/background', logoUpload.single('background'), async (req, res) => {
+  if (!req.file || !isPng(req.file.buffer)) return res.status(400).json({ error: 'پس‌زمینه باید PNG واقعی باشد.' });
+  await writePngAsset('site-background.png', req.file.buffer);
+  const current = await SiteSettings.get();
+  const backgroundVersion = (current.appearance?.backgroundVersion || 0) + 1;
+  const appearance = { ...(current.appearance?.toObject?.() || current.appearance || {}), backgroundUrl: `${publicBaseUrl}/site-background?v=${backgroundVersion}`, backgroundVersion, preset: 'custom' };
+  const settings = await SiteSettings.findOneAndUpdate({ key: 'main' }, { appearance }, { upsert: true, new: true });
+  res.json(settings);
+});
+
+router.delete('/appearance/background', async (_req, res) => {
+  await fs.unlink(path.join(process.cwd(), 'media', 'site-background.png')).catch(() => {});
+  const current = await SiteSettings.get();
+  const appearance = { ...(current.appearance?.toObject?.() || current.appearance || {}), backgroundUrl: '', preset: 'aurora' };
+  const settings = await SiteSettings.findOneAndUpdate({ key: 'main' }, { appearance }, { upsert: true, new: true });
+  res.json(settings);
 });
 
 router.post('/logo', logoUpload.single('logo'), async (req, res) => {

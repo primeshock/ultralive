@@ -1,6 +1,8 @@
-const { AccessToken, IngressClient, IngressInput, RoomServiceClient } = require('livekit-server-sdk');
+const { AccessToken, IngressClient, IngressInput, RoomServiceClient, TrackSource, AudioCodec, VideoCodec } = require('livekit-server-sdk');
 const User = require('../models/User');
+const SiteSettings = require('../models/SiteSettings');
 const { livekitEnabled, livekitUrl, livekitApiKey, livekitApiSecret } = require('../config/env');
+const { recommendedLivekitSettings } = require('../utils/livekitSettings');
 
 function assertEnabled() {
   if (!livekitEnabled || !livekitUrl || !livekitApiKey || !livekitApiSecret) {
@@ -15,6 +17,53 @@ function ingressClient() {
   // NOTE: there is no "LiveKitAPI" export in livekit-server-sdk — IngressClient
   // (and RoomServiceClient, EgressClient, etc.) are separate top-level classes.
   return new IngressClient(livekitUrl, livekitApiKey, livekitApiSecret);
+}
+
+function ingressVideoOptions(settings, username, displayName) {
+  const livekit = settings?.livekit || recommendedLivekitSettings();
+  const video = livekit.video || recommendedLivekitSettings().video;
+  const layerWidths = video.simulcastLayers === 1 ? [video.width] : video.simulcastLayers === 2 ? [Math.round(video.width / 2), video.width] : [Math.round(video.width / 4), Math.round(video.width / 2), video.width];
+  const layerHeights = video.simulcastLayers === 1 ? [video.height] : video.simulcastLayers === 2 ? [Math.round(video.height / 2), video.height] : [Math.round(video.height / 4), Math.round(video.height / 2), video.height];
+  const codec = video.codec === 'vp8' ? VideoCodec.VP8 : VideoCodec.H264_MAIN;
+  return {
+    name: `${displayName || username}-video`,
+    source: TrackSource.VIDEO,
+    encodingOptions: {
+      case: 'options',
+      value: {
+        videoCodec: codec,
+        frameRate: video.fps,
+        layers: video.simulcast
+          ? layerWidths.map((width, index) => ({
+              quality: index === layerWidths.length - 1 ? 2 : index === 1 ? 1 : 0,
+              width,
+              height: layerHeights[index],
+              bitrate: Math.max(150000, Math.round((video.maxBitrateKbps * 1000) * (index === layerWidths.length - 1 ? 1 : index === 1 ? 0.5 : 0.25))),
+              ssrc: 0,
+              spatialLayer: index,
+              rid: index === 0 ? 'q' : index === 1 ? 'h' : 'f',
+              repairSsrc: 0,
+            }))
+          : [],
+      },
+    },
+  };
+}
+
+function ingressAudioOptions(username, displayName) {
+  return {
+    name: `${displayName || username}-audio`,
+    source: TrackSource.AUDIO,
+    encodingOptions: {
+      case: 'options',
+      value: {
+        audioCodec: AudioCodec.OPUS,
+        bitrate: 64000,
+        disableDtx: false,
+        channels: 1,
+      },
+    },
+  };
 }
 
 function roomName(channel) {
@@ -48,7 +97,16 @@ async function createStaffToken({ channel, identity, name, publish = false }) {
 // compatibility code and is not required for the current viewer path.
 async function ensureIngress(channelDoc) {
   assertEnabled();
+  const settings = await SiteSettings.get();
   if (channelDoc.livekitIngressId && channelDoc.livekitIngressUrl && channelDoc.livekitStreamKey) {
+    await ingressClient().updateIngress(channelDoc.livekitIngressId, {
+      roomName: roomName(channelDoc.username),
+      participantIdentity: `ingress:${channelDoc.username}`,
+      participantName: channelDoc.displayName || channelDoc.username,
+      enableTranscoding: true,
+      audio: ingressAudioOptions(channelDoc.username, channelDoc.displayName),
+      video: ingressVideoOptions(settings, channelDoc.username, channelDoc.displayName),
+    });
     return {
       ingressId: channelDoc.livekitIngressId,
       url: channelDoc.livekitIngressUrl,
@@ -58,11 +116,13 @@ async function ensureIngress(channelDoc) {
   }
 
   const info = await ingressClient().createIngress(IngressInput.RTMP_INPUT, {
-    name: `koosha-live-${channelDoc.username}`,
+    name: `ultra-live-${channelDoc.username}`,
     roomName: roomName(channelDoc.username),
     participantIdentity: `ingress:${channelDoc.username}`,
     participantName: channelDoc.displayName || channelDoc.username,
     enableTranscoding: true,
+    audio: ingressAudioOptions(channelDoc.username, channelDoc.displayName),
+    video: ingressVideoOptions(settings, channelDoc.username, channelDoc.displayName),
   });
 
   channelDoc.livekitIngressId = info.ingressId;

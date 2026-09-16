@@ -76,6 +76,12 @@ export const api = {
     formData.append("logo", file);
     return apiUpload("/api/master/logo", formData);
   },
+  uploadBackground: (file) => {
+    const formData = new FormData();
+    formData.append("background", file);
+    return apiUpload("/api/master/appearance/background", formData);
+  },
+  removeBackground: () => apiFetch("/api/master/appearance/background", { method: "DELETE" }),
   systemStats: () => apiFetch("/api/master/system-stats"),
   activityLog: () => apiFetch("/api/master/activity"),
 

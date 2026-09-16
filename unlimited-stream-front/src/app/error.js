@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 // the browser console for diagnosis, but is not shown to end users.
 export default function AppError({ error, reset }) {
   useEffect(() => {
-    console.error("[Koosha Live] page render failed", error);
+    console.error("[Ultra Live] page render failed", error);
   }, [error]);
 
   return (

@@ -6,7 +6,7 @@ import { useEffect } from "react";
 // a client-side exception from showing Next's opaque "Reload / Back" screen.
 export default function GlobalError({ error, reset }) {
   useEffect(() => {
-    console.error("[Koosha Live] unrecoverable app error", error);
+    console.error("[Ultra Live] unrecoverable app error", error);
   }, [error]);
 
   return (

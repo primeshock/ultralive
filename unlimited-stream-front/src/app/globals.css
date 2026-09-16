@@ -122,7 +122,8 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: #070914;
   }
   html {
     @apply font-sans;
@@ -130,16 +131,76 @@
 }
 
 .glass-panel {
-  border: 1px solid rgb(255 255 255 / 0.52);
-  background: linear-gradient(135deg, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.28));
-  box-shadow: 0 18px 45px rgb(31 38 135 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.8);
-  backdrop-filter: blur(22px) saturate(130%);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.045));
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.16);
+  backdrop-filter: blur(22px) saturate(135%);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
 }
 
 .dark .glass-panel {
   border-color: rgb(255 255 255 / 0.14);
   background: linear-gradient(135deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.04));
-  box-shadow: 0 18px 45px rgb(0 0 0 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.24), inset 0 1px 0 rgb(255 255 255 / 0.12);
 }
 
 .dark .border, .dark [class*="border-"] { border-color: color-mix(in oklab, var(--border) 85%, white 15%); }
+
+.spatial-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 12% 12%, rgb(0 211 255 / var(--glow-alpha, 0.22)), transparent 30%),
+    radial-gradient(circle at 85% 16%, rgb(161 91 255 / var(--glow-alpha, 0.18)), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgb(255 55 181 / var(--glow-alpha, 0.14)), transparent 35%),
+    linear-gradient(135deg, #090b1b, #11152c 48%, #080a17);
+}
+
+.spatial-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--appearance-image, none);
+  background-size: cover;
+  background-position: center;
+  opacity: var(--appearance-image-opacity, 0);
+  filter: saturate(1.12);
+}
+
+.spatial-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: rgb(4 6 18 / var(--background-darkness, 0.52));
+}
+
+.glass-float {
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: linear-gradient(145deg, rgb(20 25 53 / calc(var(--glass-opacity, 0.62) * 1)), rgb(12 15 31 / calc(var(--glass-opacity, 0.62) * 0.72)));
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.24), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(var(--glass-blur, 22px)) saturate(135%);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(135%);
+}
+
+.spatial-shell[data-appearance="gemini"] { filter: saturate(1.12); }
+.spatial-shell[data-appearance="apple-dark"] { background-color: #050609; }
+.spatial-shell[data-appearance="custom"] { background-color: #0b1020; }
+
+.accent-gradient {
+  background-image: linear-gradient(110deg, #12c9ff, #6f76ff 48%, #ed4bc4);
+}
+
+.live-pulse { animation: live-pulse 2s ease-in-out infinite; }
+
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(255 72 124 / 0.36); }
+  50% { box-shadow: 0 0 0 7px rgb(255 72 124 / 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

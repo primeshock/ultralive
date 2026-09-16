@@ -12,7 +12,7 @@ import { api } from "@/lib/api";
 function storedThemeIsDark() {
   if (typeof window === "undefined") return false;
   try {
-    return localStorage.getItem("koosha-theme") === "dark";
+    return localStorage.getItem("ultra-live-theme") === "dark";
   } catch {
     return false;
   }
@@ -22,7 +22,7 @@ export function SiteHeader() {
   const { user, loading, setUser } = useAuth();
   const router = useRouter();
   const [dark, setDark] = useState(storedThemeIsDark);
-  const [brand, setBrand] = useState({ siteName: "Koosha Live", logoUrl: "" });
+  const [brand, setBrand] = useState({ siteName: "Ultra Live", logoUrl: "" });
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -32,15 +32,11 @@ export function SiteHeader() {
     api.site().then(setBrand).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
-
   function toggleTheme() {
     const next = !dark;
     setDark(next);
     try {
-      localStorage.setItem("koosha-theme", next ? "dark" : "light");
+      localStorage.setItem("ultra-live-theme", next ? "dark" : "light");
     } catch {
       // Keep the in-memory choice even when persistent storage is unavailable.
     }
@@ -61,7 +57,7 @@ export function SiteHeader() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={brand.logoUrl} alt="" className="h-8 w-auto max-w-[140px] object-contain bg-transparent" />
           ) : null}
-          <span className="truncate">{brand.siteName || "Koosha Live"}</span>
+          <span className="truncate">{brand.siteName || "Ultra Live"}</span>
         </Link>
 
         <nav className="flex items-center gap-2">

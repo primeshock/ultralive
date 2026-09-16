@@ -22,7 +22,7 @@ async function getSiteBrand() {
 
 export async function generateMetadata() {
   const brand = await getSiteBrand();
-  const title = brand?.browserTabTitle || brand?.siteName || "Koosha Live";
+  const title = brand?.browserTabTitle || brand?.siteName || "Ultra Live";
   const faviconUrl = brand?.faviconUrl || undefined;
 
   return {

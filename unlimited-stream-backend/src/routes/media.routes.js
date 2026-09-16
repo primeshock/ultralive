@@ -43,4 +43,15 @@ router.get('/site-favicon', (req, res) => {
   });
 });
 
+router.get('/site-background', (req, res) => {
+  const file = path.join(LOGO_DIR, 'site-background.png');
+  if (!fs.existsSync(file)) return res.status(404).end();
+  res.type('image/png');
+  res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.set('Cache-Control', 'no-cache, max-age=0, must-revalidate');
+  res.sendFile(file, (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
+
 module.exports = router;

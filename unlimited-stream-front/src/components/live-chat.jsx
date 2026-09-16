@@ -141,24 +141,28 @@ export function LiveChat({ channel, initialEnabled = true }) {
   const canSend = connected && chatEnabled;
 
   return (
-    <div className="flex flex-col h-full min-h-0 border rounded-lg overflow-hidden">
-      <ScrollArea className="flex-1 min-h-0 p-3">
-        <div className="flex flex-col gap-2">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden text-white">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div><p className="text-sm font-semibold">گفت‌وگوی کلاس</p><p className="text-[11px] text-white/45">هم‌زمان با اتاق زنده</p></div>
+        <span className={`size-2 rounded-full ${connected ? "bg-emerald-400 shadow-[0_0_12px_rgb(52_211_153)]" : "bg-white/25"}`} aria-label={connected ? "متصل" : "در حال اتصال"} />
+      </div>
+      <ScrollArea className="flex-1 min-h-0 p-4">
+        <div className="flex flex-col gap-2.5">
           {messages.map((m, i) =>
             m.kind === "system" ? (
               <p key={i} className="text-sm text-muted-foreground italic wrap-break-word">
                 <MessageText text={m.text} />
               </p>
             ) : (
-              <div key={i} className="group flex items-start justify-between gap-1 rounded-lg border bg-card px-2.5 py-1.5">
+              <div key={i} className="group flex items-start justify-between gap-1 rounded-2xl border border-white/8 bg-white/[0.055] px-3 py-2 transition-colors hover:bg-white/[0.09]">
                 <div className="min-w-0">
                   {m.replyTo && findMessage(m.replyTo) && (
                     <p className="text-xs text-muted-foreground border-r-2 pr-1.5 mb-0.5 truncate">
                       پاسخ به {findMessage(m.replyTo).username}: {findMessage(m.replyTo).text}
                     </p>
                   )}
-                  <p className="text-sm wrap-break-word">
-                    <span className="font-semibold">{m.username}: </span>
+                  <p className="text-sm leading-6 wrap-break-word">
+                    <span className="font-semibold text-cyan-100">{m.username}: </span>
                     <MessageText text={m.text} />
                   </p>
                 </div>
@@ -195,7 +199,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
       </ScrollArea>
 
       {!chatEnabled && (
-        <p className="text-xs text-center text-muted-foreground py-1 border-t bg-muted/50">چت توسط استریمر بسته شده</p>
+        <p className="border-t border-white/10 bg-black/20 py-2 text-center text-xs text-white/50">چت توسط استریمر بسته شده</p>
       )}
       {sendError && <p className="text-xs text-center text-destructive py-1">{sendError}</p>}
 
@@ -220,13 +224,14 @@ export function LiveChat({ channel, initialEnabled = true }) {
         </div>
       )}
 
-      <form onSubmit={sendMessage} className="flex gap-2 p-2 border-t">
+      <form onSubmit={sendMessage} className="m-3 flex gap-2 rounded-full border border-white/12 bg-black/20 p-1.5 focus-within:border-cyan-300/45">
         <button type="button" onClick={() => setShowEmoji((s) => !s)} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="ایموجی">
           <Smile className="size-5" />
         </button>
         <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
+          className="border-0 bg-transparent text-white shadow-none focus-visible:ring-0"
           placeholder={!chatEnabled ? "چت بسته است" : connected ? "پیام بنویس..." : "در حال اتصال..."}
           disabled={!canSend}
           maxLength={300}

@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Volume2, VolumeX, Pause, Play, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Volume2, VolumeX, Pause, Play, RefreshCw, Maximize2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { collectRtcStats, qualityLabel } from "@/lib/livekit-stats";
+import { connectOptionsFromLivekit, normalizeLivekitSettings, roomOptionsFromLivekit } from "@/lib/livekit-settings";
 
-export function LiveKitPlayer({ channel, className, poster, connection }) {
+export function LiveKitPlayer({ channel, className, poster, connection, livekitSettings, onTelemetry }) {
   const mediaRef = useRef(null);
   const roomRef = useRef(null);
-  const attachedRef = useRef(new Set());
+  const currentTrackRef = useRef(null);
+  const statsTimerRef = useRef(null);
 
   const [state, setState] = useState("CONNECTING");
   const [error, setError] = useState("");
@@ -15,13 +19,101 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
   const [muted, setMuted] = useState(true);
   const [attempt, setAttempt] = useState(0);
   const [hasVideo, setHasVideo] = useState(false);
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     let room;
+    let currentVideoTrack = null;
+    let currentAudioTrack = null;
+    const media = mediaRef.current;
+
+    const normalizedSettings = normalizeLivekitSettings(livekitSettings || connection?.livekit || connection?.settings);
+
+    async function refreshStats(roomToInspect, currentTrack) {
+      const baseStats = {
+        connectionQuality: roomToInspect?.localParticipant?.connectionQuality || "unknown",
+        qualityText: qualityLabel(roomToInspect?.localParticipant?.connectionQuality || "unknown"),
+        state: roomToInspect?.state || "disconnected",
+        reconnecting: String(roomToInspect?.state || "").includes("reconnecting"),
+        participants: roomToInspect?.remoteParticipants?.size || 0,
+        bitrateKbps: currentTrack?.currentBitrate ? Math.round(currentTrack.currentBitrate / 1000) : null,
+        resolution: null,
+        fps: null,
+        codec: null,
+        rttMs: null,
+        jitterMs: null,
+        packetLossPct: null,
+        trackState: currentTrack?.streamState || null,
+      };
+
+      const collected = await collectRtcStats({ room: roomToInspect, track: currentTrack }).catch(() => baseStats);
+      if (!roomRef.current || roomRef.current !== roomToInspect) return;
+      setStats(collected);
+      onTelemetry?.(collected);
+    }
+
+    function stopStatsTimer() {
+      if (statsTimerRef.current) {
+        clearInterval(statsTimerRef.current);
+        statsTimerRef.current = null;
+      }
+    }
+
+    function detachTrack(track) {
+      if (!track) return;
+
+      try {
+        track.detach();
+      } catch {
+        // already detached
+      }
+
+      if (currentTrackRef.current === track) {
+        currentTrackRef.current = null;
+      }
+
+      if (track === currentAudioTrack) {
+        currentAudioTrack = null;
+      }
+
+      if (track === currentVideoTrack) {
+        currentVideoTrack = null;
+        setHasVideo(false);
+      }
+    }
+
+    async function attachTrack(track) {
+      if (!media || cancelled || !track) return;
+
+      if (track.kind !== "video" && track.kind !== "audio") return;
+
+      if (track.kind === "video" && currentVideoTrack && currentVideoTrack !== track) detachTrack(currentVideoTrack);
+      if (track.kind === "audio" && currentAudioTrack && currentAudioTrack !== track) detachTrack(currentAudioTrack);
+
+      track.attach(media);
+
+      if (track.kind === "video") {
+        currentVideoTrack = track;
+        currentTrackRef.current = track;
+        setHasVideo(true);
+      } else {
+        currentAudioTrack = track;
+      }
+
+      try {
+        await media.play();
+        setPlaying(true);
+      } catch {
+        setPlaying(false);
+      }
+
+      await refreshStats(room, currentVideoTrack || currentTrackRef.current);
+    }
 
     async function start() {
       try {
+        setState("CONNECTING");
         const credentials = connection || await api.livekitToken(channel);
         const { serverUrl, participantToken } = credentials;
 
@@ -31,86 +123,72 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
 
         const lk = await import("livekit-client");
 
-        room = new lk.Room({
-          adaptiveStream: true,
-          dynacast: true,
-        });
+        room = new lk.Room(roomOptionsFromLivekit(normalizedSettings));
 
         roomRef.current = room;
 
-        function attachTrack(track) {
-          const media = mediaRef.current;
-
-          if (!media || cancelled || !track) return;
-
-          if (
-            track.kind !== lk.Track.Kind.Video &&
-            track.kind !== lk.Track.Kind.Audio
-          ) {
-            return;
-          }
-
-          if (attachedRef.current.has(track)) return;
-
-          track.attach(media);
-          attachedRef.current.add(track);
-
-          if (track.kind === lk.Track.Kind.Video) {
-            setHasVideo(true);
-          }
-
-          media
-            .play()
-            .then(() => setPlaying(true))
-            .catch(() => setPlaying(false));
-        }
-
-        function detachTrack(track) {
-          if (!track) return;
-
-          try {
-            track.detach();
-          } catch {
-            // already detached
-          }
-
-          attachedRef.current.delete(track);
-
-          if (track.kind === lk.Track.Kind.Video) {
-            setHasVideo(false);
-          }
-        }
-
-        room.on(lk.RoomEvent.ConnectionStateChanged, (s) => {
-          if (s === "connected") setState("LIVE");
-          else if (s === "reconnecting") setState("CONNECTING");
-          else if (s === "disconnected") setState("OFFLINE");
+        room.on(lk.RoomEvent.ConnectionStateChanged, (nextState) => {
+          if (nextState === lk.ConnectionState.Connected) setState("LIVE");
+          else if (nextState === lk.ConnectionState.Reconnecting || nextState === lk.ConnectionState.SignalReconnecting) setState("RECONNECTING");
+          else if (nextState === lk.ConnectionState.Disconnected) setState("OFFLINE");
+          else setState("CONNECTING");
         });
 
         room.on(lk.RoomEvent.Reconnecting, () => {
-          setState("CONNECTING");
+          if (!cancelled) {
+            setState("RECONNECTING");
+            refreshStats(room, currentVideoTrack || currentTrackRef.current);
+          }
         });
 
         room.on(lk.RoomEvent.Reconnected, () => {
-          setState("LIVE");
+          if (!cancelled) {
+            setState("LIVE");
+            void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+          }
         });
 
         room.on(lk.RoomEvent.Disconnected, () => {
           if (!cancelled) {
             setError("LiveKit disconnected");
             setState("OFFLINE");
+            stopStatsTimer();
           }
         });
 
+        room.on(lk.RoomEvent.ParticipantConnected, () => {
+          void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+        });
+
+        room.on(lk.RoomEvent.ParticipantDisconnected, () => {
+          void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+        });
+
+        room.on(lk.RoomEvent.ConnectionQualityChanged, () => {
+          void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+        });
+
         room.on(lk.RoomEvent.TrackSubscribed, (track) => {
-          attachTrack(track);
+          void attachTrack(track);
         });
 
         room.on(lk.RoomEvent.TrackUnsubscribed, (track) => {
           detachTrack(track);
+          void refreshStats(room, currentVideoTrack || currentTrackRef.current);
         });
 
-        await room.connect(serverUrl, participantToken);
+        room.on(lk.RoomEvent.TrackSubscriptionFailed, (_trackSid, _participant, err) => {
+          if (!cancelled) {
+            setError(err?.message || "Track subscription failed");
+            void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+          }
+        });
+
+        await room.prepareConnection(serverUrl, participantToken).catch(() => {});
+
+        if (cancelled) return;
+
+        await room.connect(serverUrl, participantToken, connectOptionsFromLivekit(normalizedSettings));
 
         if (cancelled) return;
 
@@ -119,14 +197,22 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
         for (const participant of room.remoteParticipants.values()) {
           for (const publication of participant.trackPublications.values()) {
             if (publication.track) {
-              attachTrack(publication.track);
+              await attachTrack(publication.track);
             }
           }
         }
+
+        stopStatsTimer();
+        statsTimerRef.current = setInterval(() => {
+          void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+        }, 2000);
+
+        await refreshStats(room, currentVideoTrack || currentTrackRef.current);
       } catch (err) {
         if (!cancelled) {
           setError(err.message || "LiveKit unavailable");
           setState("OFFLINE");
+          stopStatsTimer();
         }
       }
     }
@@ -135,33 +221,26 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
 
     return () => {
       cancelled = true;
+      stopStatsTimer();
 
-      for (const track of attachedRef.current) {
-        try {
-          track.detach();
-        } catch {
-          // already detached
-        }
-      }
-
-      attachedRef.current.clear();
+      detachTrack(currentVideoTrack);
+      detachTrack(currentAudioTrack);
 
       room?.disconnect();
       roomRef.current = null;
-
-      const media = mediaRef.current;
 
       if (media) {
         media.srcObject = null;
       }
     };
-  }, [channel, connection, attempt]);
+  }, [channel, connection, livekitSettings, attempt, onTelemetry]);
 
   const retry = () => {
     setError("");
     setState("CONNECTING");
     setPlaying(false);
     setHasVideo(false);
+    setStats(null);
     setAttempt((value) => value + 1);
   };
 
@@ -192,11 +271,24 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
     setMuted(media.muted);
   };
 
+  const toggleFullscreen = () => {
+    const container = mediaRef.current?.parentElement;
+    if (!container) return;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else container.requestFullscreen?.();
+  };
+
   return (
-    <div className={`relative overflow-hidden bg-black ${className || ""}`}>
+    <div className={`relative overflow-hidden rounded-[1.8rem] border border-white/12 bg-black/95 shadow-2xl ${className || ""}`}>
+      <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
+        <Badge variant="outline" className="rounded-full border-white/15 bg-black/45 text-white backdrop-blur">
+          {state === "LIVE" ? "Connected" : state === "RECONNECTING" ? "Reconnecting" : state === "OFFLINE" ? "Disconnected" : "Connecting"}
+        </Badge>
+        {stats?.qualityText && <Badge variant="outline" className="rounded-full border-white/15 bg-black/45 text-white backdrop-blur">{stats.qualityText}</Badge>}
+      </div>
       <video
         ref={mediaRef}
-        className="h-full w-full object-contain"
+        className="h-full w-full object-contain bg-black"
         poster={poster}
         autoPlay
         playsInline
@@ -204,10 +296,10 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
         controls={false}
       />
 
-      {!hasVideo && state !== "LIVE" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white">
+      {!hasVideo && state !== "LIVE" && state !== "RECONNECTING" && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white backdrop-blur-sm">
           <div className="text-center">
-            <div className="mb-2 text-sm">
+            <div className="mb-2 text-sm font-medium">
               {error || "در حال اتصال به پخش زنده..."}
             </div>
 
@@ -225,11 +317,12 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
         </div>
       )}
 
-      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between rounded-full border border-white/10 bg-black/45 p-1.5 backdrop-blur-md">
         <button
           type="button"
           onClick={togglePlay}
-          className="rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+          className="rounded-full p-2 text-white transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          aria-label={playing ? "توقف" : "پخش"}
         >
           {playing ? (
             <Pause className="h-4 w-4" />
@@ -238,10 +331,12 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
           )}
         </button>
 
+        <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={toggleMute}
-          className="rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+          className="rounded-full p-2 text-white transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          aria-label={muted ? "فعال کردن صدا" : "بی‌صدا کردن"}
         >
           {muted ? (
             <VolumeX className="h-4 w-4" />
@@ -249,6 +344,10 @@ export function LiveKitPlayer({ channel, className, poster, connection }) {
             <Volume2 className="h-4 w-4" />
           )}
         </button>
+        <button type="button" onClick={toggleFullscreen} className="rounded-full p-2 text-white transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" aria-label="تمام صفحه">
+          <Maximize2 className="h-4 w-4" />
+        </button>
+        </div>
       </div>
     </div>
   );
