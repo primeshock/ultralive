@@ -29,6 +29,7 @@ router.get('/:channel/polls/active', async (req, res) => {
   const poll = await Poll.findOne({ channel: req.params.channel.toLowerCase() }).sort({ createdAt: -1 });
   if (!poll || !poll.isOpen) return res.json(null);
   const votingOpen = poll.isEffectivelyOpen();
+  const serverNow = Date.now();
   const response = {
     id: poll._id,
     question: poll.question,
@@ -40,6 +41,8 @@ router.get('/:channel/polls/active', async (req, res) => {
     })),
     isOpen: poll.isOpen,
     votingOpen,
+    serverNow,
+    remainingSeconds: poll.closesAt ? Math.max(0, Math.ceil((poll.closesAt.getTime() - serverNow) / 1000)) : null,
     showResults: poll.showResults,
     closesAt: poll.closesAt,
     revealAt: poll.revealAt,

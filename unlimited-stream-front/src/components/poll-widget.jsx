@@ -11,6 +11,7 @@ export function PollWidget({ channel }) {
   const [clock, setClock] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const pollIdRef = useRef(null);
+  const serverOffsetRef = useRef(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -19,6 +20,10 @@ export function PollWidget({ channel }) {
       try {
         const p = await api.activePoll(channel);
         if (!cancelled) {
+          if (Number.isFinite(Number(p?.serverNow))) {
+            serverOffsetRef.current = Number(p.serverNow) - Date.now();
+            setClock(Date.now() + serverOffsetRef.current);
+          }
           setPoll(p);
           setSelectedOption((current) => {
             if (pollIdRef.current !== p?.id) {
@@ -41,13 +46,16 @@ export function PollWidget({ channel }) {
   }, [channel]);
 
   useEffect(() => {
-    const id = setInterval(() => setClock(Date.now()), 1000);
+    const id = setInterval(() => setClock(Date.now() + serverOffsetRef.current), 1000);
     return () => clearInterval(id);
   }, []);
 
   if (!poll) return null;
 
-  const remaining = poll.closesAt ? Math.max(0, Math.ceil((new Date(poll.closesAt).getTime() - clock) / 1000)) : null;
+  const closesAtMs = poll.closesAt ? new Date(poll.closesAt).getTime() : NaN;
+  const remaining = Number.isFinite(closesAtMs)
+    ? Math.max(0, Math.ceil((closesAtMs - clock) / 1000))
+    : poll.remainingSeconds ?? null;
   const timerOpen = remaining === null || remaining > 0;
   const isOpen = poll.votingOpen === undefined ? Boolean(poll.isOpen && timerOpen) : Boolean(poll.votingOpen);
 

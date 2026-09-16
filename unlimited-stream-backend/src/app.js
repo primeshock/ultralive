@@ -41,11 +41,21 @@ app.use(cookieParser());
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/site', async (_req, res) => {
   const settings = await require('./models/SiteSettings').get();
+  const normalizeAssetUrl = (value, path) => {
+    if (!value) return '';
+    try {
+      const url = new URL(value);
+      if (url.pathname === path) return `${path}${url.search}`;
+    } catch {
+      if (String(value).startsWith(path)) return value;
+    }
+    return value;
+  };
   res.json({
     siteName: settings.siteName || 'Ultra Live',
     browserTabTitle: settings.browserTabTitle || settings.siteName || 'Ultra Live',
-    logoUrl: settings.logoUrl || '',
-    faviconUrl: settings.faviconUrl || '',
+    logoUrl: normalizeAssetUrl(settings.logoUrl, '/site-logo'),
+    faviconUrl: normalizeAssetUrl(settings.faviconUrl, '/site-favicon'),
     livekit: settings.livekit || undefined,
     appearance: settings.appearance || undefined,
   });
