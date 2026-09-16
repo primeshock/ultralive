@@ -1,15 +1,21 @@
 const express = require('express');
 const fs = require('fs/promises');
 const path = require('path');
-const { thumbnailUpload, logoUpload, isJpeg, isPng } = require('../utils/upload');
+const { logoUpload, isPng } = require('../utils/upload');
 const os = require('os');
 const { execSync } = require('child_process');
 const User = require('../models/User');
 const SiteSettings = require('../models/SiteSettings');
 const LoginLog = require('../models/LoginLog');
+const ChatMessage = require('../models/ChatMessage');
+const Moderation = require('../models/Moderation');
+const MonitorLink = require('../models/MonitorLink');
+const RoomSession = require('../models/RoomSession');
+const AttendanceLog = require('../models/AttendanceLog');
+const { Poll, PollResponse } = require('../models/Poll');
 const { requireAuth } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/requireRole');
-const { hashPassword } = require('../utils/password');
+const { hashPassword, comparePassword } = require('../utils/password');
 const { generateStreamKey } = require('../utils/streamKey');
 const { allocateClassUsername, normalizeDisplayName, normalizeStreamTitle } = require('../utils/classIdentity');
 const { publicBaseUrl } = require('../config/env');
@@ -18,6 +24,74 @@ const router = express.Router();
 router.use(requireAuth, requireRole('owner'));
 
 const USERNAME_RE = /^[a-z0-9_]{3,24}$/i;
+
+async function deleteClassData(channelUsername) {
+  const channel = String(channelUsername || '').toLowerCase();
+  if (!channel) return;
+
+  const polls = await Poll.find({ channel }).select('_id');
+  const pollIds = polls.map((poll) => poll._id);
+  if (pollIds.length) await PollResponse.deleteMany({ pollId: { $in: pollIds } });
+
+  await Promise.all([
+    Poll.deleteMany({ channel }),
+    ChatMessage.deleteMany({ channel }),
+    Moderation.deleteMany({ channel }),
+    MonitorLink.deleteMany({ channel }),
+    RoomSession.deleteMany({ channel }),
+    AttendanceLog.deleteMany({ channel }),
+  ]);
+
+  await fs.unlink(path.join(process.cwd(), 'media', 'thumbnails', `${channel}.jpg`)).catch(() => {});
+}
+
+async function writePngAsset(fileName, buffer) {
+  const dir = path.join(process.cwd(), 'media');
+  await fs.mkdir(dir, { recursive: true });
+  const nextFile = path.join(dir, fileName);
+  const staleFiles = [
+    nextFile.replace(/\.png$/, '.jpg'),
+    nextFile.replace(/\.png$/, '.ico'),
+  ];
+  await fs.writeFile(nextFile, buffer);
+  await Promise.all(staleFiles.map((file) => fs.unlink(file).catch(() => {})));
+}
+
+router.patch('/owner-credentials', async (req, res) => {
+  const owner = req.user;
+  const { username, currentPassword, password } = req.body || {};
+
+  if (username === undefined && password === undefined) {
+    return res.status(400).json({ error: 'حداقل یوزرنیم یا رمز عبور جدید لازم است.' });
+  }
+
+  if (username !== undefined) {
+    if (!USERNAME_RE.test(username || '')) {
+      return res.status(400).json({ error: 'یوزرنیم باید ۳ تا ۲۴ کاراکتر انگلیسی، عدد یا _ باشد.' });
+    }
+    const next = username.toLowerCase();
+    const taken = await User.findOne({ username: next, _id: { $ne: owner._id } });
+    if (taken) return res.status(409).json({ error: 'این یوزرنیم قبلاً استفاده شده.' });
+    const previousUsername = owner.username;
+    owner.username = next;
+    if (!owner.displayName || owner.displayName === previousUsername) owner.displayName = next;
+  }
+
+  if (password !== undefined) {
+    if (typeof currentPassword !== 'string' || !currentPassword) {
+      return res.status(400).json({ error: 'برای تغییر رمز، وارد کردن رمز فعلی لازم است.' });
+    }
+    const validCurrentPassword = await comparePassword(currentPassword, owner.passwordHash);
+    if (!validCurrentPassword) return res.status(401).json({ error: 'رمز فعلی نادرست است.' });
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'رمز عبور جدید باید حداقل ۸ کاراکتر باشد.' });
+    }
+    owner.passwordHash = await hashPassword(password);
+  }
+
+  await owner.save();
+  res.json({ id: owner._id, username: owner.username, role: owner.role });
+});
 
 // Create a new admin account.
 router.post('/admins', async (req, res) => {
@@ -84,6 +158,15 @@ router.patch('/admins/:id', async (req, res) => {
   res.json({ id: admin._id, username: admin.username, displayName: admin.displayName, role: admin.role });
 });
 
+router.delete('/admins/:id', async (req, res) => {
+  const admin = await User.findOne({ _id: req.params.id, role: 'admin' });
+  if (!admin) return res.status(404).json({ error: 'ادمین پیدا نشد.' });
+
+  await User.updateMany({ role: 'teacher', managedBy: admin._id }, { $set: { managedBy: null } });
+  await admin.deleteOne();
+  res.status(204).end();
+});
+
 // Create a channel (= a class). Internal username is allocated automatically.
 router.post('/channels', async (req, res) => {
   const { password, managedBy } = req.body || {};
@@ -125,16 +208,30 @@ router.get('/channels', async (_req, res) => {
   res.json(channels);
 });
 
+router.delete('/channels/:id', async (req, res) => {
+  const channel = await User.findOne({ _id: req.params.id, role: 'teacher' });
+  if (!channel) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+
+  await deleteClassData(channel.username);
+  await channel.deleteOne();
+  res.status(204).end();
+});
+
 // ---- Branding & technical settings ----
 router.get('/settings', async (_req, res) => res.json(await SiteSettings.get()));
 
 router.patch('/settings', async (req, res) => {
-  const { siteName, logoUrl, allowPublicRegister, playbackMode } = req.body || {};
+  const { siteName, browserTabTitle, logoUrl, allowPublicRegister, playbackMode } = req.body || {};
   const update = {};
   if (siteName !== undefined) {
     const name = String(siteName).trim();
     if (!name || name.length > 80) return res.status(400).json({ error: 'نام سایت نامعتبر است.' });
     update.siteName = name;
+  }
+  if (browserTabTitle !== undefined) {
+    const title = String(browserTabTitle).trim();
+    if (!title || title.length > 80) return res.status(400).json({ error: 'عنوان تب مرورگر نامعتبر است.' });
+    update.browserTabTitle = title;
   }
   if (logoUrl !== undefined) update.logoUrl = logoUrl;
   if (allowPublicRegister !== undefined) update.allowPublicRegister = Boolean(allowPublicRegister);
@@ -146,19 +243,29 @@ router.patch('/settings', async (req, res) => {
 router.post('/logo', logoUpload.single('logo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'فایل لوگو لازم است.' });
   const png = isPng(req.file.buffer);
-  const jpeg = isJpeg(req.file.buffer);
-  if (!png && !jpeg) return res.status(400).json({ error: 'لوگو باید PNG یا JPG باشد.' });
-  const dir = path.join(process.cwd(), 'media');
-  await fs.mkdir(dir, { recursive: true });
-  const nextFile = path.join(dir, png ? 'site-logo.png' : 'site-logo.jpg');
-  const staleFile = path.join(dir, png ? 'site-logo.jpg' : 'site-logo.png');
-  await fs.writeFile(nextFile, req.file.buffer);
-  await fs.unlink(staleFile).catch(() => {});
+  if (!png) return res.status(400).json({ error: 'لوگو باید PNG واقعی باشد.' });
+  await writePngAsset('site-logo.png', req.file.buffer);
   const current = await SiteSettings.get();
   const logoVersion = (current.logoVersion || 0) + 1;
   const settings = await SiteSettings.findOneAndUpdate(
     { key: 'main' },
     { logoUrl: `${publicBaseUrl}/site-logo?v=${logoVersion}`, logoVersion },
+    { upsert: true, new: true }
+  );
+  res.json(settings);
+});
+
+router.post('/favicon', logoUpload.single('favicon'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'فایل favicon لازم است.' });
+  const png = isPng(req.file.buffer);
+  if (!png) return res.status(400).json({ error: 'favicon باید PNG واقعی باشد.' });
+
+  await writePngAsset('site-favicon.png', req.file.buffer);
+  const current = await SiteSettings.get();
+  const faviconVersion = (current.faviconVersion || 0) + 1;
+  const settings = await SiteSettings.findOneAndUpdate(
+    { key: 'main' },
+    { faviconUrl: `${publicBaseUrl}/site-favicon?v=${faviconVersion}`, faviconVersion },
     { upsert: true, new: true }
   );
   res.json(settings);

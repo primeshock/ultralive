@@ -15,10 +15,11 @@ function fmtMb(mb) {
 }
 
 export default function MasterPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const router = useRouter();
 
   const [admins, setAdmins] = useState([]);
+  const [channels, setChannels] = useState([]);
   const [settings, setSettings] = useState(null);
   const [stats, setStats] = useState(null);
   const [activity, setActivity] = useState([]);
@@ -26,21 +27,24 @@ export default function MasterPage() {
 
   const [adminForm, setAdminForm] = useState({ username: "", password: "" });
   const [adminEdits, setAdminEdits] = useState({});
+  const [ownerForm, setOwnerForm] = useState({ username: "", currentPassword: "", password: "" });
   const [logoFile, setLogoFile] = useState(null);
-  const [siteNameDraft, setSiteNameDraft] = useState("");
+  const [faviconFile, setFaviconFile] = useState(null);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "owner")) router.replace("/");
   }, [loading, user, router]);
 
   async function loadAll() {
-    const [a, s, st, log] = await Promise.all([
+    const [a, c, s, st, log] = await Promise.all([
       api.listAdmins(),
+      api.listAllChannels(),
       api.getSettings(),
       api.systemStats().catch(() => null),
       api.activityLog().catch(() => []),
     ]);
     setAdmins(a);
+    setChannels(c || []);
     setAdminEdits(Object.fromEntries((a || []).map((admin) => [admin._id || admin.id, { username: admin.username, password: "" }])));
     setSettings(s);
     setStats(st);
@@ -97,6 +101,58 @@ export default function MasterPage() {
     }
   }
 
+  async function handleUpdateOwner(event) {
+    event.preventDefault();
+    const payload = {};
+    const nextUsername = ownerForm.username.trim().toLowerCase();
+    if (nextUsername && nextUsername !== user.username) payload.username = nextUsername;
+
+    if (ownerForm.password) {
+      if (!ownerForm.currentPassword) {
+        flash("برای تغییر رمز، رمز فعلی را وارد کنید.");
+        return;
+      }
+      payload.currentPassword = ownerForm.currentPassword;
+      payload.password = ownerForm.password;
+    }
+
+    if (!payload.username && !payload.password) {
+      flash("تغییری برای ذخیره وجود ندارد.");
+      return;
+    }
+
+    try {
+      await api.updateOwnerCredentials(payload);
+      setOwnerForm((current) => ({ ...current, currentPassword: "", password: "" }));
+      await refresh();
+      flash("مشخصات سوپرادمین ذخیره شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  async function handleDeleteAdmin(id, username) {
+    if (!window.confirm(`حذف ادمین ${username} انجام شود؟`)) return;
+    try {
+      await api.deleteAdmin(id);
+      flash("ادمین حذف شد.");
+      loadAll();
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  async function handleDeleteChannel(id, label) {
+    if (!window.confirm(`حذف کلاس ${label} انجام شود؟ این عملیات قابل بازگشت نیست.`)) return;
+    try {
+      await api.deleteChannel(id);
+      flash("کلاس حذف شد.");
+      loadAll();
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
   async function handleLogoUpload() {
     if (!logoFile) return;
     try {
@@ -104,6 +160,18 @@ export default function MasterPage() {
       setSettings(updated);
       setLogoFile(null);
       flash("لوگو ذخیره شد.");
+    } catch (err) {
+      flash(err.message);
+    }
+  }
+
+  async function handleFaviconUpload() {
+    if (!faviconFile) return;
+    try {
+      const updated = await api.uploadFavicon(faviconFile);
+      setSettings(updated);
+      setFaviconFile(null);
+      flash("favicon ذخیره شد.");
     } catch (err) {
       flash(err.message);
     }
@@ -146,10 +214,25 @@ export default function MasterPage() {
                   onBlur={(e) => e.target.value !== settings.siteName && handleSettingsChange({ siteName: e.target.value })}
                 />
               </div>
+              <div className="grid gap-1.5">
+                <Label>عنوان تب مرورگر</Label>
+                <Input
+                  defaultValue={settings.browserTabTitle || settings.siteName}
+                  onBlur={(e) => e.target.value !== (settings.browserTabTitle || settings.siteName) && handleSettingsChange({ browserTabTitle: e.target.value })}
+                />
+              </div>
               <div className="grid gap-2">
-                <Label>آپلود لوگو (JPG)</Label>
-                <div className="flex flex-wrap items-center gap-2"><Input type="file" accept="image/jpeg" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} /><Button type="button" onClick={handleLogoUpload} disabled={!logoFile}>آپلود لوگو</Button></div>
+                <Label>آپلود لوگو (PNG)</Label>
+                <div className="flex flex-wrap items-center gap-2"><Input type="file" accept="image/png" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} /><Button type="button" onClick={handleLogoUpload} disabled={!logoFile}>آپلود لوگو</Button></div>
                 {settings.logoUrl && <img src={settings.logoUrl} alt="لوگوی سایت" className="h-14 w-fit rounded-xl object-contain" />}
+              </div>
+              <div className="grid gap-2">
+                <Label>آپلود favicon (PNG)</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input type="file" accept="image/png" onChange={(event) => setFaviconFile(event.target.files?.[0] || null)} />
+                  <Button type="button" onClick={handleFaviconUpload} disabled={!faviconFile}>آپلود favicon</Button>
+                </div>
+                {settings.faviconUrl && <img src={settings.faviconUrl} alt="favicon سایت" className="h-10 w-10 rounded-md object-contain" />}
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -161,6 +244,30 @@ export default function MasterPage() {
               </label>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>حساب سوپرادمین</CardTitle>
+          <CardDescription>تغییر یوزرنیم و رمز عبور صاحب پنل مادر</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleUpdateOwner} className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-1.5">
+              <Label>یوزرنیم جدید</Label>
+              <Input value={ownerForm.username} onChange={(e) => setOwnerForm((current) => ({ ...current, username: e.target.value }))} placeholder={user.username || "owner"} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>رمز فعلی (برای تغییر رمز)</Label>
+              <Input type="password" autoComplete="current-password" value={ownerForm.currentPassword} onChange={(e) => setOwnerForm((current) => ({ ...current, currentPassword: e.target.value }))} placeholder="اختیاری" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>رمز جدید</Label>
+              <Input type="password" autoComplete="new-password" value={ownerForm.password} onChange={(e) => setOwnerForm((current) => ({ ...current, password: e.target.value }))} placeholder="اختیاری" />
+            </div>
+            <Button type="submit" className="sm:col-span-3 justify-self-start">ذخیره مشخصات</Button>
+          </form>
         </CardContent>
       </Card>
 
@@ -231,7 +338,7 @@ export default function MasterPage() {
               const id = a._id || a.id;
               const edit = adminEdits[id] || { username: a.username, password: "" };
               return (
-                <li key={id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] items-end border rounded-md p-3">
+                <li key={id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto] items-end border rounded-md p-3">
                   <div className="grid gap-1.5">
                     <Label>یوزرنیم</Label>
                     <Input
@@ -250,10 +357,37 @@ export default function MasterPage() {
                     />
                   </div>
                   <Button type="button" onClick={() => handleUpdateAdmin(id)}>ذخیره</Button>
+                  <Button type="button" variant="destructive" onClick={() => handleDeleteAdmin(id, a.username)}>حذف ادمین</Button>
                 </li>
               );
             })}
             {admins.length === 0 && <li className="text-muted-foreground">ادمینی ساخته نشده است.</li>}
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>حذف کلاس‌ها</CardTitle>
+          <CardDescription>حذف کامل کلاس به‌همراه داده‌های چت، حضور، نظرسنجی و دسترسی‌ها</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="text-sm flex flex-col gap-3">
+            {channels.map((channel) => {
+              const id = channel._id || channel.id;
+              const manager = channel.managedBy?.username ? `مدیر: ${channel.managedBy.username}` : "بدون مدیر";
+              const label = channel.displayName || channel.username;
+              return (
+                <li key={id} className="flex flex-wrap items-center justify-between gap-2 border rounded-md p-3">
+                  <div>
+                    <p className="font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{channel.username} · {manager}</p>
+                  </div>
+                  <Button type="button" variant="destructive" onClick={() => handleDeleteChannel(id, label)}>حذف کلاس</Button>
+                </li>
+              );
+            })}
+            {channels.length === 0 && <li className="text-muted-foreground">کلاسی ثبت نشده است.</li>}
           </ul>
         </CardContent>
       </Card>

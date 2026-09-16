@@ -41,7 +41,12 @@ app.use(cookieParser());
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/site', async (_req, res) => {
   const settings = await require('./models/SiteSettings').get();
-  res.json({ siteName: settings.siteName || 'Koosha Live', logoUrl: settings.logoUrl || '' });
+  res.json({
+    siteName: settings.siteName || 'Koosha Live',
+    browserTabTitle: settings.browserTabTitle || settings.siteName || 'Koosha Live',
+    logoUrl: settings.logoUrl || '',
+    faviconUrl: settings.faviconUrl || '',
+  });
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);

@@ -6,8 +6,11 @@ const siteSettingsSchema = new mongoose.Schema(
   {
     key: { type: String, default: 'main', unique: true },
     siteName: { type: String, default: 'Koosha Live' },
+    browserTabTitle: { type: String, default: 'Koosha Live' },
     logoUrl: { type: String, default: '' },
     logoVersion: { type: Number, default: 0 },
+    faviconUrl: { type: String, default: '' },
+    faviconVersion: { type: Number, default: 0 },
     allowPublicRegister: { type: Boolean, default: true },
     playbackMode: { type: String, enum: ['auto', 'livekit', 'hls'], default: 'auto' },
   },

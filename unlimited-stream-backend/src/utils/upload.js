@@ -17,7 +17,7 @@ function imageUpload(allowedMimes) {
 }
 
 const thumbnailUpload = imageUpload(['image/jpeg']);
-const logoUpload = imageUpload(['image/jpeg', 'image/png']);
+const logoUpload = imageUpload(['image/png']);
 
 function isJpeg(buffer) {
   return Boolean(buffer) && buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;

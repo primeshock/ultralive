@@ -50,16 +50,25 @@ export const api = {
     return apiUpload("/api/user/thumbnail", formData);
   },
   site: () => apiFetch("/api/site"),
+  uploadFavicon: (file) => {
+    const formData = new FormData();
+    formData.append("favicon", file);
+    return apiUpload("/api/master/favicon", formData);
+  },
   channel: (username) => apiFetch(`/api/streams/${username}`),
 
   // --- Master panel (owner) ---
   createAdmin: (username, password) =>
     apiFetch("/api/master/admins", { method: "POST", body: JSON.stringify({ username, password }) }),
   listAdmins: () => apiFetch("/api/master/admins"),
+  updateOwnerCredentials: (payload) =>
+    apiFetch("/api/master/owner-credentials", { method: "PATCH", body: JSON.stringify(payload) }),
   updateAdmin: (id, payload) =>
     apiFetch(`/api/master/admins/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteAdmin: (id) => apiFetch(`/api/master/admins/${id}`, { method: "DELETE" }),
   createChannel: (payload) => apiFetch("/api/master/channels", { method: "POST", body: JSON.stringify(payload) }),
   listAllChannels: () => apiFetch("/api/master/channels"),
+  deleteChannel: (id) => apiFetch(`/api/master/channels/${id}`, { method: "DELETE" }),
   getSettings: () => apiFetch("/api/master/settings"),
   updateSettings: (payload) => apiFetch("/api/master/settings", { method: "PATCH", body: JSON.stringify(payload) }),
   uploadLogo: (file) => {
