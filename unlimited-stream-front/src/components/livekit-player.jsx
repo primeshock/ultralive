@@ -10,6 +10,7 @@ import { connectOptionsFromLivekit, normalizeLivekitSettings, roomOptionsFromLiv
 
 export function LiveKitPlayer({ channel, className, poster, connection, livekitSettings, onTelemetry }) {
   const mediaRef = useRef(null);
+  const audioRef = useRef(null);
   const roomRef = useRef(null);
   const currentTrackRef = useRef(null);
   const statsTimerRef = useRef(null);
@@ -28,6 +29,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
     let currentVideoTrack = null;
     let currentAudioTrack = null;
     const media = mediaRef.current;
+    const audio = audioRef.current;
 
     const normalizedSettings = normalizeLivekitSettings(livekitSettings || connection?.livekit || connection?.settings);
 
@@ -64,11 +66,8 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
     function detachTrack(track) {
       if (!track) return;
 
-      try {
-        track.detach();
-      } catch {
-        // already detached
-      }
+      const element = track.kind === "audio" ? audio : media;
+      if (element) track.detach(element);
 
       if (currentTrackRef.current === track) {
         currentTrackRef.current = null;
@@ -85,14 +84,17 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
     }
 
     async function attachTrack(track) {
-      if (!media || cancelled || !track) return;
+      if (cancelled || !track) return;
 
       if (track.kind !== "video" && track.kind !== "audio") return;
+
+      const element = track.kind === "audio" ? audio : media;
+      if (!element) return;
 
       if (track.kind === "video" && currentVideoTrack && currentVideoTrack !== track) detachTrack(currentVideoTrack);
       if (track.kind === "audio" && currentAudioTrack && currentAudioTrack !== track) detachTrack(currentAudioTrack);
 
-      track.attach(media);
+      track.attach(element);
 
       if (track.kind === "video") {
         currentVideoTrack = track;
@@ -102,11 +104,13 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         currentAudioTrack = track;
       }
 
-      try {
-        await media.play();
-        setPlaying(true);
-      } catch {
-        setPlaying(false);
+      if (track.kind === "video") {
+        try {
+          await media.play();
+          setPlaying(true);
+        } catch {
+          setPlaying(false);
+        }
       }
 
       await refreshStats(room, currentVideoTrack || currentTrackRef.current);
@@ -169,11 +173,11 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
           void refreshStats(room, currentVideoTrack || currentTrackRef.current);
         });
 
-        room.on(lk.RoomEvent.TrackSubscribed, (track) => {
+        room.on(lk.RoomEvent.TrackSubscribed, (track, _publication, _participant) => {
           void attachTrack(track);
         });
 
-        room.on(lk.RoomEvent.TrackUnsubscribed, (track) => {
+        room.on(lk.RoomEvent.TrackUnsubscribed, (track, _publication, _participant) => {
           detachTrack(track);
           void refreshStats(room, currentVideoTrack || currentTrackRef.current);
         });
@@ -194,14 +198,6 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         if (cancelled) return;
 
         setState("LIVE");
-
-        for (const participant of room.remoteParticipants.values()) {
-          for (const publication of participant.trackPublications.values()) {
-            if (publication.track) {
-              await attachTrack(publication.track);
-            }
-          }
-        }
 
         stopStatsTimer();
         statsTimerRef.current = setInterval(() => {
@@ -232,6 +228,9 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
 
       if (media) {
         media.srcObject = null;
+      }
+      if (audio) {
+        audio.srcObject = null;
       }
     };
   }, [channel, connection, livekitSettings, attempt, onTelemetry]);
@@ -265,11 +264,14 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
 
   const toggleMute = () => {
     const media = mediaRef.current;
+    const audio = audioRef.current;
 
-    if (!media) return;
+    if (!media && !audio) return;
 
-    media.muted = !media.muted;
-    setMuted(media.muted);
+    const nextMuted = !(media?.muted ?? audio?.muted ?? true);
+    if (media) media.muted = nextMuted;
+    if (audio) audio.muted = nextMuted;
+    setMuted(nextMuted);
   };
 
   const toggleFullscreen = () => {
@@ -296,6 +298,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         muted={muted}
         controls={false}
       />
+      <audio ref={audioRef} autoPlay playsInline muted={muted} aria-hidden="true" />
 
       {!hasVideo && state !== "LIVE" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white backdrop-blur-sm">
