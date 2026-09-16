@@ -172,13 +172,26 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
           void refreshStats(room, currentVideoTrack || currentTrackRef.current);
         });
 
-        room.on(lk.RoomEvent.TrackSubscribed, (track, _publication, _participant) => {
-          void attachTrack(track);
+        room.on(lk.RoomEvent.TrackSubscribed, (...args) => {
+          try {
+            const track = args && args.length ? args[0] : null;
+            if (!track) throw new Error('no track in TrackSubscribed args');
+            void attachTrack(track);
+          } catch (err) {
+            console.error('TrackSubscribed handler error:', err);
+            if (!cancelled) setError(String(err.message || err));
+          }
         });
 
-        room.on(lk.RoomEvent.TrackUnsubscribed, (track, _publication, _participant) => {
-          detachTrack(track);
-          void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+        room.on(lk.RoomEvent.TrackUnsubscribed, (...args) => {
+          try {
+            const track = args && args.length ? args[0] : null;
+            if (track) detachTrack(track);
+            void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+          } catch (err) {
+            console.error('TrackUnsubscribed handler error:', err);
+            if (!cancelled) setError(String(err.message || err));
+          }
         });
 
         room.on(lk.RoomEvent.TrackSubscriptionFailed, (_trackSid, _participant, err) => {
