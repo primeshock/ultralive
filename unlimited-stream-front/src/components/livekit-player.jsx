@@ -20,7 +20,6 @@ function describeLivekitError(error, context = {}) {
 
 export function LiveKitPlayer({ channel, className, poster, connection, livekitSettings, onTelemetry }) {
   const mediaRef = useRef(null);
-  const audioRef = useRef(null);
   const roomRef = useRef(null);
   const currentTrackRef = useRef(null);
   const statsTimerRef = useRef(null);
@@ -39,7 +38,6 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
     let currentVideoTrack = null;
     let currentAudioTrack = null;
     const media = mediaRef.current;
-    const audio = audioRef.current;
 
     const normalizedSettings = normalizeLivekitSettings(livekitSettings || connection?.livekit || connection?.settings);
 
@@ -60,7 +58,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         trackState: currentTrack?.streamState || null,
       };
 
-      const collected = await collectRtcStats({ room: roomToInspect, track: currentTrack }).catch(() => baseStats);
+      const collected = await Promise.resolve(collectRtcStats({ room: roomToInspect, track: currentTrack })).catch(() => baseStats);
       if (!roomRef.current || roomRef.current !== roomToInspect) return;
       setStats(collected);
       onTelemetry?.(collected);
@@ -76,8 +74,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
     function detachTrack(track) {
       if (!track) return;
 
-      const element = track.kind === "audio" ? audio : media;
-      if (element) track.detach(element);
+      if (media) track.detach(media);
 
       if (currentTrackRef.current === track) {
         currentTrackRef.current = null;
@@ -98,7 +95,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
 
       if (track.kind !== "video" && track.kind !== "audio") return;
 
-      const element = track.kind === "audio" ? audio : media;
+      const element = media;
       if (!element) return;
 
       if (track.kind === "video" && currentVideoTrack && currentVideoTrack !== track) detachTrack(currentVideoTrack);
@@ -120,6 +117,12 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
           setPlaying(true);
         } catch {
           setPlaying(false);
+        }
+      } else if (track.kind === "audio" && media.paused) {
+        try {
+          await media.play();
+        } catch {
+          // Browser autoplay policy may require the viewer to press play.
         }
       }
 
@@ -298,9 +301,6 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
       if (media) {
         media.srcObject = null;
       }
-      if (audio) {
-        audio.srcObject = null;
-      }
     };
   }, [channel, connection, livekitSettings, attempt, onTelemetry]);
 
@@ -333,13 +333,10 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
 
   const toggleMute = () => {
     const media = mediaRef.current;
-    const audio = audioRef.current;
+    if (!media) return;
 
-    if (!media && !audio) return;
-
-    const nextMuted = !(media?.muted ?? audio?.muted ?? true);
-    if (media) media.muted = nextMuted;
-    if (audio) audio.muted = nextMuted;
+    const nextMuted = !media.muted;
+    media.muted = nextMuted;
     setMuted(nextMuted);
   };
 
@@ -367,7 +364,6 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         muted={muted}
         controls={false}
       />
-      <audio ref={audioRef} autoPlay playsInline muted={muted} aria-hidden="true" />
 
       {!hasVideo && state !== "LIVE" && state !== "RECONNECTING" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white backdrop-blur-sm">

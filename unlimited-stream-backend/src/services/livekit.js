@@ -22,6 +22,18 @@ function ingressClient() {
 function ingressVideoOptions(settings, username, displayName) {
   const livekit = settings?.livekit || recommendedLivekitSettings();
   const video = livekit.video || recommendedLivekitSettings().video;
+  const layers = video.simulcast
+    ? video.simulcastLayers >= 3
+      ? [
+          { quality: 0, width: Math.round(video.width / 4), height: Math.round(video.height / 4), bitrate: Math.max(150000, Math.round(video.maxBitrateKbps * 0.2 * 1000)) },
+          { quality: 1, width: Math.round(video.width / 2), height: Math.round(video.height / 2), bitrate: Math.max(250000, Math.round(video.maxBitrateKbps * 0.45 * 1000)) },
+          { quality: 2, width: video.width, height: video.height, bitrate: Math.max(500000, Math.round(video.maxBitrateKbps * 1000)) },
+        ]
+      : [
+          { quality: 1, width: Math.round(video.width / 2), height: Math.round(video.height / 2), bitrate: Math.max(250000, Math.round(video.maxBitrateKbps * 0.45 * 1000)) },
+          { quality: 2, width: video.width, height: video.height, bitrate: Math.max(500000, Math.round(video.maxBitrateKbps * 1000)) },
+        ]
+    : [{ quality: 2, width: video.width, height: video.height, bitrate: Math.max(500000, Math.round(video.maxBitrateKbps * 1000)) }];
 
   return {
     name: `${displayName || username}-video`,
@@ -29,20 +41,15 @@ function ingressVideoOptions(settings, username, displayName) {
     encodingOptions: {
       case: 'options',
       value: {
-        videoCodec: video.codec === 'vp8' ? VideoCodec.VP8 : VideoCodec.H264_MAIN,
+        videoCodec: video.codec === 'vp8' ? VideoCodec.VP8 : VideoCodec.H264_BASELINE,
         frameRate: video.fps,
-        layers: [
-          {
-            quality: 2,
-            width: video.width,
-            height: video.height,
-            bitrate: Math.max(150000, Math.round(video.maxBitrateKbps * 1000)),
-            ssrc: 0,
-            spatialLayer: 0,
-            rid: 'f',
-            repairSsrc: 0,
-          },
-        ],
+        layers: layers.map((layer, index) => ({
+          ...layer,
+          ssrc: 0,
+          spatialLayer: index,
+          rid: index === 0 ? 'q' : index === 1 ? 'h' : 'f',
+          repairSsrc: 0,
+        })),
       },
     },
   };

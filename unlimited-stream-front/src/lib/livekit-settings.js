@@ -6,10 +6,10 @@ export function recommendedLivekitSettings() {
       width: 1280,
       height: 720,
       fps: 30,
-      maxBitrateKbps: 2500,
+      maxBitrateKbps: 1800,
       codec: "h264",
       simulcast: true,
-      simulcastLayers: 3,
+      simulcastLayers: 2,
     },
     connection: {
       adaptiveStream: true,
