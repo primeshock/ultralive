@@ -14,8 +14,7 @@ export default function Home() {
 
   useEffect(() => {
     if (loading) return;
-    if (user?.role === "owner") router.replace("/master");
-    else if (user?.role === "admin") router.replace("/admin");
+    if (user?.role === "owner" || user?.role === "admin") router.replace("/admin");
     else if (user?.role === "teacher") router.replace("/dashboard");
   }, [loading, user, router]);
 

@@ -71,11 +71,6 @@ export function SiteHeader() {
           {!isStudentStream && <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="تغییر تم">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>}
           {loading ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="در حال بارگذاری" /> : user ? (
             <>
-              {user.role === "owner" && (
-                <Button variant="ghost" nativeButton={false} render={<Link href="/master" />}>
-                  پنل مادر
-                </Button>
-              )}
               {(user.role === "admin" || user.role === "owner") && (
                 <Button variant="ghost" nativeButton={false} render={<Link href="/admin" />}>
                   پنل ادمین

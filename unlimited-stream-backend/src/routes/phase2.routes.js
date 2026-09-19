@@ -103,11 +103,19 @@ router.get('/classes/:classId/sessions', loadClass, async (req, res) => {
 
 router.post('/classes/:classId/sessions', loadClass, async (req, res) => {
   const status = ['scheduled', 'live', 'ended'].includes(req.body?.status) ? req.body.status : 'scheduled';
+  const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : status === 'live' ? new Date() : null;
+  const endedAt = req.body?.endedAt ? new Date(req.body.endedAt) : status === 'ended' ? new Date() : null;
+  if ((startedAt && Number.isNaN(startedAt.getTime())) || (endedAt && Number.isNaN(endedAt.getTime()))) {
+    return res.status(400).json({ error: 'تاریخ یا زمان جلسه نامعتبر است.' });
+  }
+  if (startedAt && endedAt && endedAt <= startedAt) {
+    return res.status(400).json({ error: 'زمان پایان باید بعد از زمان شروع باشد.' });
+  }
   const session = await LiveSession.create({
     classId: req.classDoc._id,
     status,
-    startedAt: req.body?.startedAt ? new Date(req.body.startedAt) : status === 'live' ? new Date() : null,
-    endedAt: status === 'ended' ? new Date() : null,
+    startedAt,
+    endedAt,
     metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
   });
   res.status(201).json(session);
