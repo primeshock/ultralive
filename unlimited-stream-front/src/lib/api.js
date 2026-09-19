@@ -102,6 +102,17 @@ export const api = {
   systemStats: () => apiFetch("/api/master/system-stats"),
   activityLog: () => apiFetch("/api/master/activity"),
 
+  // --- Phase 3 management, backed by the Phase 2 class models ---
+  phase2Classes: () => apiFetch("/api/classes"),
+  createPhase2Class: (payload) => apiFetch("/api/classes", { method: "POST", body: JSON.stringify(payload) }),
+  updatePhase2Class: (classId, payload) => apiFetch(`/api/classes/${classId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deletePhase2Class: (classId) => apiFetch(`/api/classes/${classId}`, { method: "DELETE" }),
+  phase2Sessions: (classId) => apiFetch(`/api/classes/${classId}/sessions`),
+  createPhase2Session: (classId, payload) => apiFetch(`/api/classes/${classId}/sessions`, { method: "POST", body: JSON.stringify(payload) }),
+  phase2Attendance: (sessionId) => apiFetch(`/api/sessions/${sessionId}/attendance`),
+  phase2Notes: (classId) => apiFetch(`/api/classes/${classId}/notes`),
+  createPhase2Note: (classId, content) => apiFetch(`/api/classes/${classId}/notes`, { method: "POST", body: JSON.stringify({ content }) }),
+
   // --- Admin panel (admin + owner) ---
   myManagedChannels: () => apiFetch("/api/admin/channels"),
   createManagedChannel: (payload) => apiFetch("/api/admin/channels", { method: "POST", body: JSON.stringify(payload) }),

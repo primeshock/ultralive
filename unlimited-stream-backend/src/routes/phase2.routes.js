@@ -44,10 +44,52 @@ function serializeClass(classDoc) {
   };
 }
 
+function normalizedClassPayload(body = {}) {
+  return {
+    title: String(body.title || '').trim(),
+    slug: String(body.slug || '').trim().toLowerCase(),
+    description: String(body.description || '').trim(),
+    visibility: body.visibility === 'public' ? 'public' : 'private',
+    channel: String(body.channel || body.slug || '').trim().toLowerCase(),
+    settings: body.settings && typeof body.settings === 'object' ? body.settings : {},
+  };
+}
+
 router.get('/classes', async (req, res) => {
   const filter = req.user.role === 'owner' ? {} : { ownerId: req.user._id };
   const classes = await Class.find(filter).sort({ createdAt: -1 });
   res.json(classes.map(serializeClass));
+});
+
+router.post('/classes', async (req, res) => {
+  const payload = normalizedClassPayload(req.body);
+  if (!payload.title || !payload.slug || !payload.channel) {
+    return res.status(400).json({ error: 'عنوان، slug و channel الزامی هستند.' });
+  }
+  const classDoc = await Class.create({ ...payload, ownerId: req.user._id });
+  res.status(201).json(serializeClass(classDoc));
+});
+
+router.patch('/classes/:classId', loadClass, async (req, res) => {
+  const payload = normalizedClassPayload({ ...req.classDoc.toObject(), ...req.body });
+  if (!payload.title || !payload.slug || !payload.channel) {
+    return res.status(400).json({ error: 'عنوان، slug و channel الزامی هستند.' });
+  }
+  Object.assign(req.classDoc, payload);
+  await req.classDoc.save();
+  res.json(serializeClass(req.classDoc));
+});
+
+router.delete('/classes/:classId', loadClass, async (req, res) => {
+  const sessions = await LiveSession.find({ classId: req.classDoc._id }).select('_id').lean();
+  const sessionIds = sessions.map((session) => session._id);
+  await Promise.all([
+    Attendance.deleteMany({ sessionId: { $in: sessionIds } }),
+    AdminNote.deleteMany({ classId: req.classDoc._id }),
+    LiveSession.deleteMany({ classId: req.classDoc._id }),
+    Class.deleteOne({ _id: req.classDoc._id }),
+  ]);
+  res.json({ ok: true });
 });
 
 router.get('/classes/:classId', loadClass, async (req, res) => {
