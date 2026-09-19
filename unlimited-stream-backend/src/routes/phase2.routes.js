@@ -1,0 +1,98 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const { requireAuth } = require('../middleware/auth.middleware');
+const { requireRole } = require('../middleware/requireRole');
+const Class = require('../models/Class');
+const LiveSession = require('../models/LiveSession');
+const Attendance = require('../models/Attendance');
+const AdminNote = require('../models/AdminNote');
+
+const router = express.Router();
+router.use(requireAuth, requireRole('admin', 'owner'));
+
+function idOrSlug(value) {
+  const text = String(value || '').trim().toLowerCase();
+  const filters = [{ slug: text }, { channel: text }];
+  if (mongoose.isValidObjectId(value)) filters.unshift({ _id: value });
+  return { $or: filters };
+}
+
+function canManageClass(req, classDoc) {
+  return req.user.role === 'owner' || String(classDoc.ownerId || '') === String(req.user._id);
+}
+
+async function loadClass(req, res, next) {
+  const classDoc = await Class.findOne(idOrSlug(req.params.classId));
+  if (!classDoc) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+  if (!canManageClass(req, classDoc)) return res.status(403).json({ error: 'به این کلاس دسترسی ندارید.' });
+  req.classDoc = classDoc;
+  next();
+}
+
+function serializeClass(classDoc) {
+  return {
+    id: classDoc._id,
+    title: classDoc.title,
+    slug: classDoc.slug,
+    description: classDoc.description,
+    visibility: classDoc.visibility,
+    channel: classDoc.channel,
+    settings: classDoc.settings,
+    ownerId: classDoc.ownerId,
+    createdAt: classDoc.createdAt,
+    updatedAt: classDoc.updatedAt,
+  };
+}
+
+router.get('/classes', async (req, res) => {
+  const filter = req.user.role === 'owner' ? {} : { ownerId: req.user._id };
+  const classes = await Class.find(filter).sort({ createdAt: -1 });
+  res.json(classes.map(serializeClass));
+});
+
+router.get('/classes/:classId', loadClass, async (req, res) => {
+  res.json(serializeClass(req.classDoc));
+});
+
+router.get('/classes/:classId/sessions', loadClass, async (req, res) => {
+  const sessions = await LiveSession.find({ classId: req.classDoc._id }).sort({ startedAt: -1 }).limit(100);
+  res.json(sessions);
+});
+
+router.post('/classes/:classId/sessions', loadClass, async (req, res) => {
+  const status = ['scheduled', 'live', 'ended'].includes(req.body?.status) ? req.body.status : 'scheduled';
+  const session = await LiveSession.create({
+    classId: req.classDoc._id,
+    status,
+    startedAt: req.body?.startedAt ? new Date(req.body.startedAt) : status === 'live' ? new Date() : null,
+    endedAt: status === 'ended' ? new Date() : null,
+    metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
+  });
+  res.status(201).json(session);
+});
+
+router.get('/sessions/:sessionId/attendance', async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.sessionId)) return res.status(404).json({ error: 'جلسه پیدا نشد.' });
+  const session = await LiveSession.findById(req.params.sessionId);
+  if (!session) return res.status(404).json({ error: 'جلسه پیدا نشد.' });
+  const classDoc = await Class.findById(session.classId);
+  if (!classDoc) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+  if (!canManageClass(req, classDoc)) return res.status(403).json({ error: 'به این جلسه دسترسی ندارید.' });
+  const attendance = await Attendance.find({ sessionId: session._id }).populate('studentId').sort({ joinedAt: 1 });
+  res.json(attendance);
+});
+
+router.get('/classes/:classId/notes', loadClass, async (req, res) => {
+  const notes = await AdminNote.find({ classId: req.classDoc._id }).sort({ createdAt: -1 }).populate('authorId', 'username displayName role');
+  res.json(notes);
+});
+
+router.post('/classes/:classId/notes', loadClass, async (req, res) => {
+  const content = String(req.body?.content || '').trim();
+  if (!content || content.length > 5000) return res.status(400).json({ error: 'متن یادداشت نامعتبر است.' });
+  const note = await AdminNote.create({ classId: req.classDoc._id, authorId: req.user._id, content });
+  await note.populate('authorId', 'username displayName role');
+  res.status(201).json(note);
+});
+
+module.exports = router;

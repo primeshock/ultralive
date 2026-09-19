@@ -16,6 +16,7 @@ const { allocateClassUsername, normalizeDisplayName, normalizeStreamTitle } = re
 const { uploadChannelThumbnail } = require('../controllers/user.controller');
 const { thumbnailUpload } = require('../utils/upload');
 const { clearChat, stopAutoReminder } = require('../services/chat');
+const { deleteClassArchitecture } = require('../utils/phase2Data');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner'));
@@ -112,6 +113,7 @@ router.delete('/channels/:channel', loadOwnedChannel, async (req, res) => {
     RoomSession.deleteMany({ channel }),
     AttendanceLog.deleteMany({ channel }),
   ]);
+  await deleteClassArchitecture(channel);
 
   await req.targetChannel.deleteOne();
   res.status(204).end();

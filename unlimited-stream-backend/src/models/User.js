@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema(
     // 'owner'   → you: master panel, can create admins and channels
     // 'admin'   → manages a set of channels (classes) via the admin panel
     // 'teacher' → a normal broadcaster account (this is what "channel" meant before)
-    role: { type: String, enum: ['owner', 'admin', 'teacher'], default: 'teacher' },
+    role: { type: String, enum: ['owner', 'admin', 'teacher', 'student'], default: 'teacher' },
     // Which admin created/manages this channel. Only meaningful when role === 'teacher'.
     managedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // 'public'  → everyone in chat sees everyone else's messages (original behavior)

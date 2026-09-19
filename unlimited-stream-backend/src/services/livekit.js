@@ -1,6 +1,10 @@
 const { AccessToken, IngressClient, IngressInput, RoomServiceClient, TrackSource, AudioCodec, VideoCodec } = require('livekit-server-sdk');
 const User = require('../models/User');
 const SiteSettings = require('../models/SiteSettings');
+const Class = require('../models/Class');
+const LiveSession = require('../models/LiveSession');
+const Student = require('../models/Student');
+const Attendance = require('../models/Attendance');
 const { livekitEnabled, livekitUrl, livekitApiKey, livekitApiSecret } = require('../config/env');
 const { recommendedLivekitSettings } = require('../utils/livekitSettings');
 
@@ -235,6 +239,105 @@ async function resolveWebhookChannel(event) {
   return null;
 }
 
+async function ensureLiveSession(channel, event) {
+  const teacher = await User.findOne({ username: channel, role: 'teacher' }).select('_id username displayName streamTitle streamKey accessMode managedBy');
+  if (!teacher) return null;
+  const classDoc = await Class.findOneAndUpdate(
+    { channel },
+    {
+      $set: {
+        title: teacher.streamTitle || teacher.displayName || teacher.username,
+        slug: teacher.username,
+        streamKey: teacher.streamKey || '',
+        visibility: teacher.accessMode === 'public' ? 'public' : 'private',
+        ownerId: teacher.managedBy || teacher._id,
+      },
+      $setOnInsert: { channel, description: '', settings: {} },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+  let session = await LiveSession.findOne({ classId: classDoc._id, status: 'live' }).sort({ startedAt: -1 });
+  if (!session) {
+    try {
+      session = await LiveSession.create({
+        classId: classDoc._id,
+        status: 'live',
+        startedAt: new Date(),
+        metadata: { source: 'livekit', room: webhookRoomName(event) },
+      });
+    } catch (err) {
+      if (err?.code !== 11000) throw err;
+      session = await LiveSession.findOne({ classId: classDoc._id, status: 'live' }).sort({ startedAt: -1 });
+    }
+  }
+  return { classDoc, session };
+}
+
+async function closeLiveSession(channel, event) {
+  const classDoc = await Class.findOne({ channel });
+  if (!classDoc) return;
+  const endedAt = new Date();
+  const session = await LiveSession.findOneAndUpdate(
+    { classId: classDoc._id, status: 'live' },
+    { status: 'ended', endedAt },
+    { new: true, sort: { startedAt: -1 } }
+  );
+  if (session) {
+    await Attendance.updateMany(
+      { sessionId: session._id, leftAt: null },
+      [{ $set: { leftAt: endedAt, duration: { $max: [0, { $divide: [{ $subtract: [endedAt, '$joinedAt'] }, 1000] }] } } }]
+    );
+  }
+  return session;
+}
+
+async function syncStudentAttendance(channel, event) {
+  const type = String(event.event || '').toLowerCase();
+  if (!['participant_joined', 'participant_left'].includes(type)) return;
+  const identity = webhookIdentity(event);
+  if (!identity || isIngressParticipant(identity) || identity.toLowerCase().startsWith('staff:') || identity.toLowerCase().startsWith('monitor:')) return;
+  const active = type === 'participant_joined'
+    ? await ensureLiveSession(channel, event)
+    : await (async () => {
+        const classDoc = await Class.findOne({ channel });
+        if (!classDoc) return null;
+        const session = await LiveSession.findOne({ classId: classDoc._id, status: 'live' }).sort({ startedAt: -1 });
+        return session ? { classDoc, session } : null;
+      })();
+  if (!active) return;
+  const externalId = identity.replace(/^student:/i, '');
+  if (!externalId) return;
+  const participant = event.participant || {};
+  const student = await Student.findOneAndUpdate(
+    { externalId },
+    {
+      $set: { name: participant.name || '', integrationMetadata: { source: 'livekit', identity } },
+      $setOnInsert: { externalId },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+  if (type === 'participant_joined') {
+    const open = await Attendance.findOne({ sessionId: active.session._id, studentId: student._id, leftAt: null });
+    if (!open) {
+      try {
+        await Attendance.create({ sessionId: active.session._id, studentId: student._id, joinedAt: new Date() });
+      } catch (err) {
+        if (err?.code !== 11000) throw err;
+      }
+    }
+    const currentCount = await Attendance.countDocuments({ sessionId: active.session._id, leftAt: null });
+    await LiveSession.updateOne({ _id: active.session._id }, { $max: { peakParticipants: currentCount } });
+  } else {
+    const attendance = await Attendance.findOne({ sessionId: active.session._id, studentId: student._id, leftAt: null }).sort({ joinedAt: -1 });
+    if (attendance) {
+      const leftAt = new Date();
+      attendance.leftAt = leftAt;
+      attendance.duration = Math.max(0, Math.round((leftAt.getTime() - attendance.joinedAt.getTime()) / 1000));
+      await attendance.save();
+    }
+  }
+}
+
 // Keeps User.isLive in sync when the stream arrives via LiveKit Ingress
 // instead of (or in addition to) the existing RTMP→node-media-server path.
 async function handleWebhook(event) {
@@ -249,14 +352,19 @@ async function handleWebhook(event) {
     ingressId: event.ingressInfo?.ingressId || null,
     action: goLive === true ? 'live' : goLive === false ? 'offline' : 'ignored',
   });
-  if (goLive === null) return;
-
   const channel = await resolveWebhookChannel(event);
   if (!channel) {
     console.warn('[livekit webhook] unresolved channel', { event: type, room, identity });
     return;
   }
 
+  await syncStudentAttendance(channel, event);
+  if (goLive === null) return;
+  if (goLive) {
+    await ensureLiveSession(channel, event);
+  } else {
+    await closeLiveSession(channel, event);
+  }
   await User.findOneAndUpdate({ username: channel, role: 'teacher' }, { isLive: goLive });
 }
 

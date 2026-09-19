@@ -21,6 +21,7 @@ const { allocateClassUsername, normalizeDisplayName, normalizeStreamTitle } = re
 const { normalizeLivekitSettings, withLivekitSettings } = require('../utils/livekitSettings');
 const { publicBaseUrl } = require('../config/env');
 const { ensureIngress } = require('../services/livekit');
+const { deleteClassArchitecture } = require('../utils/phase2Data');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('owner'));
@@ -43,6 +44,7 @@ async function deleteClassData(channelUsername) {
     RoomSession.deleteMany({ channel }),
     AttendanceLog.deleteMany({ channel }),
   ]);
+  await deleteClassArchitecture(channel);
 
   await fs.unlink(path.join(process.cwd(), 'media', 'thumbnails', `${channel}.jpg`)).catch(() => {});
 }

@@ -175,6 +175,34 @@ OBS
 
 منطق deadline در backend هم بررسی می‌شود؛ بنابراین تغییر ساعت یا دست‌کاری UI نمی‌تواند بعد از پایان مهلت رأی ثبت کند.
 
+## Phase 2: Class Management Architecture
+
+Phase 2 backend architecture extends the existing teacher/channel system without replacing it:
+
+- `Class` mirrors existing `User(role=teacher)` channels through an idempotent startup sync. Existing channels, stream keys and access modes are preserved.
+- `LiveSession` stores multiple live sessions per class and is updated from LiveKit ingress lifecycle events.
+- `Student` stores the external identity and display name observed from the current join integration. Its `integrationMetadata` is intentionally open for the future KooshaHoosh API contract.
+- `Attendance` records student join/leave times and duration per live session.
+- `AdminNote` stores private notes for a class and is available only to Admin/Owner users.
+
+### Phase 2 API
+
+All management endpoints require authentication. Admins can access only classes assigned to them; Owners can access all classes. Student accounts receive `403` on these management routes.
+
+```text
+GET  /api/classes
+GET  /api/classes/:id-or-slug
+GET  /api/classes/:id-or-slug/sessions
+POST /api/classes/:id-or-slug/sessions
+GET  /api/sessions/:id/attendance
+GET  /api/classes/:id-or-slug/notes
+POST /api/classes/:id-or-slug/notes
+```
+
+No collection is dropped or reset. Mongoose creates the declared indexes on normal application startup, and the class sync uses upserts. LiveKit, authentication, legacy `/api/admin/channels`, streaming and existing student join flows remain supported.
+
+This phase intentionally does not add dashboard UI, SSO, Web Studio, video calls, or a replacement streaming protocol. It also does not deploy to production automatically.
+
 ## اصلاحات LiveKit انجام‌شده
 
 ### خطای `e is not iterable`
