@@ -100,6 +100,7 @@ export const api = {
   },
   removeBackground: () => apiFetch("/api/master/appearance/background", { method: "DELETE" }),
   systemStats: () => apiFetch("/api/master/system-stats"),
+  telemetry: () => apiFetch("/api/master/telemetry"),
   activityLog: () => apiFetch("/api/master/activity"),
 
   // --- Phase 3 management, backed by the Phase 2 class models ---

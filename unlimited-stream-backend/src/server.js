@@ -4,6 +4,7 @@ const { connectDb } = require('./config/db');
 const { initChat } = require('./services/chat');
 const { createMediaServer } = require('./services/mediaServer');
 const { startLiveStateSync } = require('./services/livekit');
+const { startTelemetryCollector } = require('./services/telemetry');
 const { syncLegacyClasses } = require('./migrations/phase2');
 const { port } = require('./config/env');
 
@@ -11,6 +12,7 @@ async function main() {
   await connectDb();
   const migratedClasses = await syncLegacyClasses();
   console.log(`[phase2] synchronized ${migratedClasses} legacy classes`);
+  startTelemetryCollector();
 
   const httpServer = http.createServer(app);
   initChat(httpServer);

@@ -21,6 +21,7 @@ const { allocateClassUsername, normalizeDisplayName, normalizeStreamTitle } = re
 const { normalizeLivekitSettings, withLivekitSettings } = require('../utils/livekitSettings');
 const { publicBaseUrl } = require('../config/env');
 const { ensureIngress } = require('../services/livekit');
+const { telemetryHistory } = require('../services/telemetry');
 const { deleteClassArchitecture } = require('../utils/phase2Data');
 
 const router = express.Router();
@@ -344,6 +345,12 @@ router.get('/system-stats', async (_req, res) => {
     disk,
     pm2,
   });
+});
+
+router.get('/telemetry', async (_req, res) => {
+  const history = await telemetryHistory();
+  const latest = history.at(-1) || null;
+  res.json({ current: latest, latest, history });
 });
 
 // ---- User stats: recent logins/logouts across all real accounts ----

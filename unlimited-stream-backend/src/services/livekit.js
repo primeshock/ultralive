@@ -179,6 +179,18 @@ function roomService() {
   return new RoomServiceClient(livekitUrl, livekitApiKey, livekitApiSecret);
 }
 
+async function getRoomTelemetry() {
+  if (!livekitEnabled || !livekitUrl || !livekitApiKey || !livekitApiSecret) {
+    return { status: 'disabled', rooms: 0, participants: 0, publishers: 0 };
+  }
+  const service = roomService();
+  const rooms = await service.listRooms();
+  const participantLists = await Promise.all(rooms.map((room) => service.listParticipants(room.name)));
+  const participants = participantLists.flat();
+  const publishers = participants.filter((participant) => isIngressParticipant(participant.identity)).length;
+  return { status: 'online', rooms: rooms.length, participants: participants.length, publishers };
+}
+
 async function publisherIsLive(username) {
   if (!livekitEnabled || !livekitUrl || !livekitApiKey || !livekitApiSecret) return null;
   try {
@@ -379,6 +391,7 @@ module.exports = {
   roomName,
   classifyLiveEvent,
   isIngressParticipant,
+  getRoomTelemetry,
   syncChannelLiveState,
   startLiveStateSync,
 };
