@@ -1,0 +1,13 @@
+{
+  "name": "koosha-live-load-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "loadtest": "node runner.js",
+    "profiles": "node runner.js --list-profiles"
+  },
+  "dependencies": {
+    "@livekit/rtc-node": "^1.0.0"
+  }
+}
