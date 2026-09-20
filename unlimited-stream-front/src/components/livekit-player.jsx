@@ -23,6 +23,8 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
   const roomRef = useRef(null);
   const currentTrackRef = useRef(null);
   const statsTimerRef = useRef(null);
+  const lastVideoTimeRef = useRef(null);
+  const stalledChecksRef = useRef(0);
 
   const [state, setState] = useState("CONNECTING");
   const [error, setError] = useState("");
@@ -31,6 +33,10 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
   const [attempt, setAttempt] = useState(0);
   const [hasVideo, setHasVideo] = useState(false);
   const [stats, setStats] = useState(null);
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +75,30 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         clearInterval(statsTimerRef.current);
         statsTimerRef.current = null;
       }
+    }
+
+    async function recoverPlayback() {
+      if (!media || cancelled || media.readyState < 2) return;
+      try {
+        await media.play();
+        setPlaying(true);
+        stalledChecksRef.current = 0;
+        setError("");
+      } catch {
+        setPlaying(false);
+      }
+    }
+
+    function checkPlayback() {
+      if (!media || cancelled || !currentVideoTrack || stateRef.current !== "LIVE") return;
+      const currentTime = media.currentTime;
+      if (media.readyState >= 2 && !media.paused && lastVideoTimeRef.current === currentTime) {
+        stalledChecksRef.current += 1;
+        if (stalledChecksRef.current >= 3) void recoverPlayback();
+      } else {
+        stalledChecksRef.current = 0;
+      }
+      lastVideoTimeRef.current = currentTime;
     }
 
     function detachTrack(track) {
@@ -179,8 +209,8 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
             reason: reason || null,
           });
           if (!cancelled) {
-            setError("LiveKit disconnected");
-            setState("OFFLINE");
+            setError("ارتباط قطع شد. لطفاً دوباره تلاش کنید.");
+            setState("FAILED");
             stopStatsTimer();
           }
         });
@@ -218,7 +248,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
               room: room.name,
               participant: participant?.identity || null,
             }));
-            if (!cancelled) setError(String(err.message || err));
+            if (!cancelled) setError("پخش ناپایدار است. در حال تلاش برای بازیابی...");
           });
         });
 
@@ -241,8 +271,21 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
             trackSid: trackSid || null,
           }));
           if (!cancelled) {
-            setError("Track subscription failed");
+            setError("دریافت تصویر با مشکل مواجه شد. در حال تلاش برای بازیابی...");
             void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+          }
+        });
+
+        room.on(lk.RoomEvent.TrackMuted, (publication) => {
+          if (!cancelled && publication?.kind === "video") {
+            setError("تصویر موقتاً متوقف شده؛ در حال بازیابی...");
+          }
+        });
+
+        room.on(lk.RoomEvent.TrackUnmuted, (publication) => {
+          if (!cancelled && publication?.kind === "video") {
+            setError("");
+            void recoverPlayback();
           }
         });
 
@@ -268,6 +311,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         stopStatsTimer();
         statsTimerRef.current = setInterval(() => {
           void refreshStats(room, currentVideoTrack || currentTrackRef.current);
+          checkPlayback();
         }, 2000);
 
         await refreshStats(room, currentVideoTrack || currentTrackRef.current);
@@ -279,8 +323,8 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
             serverUrl: credentials?.serverUrl || null,
           });
           console.error("[LiveKit] connection failed", details);
-          setError(details.message || "LiveKit unavailable");
-          setState("OFFLINE");
+          setError("امکان اتصال به پخش زنده وجود ندارد.");
+          setState("FAILED");
           stopStatsTimer();
         }
       }
@@ -351,7 +395,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
     <div className={`relative overflow-hidden rounded-[1.8rem] border border-white/12 bg-black/95 shadow-2xl ${className || ""}`}>
       <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
         <Badge variant="outline" className="rounded-full border-white/15 bg-black/45 text-white backdrop-blur">
-          {state === "LIVE" ? "Connected" : state === "RECONNECTING" ? "Reconnecting" : state === "OFFLINE" ? "Disconnected" : "Connecting"}
+          {state === "LIVE" ? "پخش زنده" : state === "RECONNECTING" ? "در حال اتصال مجدد..." : state === "FAILED" ? "ارتباط قطع است" : "در حال اتصال..."}
         </Badge>
         {stats?.qualityText && <Badge variant="outline" className="rounded-full border-white/15 bg-black/45 text-white backdrop-blur">{stats.qualityText}</Badge>}
       </div>
