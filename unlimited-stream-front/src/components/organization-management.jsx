@@ -73,6 +73,27 @@ export function OrganizationManagement({ activeOrganization, onContextChange }) 
     }
   }
 
+  async function changeStatus(organization) {
+    setError("");
+    try {
+      const updated = await api.updateOrganization(organization._id, { status: organization.status === "ACTIVE" ? "DISABLED" : "ACTIVE" });
+      setOrganizations((current) => current.map((item) => item._id === updated._id ? { ...item, ...updated } : item));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function deleteOrganization(organization) {
+    if (!window.confirm(`سازمان «${organization.name}» حذف شود؟`)) return;
+    setError("");
+    try {
+      await api.deleteOrganization(organization._id);
+      setOrganizations((current) => current.filter((item) => item._id !== organization._id));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {activeOrganization ? (
@@ -89,7 +110,7 @@ export function OrganizationManagement({ activeOrganization, onContextChange }) 
         <CardContent>
           {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
           {message && <p className="mb-4 text-sm text-emerald-600">{message}</p>}
-          {loading ? <p className="text-sm text-muted-foreground">در حال دریافت سازمان‌ها...</p> : organizations.length === 0 ? <p className="text-sm text-muted-foreground">هنوز سازمانی ساخته نشده است.</p> : <div className="space-y-3">{organizations.map((organization) => <div key={organization._id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"><div><p className="font-semibold">{organization.name}</p><p className="text-sm text-muted-foreground">مالک: {organization.ownerId?.displayName || organization.ownerId?.username || "-"} · {formatDate(organization.createdAt)}</p></div><div className="flex items-center gap-2"><span className="rounded-full bg-muted px-3 py-1 text-xs">{organization.status}</span><Button size="sm" onClick={() => enterOrganization(organization)} disabled={organization.status !== "ACTIVE"}><LogIn className="ml-2 size-4" />ورود به پنل</Button></div></div>)}</div>}
+          {loading ? <p className="text-sm text-muted-foreground">در حال دریافت سازمان‌ها...</p> : organizations.length === 0 ? <p className="text-sm text-muted-foreground">هنوز سازمانی ساخته نشده است.</p> : <div className="space-y-3">{organizations.map((organization) => <div key={organization._id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"><div><p className="font-semibold">{organization.name}</p><p className="text-sm text-muted-foreground">مالک: {organization.ownerId?.displayName || organization.ownerId?.username || "-"} · {formatDate(organization.createdAt)}</p></div><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-muted px-3 py-1 text-xs">{organization.status}</span><Button size="sm" onClick={() => enterOrganization(organization)} disabled={organization.status !== "ACTIVE"}><LogIn className="ml-2 size-4" />ورود به پنل</Button><Button size="sm" variant="outline" onClick={() => changeStatus(organization)}>{organization.status === "ACTIVE" ? "تعلیق" : "فعال‌سازی"}</Button><Button size="sm" variant="destructive" onClick={() => deleteOrganization(organization)}>حذف</Button></div></div>)}</div>}
         </CardContent>
       </Card>
 

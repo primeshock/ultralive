@@ -42,6 +42,14 @@ router.patch('/:id', async (req, res) => {
   res.json(organization);
 });
 
+router.delete('/:id', async (req, res) => {
+  const organization = await Organization.findById(req.params.id);
+  if (!organization) return res.status(404).json({ error: 'Organization not found.' });
+  await User.deleteOne({ _id: organization.ownerId, organizationId: organization._id });
+  await Organization.deleteOne({ _id: organization._id });
+  res.json({ ok: true });
+});
+
 router.patch('/:id/owner', async (req, res) => {
   const organization = await Organization.findById(req.params.id);
   const owner = organization && await User.findOne({ _id: organization.ownerId, organizationId: organization._id });

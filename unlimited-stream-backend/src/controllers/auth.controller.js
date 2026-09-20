@@ -6,6 +6,7 @@ const { ownerUser } = require('../utils/serialize');
 const { serverIp, rtmpPort, publicPort: apiPort } = require('../config/env');
 const SiteSettings = require('../models/SiteSettings');
 const LoginLog = require('../models/LoginLog');
+const Organization = require('../models/Organization');
 
 const USERNAME_RE = /^[a-z0-9_]{3,24}$/i;
 
@@ -79,7 +80,8 @@ function logout(req, res) {
 }
 
 function me(req, res) {
-  res.json({ user: ownerUser(req.user, { serverIp, rtmpPort, apiPort }), activeOrganization: req.organizationContext || null });
+  const activeOrganization = req.organizationContext || (req.user.organizationId ? Organization.findById(req.user.organizationId) : null);
+  Promise.resolve(activeOrganization).then((organization) => res.json({ user: ownerUser(req.user, { serverIp, rtmpPort, apiPort }), activeOrganization: organization || null }));
 }
 
 module.exports = { register, login, logout, me };

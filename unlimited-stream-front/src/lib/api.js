@@ -110,6 +110,7 @@ export const api = {
   organizations: () => apiFetch("/api/organizations"),
   createOrganization: (payload) => apiFetch("/api/organizations", { method: "POST", body: JSON.stringify(payload) }),
   updateOrganization: (id, payload) => apiFetch(`/api/organizations/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteOrganization: (id) => apiFetch(`/api/organizations/${id}`, { method: "DELETE" }),
   updateOrganizationOwner: (id, payload) => apiFetch(`/api/organizations/${id}/owner`, { method: "PATCH", body: JSON.stringify(payload) }),
   enterOrganization: (id) => apiFetch(`/api/organizations/${id}/context`, { method: "POST" }),
   exitOrganization: () => apiFetch("/api/organizations/context", { method: "DELETE" }),
