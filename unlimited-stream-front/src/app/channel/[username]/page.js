@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { use as usePromise } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Radio, Users, Sparkles, Activity } from "lucide-react";
@@ -15,6 +16,8 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function ChannelPage({ params }) {
   const { username } = usePromise(params);
+  const searchParams = useSearchParams();
+  const previewOnly = searchParams.get("preview") === "1";
   const { user, loading: authLoading } = useAuth();
   const [channel, setChannel] = useState(null);
   const [accessAllowed, setAccessAllowed] = useState(null);
@@ -110,7 +113,7 @@ export default function ChannelPage({ params }) {
 
   return (
     <div className="spatial-shell min-h-[calc(100dvh_-_3.5rem)]" data-appearance={appearance?.preset || "aurora"} style={appearanceStyle}>
-      <div className="relative mx-auto grid w-full max-w-[1540px] grid-cols-1 gap-5 px-4 py-5 lg:px-8 xl:grid-cols-[minmax(0,1fr)_390px]">
+      <div className={`relative mx-auto grid w-full max-w-[1540px] grid-cols-1 gap-5 px-4 py-5 lg:px-8 ${previewOnly ? "max-w-5xl" : "xl:grid-cols-[minmax(0,1fr)_390px]"}`}>
       <div className="flex min-h-0 flex-col gap-5">
         <div className="glass-float relative aspect-video overflow-hidden rounded-[2rem] border-white/20 p-1 shadow-[0_30px_100px_rgb(0_0_0_/_0.38)]">
           <div className="pointer-events-none absolute inset-0 z-10 rounded-[1.8rem] ring-1 ring-inset ring-white/10" />
@@ -172,11 +175,11 @@ export default function ChannelPage({ params }) {
           </div>
         </div>
 
-        <PollWidget channel={username} />
-        {canManageClass && <ClassAdminPanel channel={username} thumbnailUrl={channel.thumbnailUrl} chatMode={chatMode} showViewerCount={channel.showViewerCount} viewerCount={channel.viewerCount || 0} onChatMode={handleChatMode} onViewerCount={handleViewerCount} onThumbnail={(thumbnailUrl) => setChannel((current) => ({ ...current, thumbnailUrl }))} />}
+        {!previewOnly && <PollWidget channel={username} />}
+        {!previewOnly && canManageClass && <ClassAdminPanel channel={username} thumbnailUrl={channel.thumbnailUrl} chatMode={chatMode} showViewerCount={channel.showViewerCount} viewerCount={channel.viewerCount || 0} onChatMode={handleChatMode} onViewerCount={handleViewerCount} onThumbnail={(thumbnailUrl) => setChannel((current) => ({ ...current, thumbnailUrl }))} />}
       </div>
 
-      <div className="flex min-h-0 flex-col gap-3 xl:sticky xl:top-20 xl:h-[calc(100dvh_-_6.5rem)]">
+      {!previewOnly && <div className="flex min-h-0 flex-col gap-3 xl:sticky xl:top-20 xl:h-[calc(100dvh_-_6.5rem)]">
         <div className="relative flex min-h-[480px] flex-1 flex-col overflow-visible">
           <button
             type="button"
@@ -198,7 +201,7 @@ export default function ChannelPage({ params }) {
           <LiveChat key={username} channel={username} initialEnabled={channel.chatEnabled} />
           </div>
         </div>
-      </div>
+      </div>}
       </div>
     </div>
   );
