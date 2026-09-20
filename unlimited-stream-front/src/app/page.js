@@ -1,32 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import { ImageOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
-// Institutional deployment: no public browsing of all classes (that used to
-// list every live channel here). Staff get sent to their panel; anyone else
-// (including a student who somehow lands here instead of their class link)
-// just sees a plain notice — no list of other classes to poke at.
 export default function Home() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+  const [brand, setBrand] = useState({ siteName: "Ultra Live", logoUrl: "" });
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
-    if (user?.role === "owner" || user?.role === "admin") router.replace("/admin");
-    else if (user?.role === "teacher") router.replace("/dashboard");
-  }, [loading, user, router]);
+    api.site().then((nextBrand) => setBrand(nextBrand)).catch(() => {});
+  }, []);
 
-  if (loading || user) {
-    return <div className="flex-1 flex items-center justify-center">در حال بارگذاری...</div>;
-  }
-
-  return (
-    <div className="flex-1 flex items-center justify-center px-4 text-center">
-      <p className="text-muted-foreground">
-        برای ورود به کلاس، از لینکی که در سایت مؤسسه در اختیارت گذاشته شده استفاده کن.
-      </p>
-    </div>
-  );
+  return <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4 text-center"><div className="flex items-center gap-3 text-2xl font-bold">{brand.logoUrl && !logoFailed ? <img src={brand.logoUrl} alt="لوگو" onError={() => setLogoFailed(true)} className="h-14 w-14 rounded-xl object-contain" /> : <ImageOff className="size-10 text-muted-foreground" aria-hidden="true" />}<span>{brand.siteName || "Ultra Live"}</span></div><p className="text-muted-foreground">این راه به جایی نمی‌رسه</p></div>;
 }

@@ -23,6 +23,8 @@ export function SiteHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const isStudentStream = /^\/(channel|monitor)(\/|$)/.test(pathname || "");
+  const isLanding = pathname === "/";
+  const isQuietPage = isStudentStream || isLanding;
   const [dark, setDark] = useState(storedThemeIsDark);
   const [brand, setBrand] = useState({ siteName: "Ultra Live", logoUrl: "" });
   const [logoFailed, setLogoFailed] = useState(false);
@@ -56,10 +58,12 @@ export function SiteHeader() {
     router.push("/");
   }
 
+  if (isLanding) return null;
+
   return (
     <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between gap-4">
-        {isStudentStream ? <div className="font-bold text-lg flex items-center gap-2 min-w-0" aria-label={brand.siteName || "Ultra Live"}>
+        {isQuietPage ? <div className="font-bold text-lg flex items-center gap-2 min-w-0" aria-label={brand.siteName || "Ultra Live"}>
           {brand.logoUrl && !logoFailed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={brand.logoUrl} alt="لوگو" onError={() => setLogoFailed(true)} className="order-first h-8 w-8 shrink-0 rounded-md object-contain bg-white/5 p-0.5" />
@@ -74,8 +78,8 @@ export function SiteHeader() {
         </Link>}
 
         <nav className="flex items-center gap-2">
-          {!isStudentStream && <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="تغییر تم">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>}
-          {!isStudentStream && (loading ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="در حال بارگذاری" /> : user ? (
+          {!isQuietPage && <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="تغییر تم">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>}
+          {!isQuietPage && (loading ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="در حال بارگذاری" /> : user ? (
             <>
               {(user.role === "admin" || user.role === "owner") && (
                 <Button variant="ghost" nativeButton={false} render={<Link href="/admin" />}>
