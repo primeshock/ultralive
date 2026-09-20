@@ -4,9 +4,11 @@ const mongoose = require('mongoose');
 // the room in this codebase — no separate Room collection needed).
 const moderationSchema = new mongoose.Schema(
   {
-    channel: { type: String, required: true, lowercase: true, index: true },
+    channel: { type: String, lowercase: true, index: true },
+    classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', index: true },
     // The WordPress user id for students (they have no local User account).
-    externalUserId: { type: String, required: true, index: true },
+    externalUserId: { type: String, index: true },
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', index: true },
     type: { type: String, enum: ['mute', 'ban'], required: true },
     scope: { type: String, enum: ['timed', 'permanent'], required: true },
     expiresAt: { type: Date, default: null }, // null when scope === 'permanent'

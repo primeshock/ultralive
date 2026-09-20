@@ -6,13 +6,16 @@ const Class = require('../models/Class');
 const LiveSession = require('../models/LiveSession');
 const Attendance = require('../models/Attendance');
 const AdminNote = require('../models/AdminNote');
+const Moderation = require('../models/Moderation');
+const Student = require('../models/Student');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner'));
 
 function idOrSlug(value) {
   const text = String(value || '').trim().toLowerCase();
-  const filters = [{ slug: text }, { channel: text }];
+  const filters = [{ slug: text }];
+  if (text) filters.push({ channel: text });
   if (mongoose.isValidObjectId(value)) filters.unshift({ _id: value });
   return { $or: filters };
 }
@@ -36,7 +39,6 @@ function serializeClass(classDoc) {
     slug: classDoc.slug,
     description: classDoc.description,
     visibility: classDoc.visibility,
-    channel: classDoc.channel,
     settings: classDoc.settings,
     ownerId: classDoc.ownerId,
     createdAt: classDoc.createdAt,
@@ -63,8 +65,8 @@ router.get('/classes', async (req, res) => {
 
 router.post('/classes', async (req, res) => {
   const payload = normalizedClassPayload(req.body);
-  if (!payload.title || !payload.slug || !payload.channel) {
-    return res.status(400).json({ error: 'عنوان، slug و channel الزامی هستند.' });
+  if (!payload.title || !payload.slug) {
+    return res.status(400).json({ error: 'عنوان و slug الزامی هستند.' });
   }
   const classDoc = await Class.create({ ...payload, ownerId: req.user._id });
   res.status(201).json(serializeClass(classDoc));
@@ -72,8 +74,8 @@ router.post('/classes', async (req, res) => {
 
 router.patch('/classes/:classId', loadClass, async (req, res) => {
   const payload = normalizedClassPayload({ ...req.classDoc.toObject(), ...req.body });
-  if (!payload.title || !payload.slug || !payload.channel) {
-    return res.status(400).json({ error: 'عنوان، slug و channel الزامی هستند.' });
+  if (!payload.title || !payload.slug) {
+    return res.status(400).json({ error: 'عنوان و slug الزامی هستند.' });
   }
   Object.assign(req.classDoc, payload);
   await req.classDoc.save();
@@ -143,6 +145,42 @@ router.post('/classes/:classId/notes', loadClass, async (req, res) => {
   const note = await AdminNote.create({ classId: req.classDoc._id, authorId: req.user._id, content });
   await note.populate('authorId', 'username displayName role');
   res.status(201).json(note);
+});
+
+router.get('/classes/:classId/moderation', loadClass, async (req, res) => {
+  const list = await Moderation.find({ classId: req.classDoc._id }).sort({ createdAt: -1 }).populate('studentId', 'externalId name');
+  res.json(list);
+});
+
+router.post('/classes/:classId/moderation', loadClass, async (req, res) => {
+  const { studentId, type, scope, minutes, reason } = req.body || {};
+  if (!mongoose.isValidObjectId(studentId) || !['mute', 'ban'].includes(type) || !['timed', 'permanent'].includes(scope)) {
+    return res.status(400).json({ error: 'ورودی محدودیت نامعتبر است.' });
+  }
+  if (scope === 'timed' && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1)) {
+    return res.status(400).json({ error: 'مدت محدودیت نامعتبر است.' });
+  }
+  const student = await Student.findById(studentId).select('externalId name');
+  if (!student) return res.status(404).json({ error: 'دانش‌آموز پیدا نشد.' });
+  const moderation = await Moderation.create({
+    classId: req.classDoc._id,
+    studentId: student._id,
+    externalUserId: student.externalId,
+    type,
+    scope,
+    expiresAt: scope === 'timed' ? new Date(Date.now() + Number(minutes) * 60_000) : null,
+    reason: String(reason || '').trim(),
+    createdBy: String(req.user._id),
+  });
+  await moderation.populate('studentId', 'externalId name');
+  res.status(201).json(moderation);
+});
+
+router.delete('/classes/:classId/moderation/:moderationId', loadClass, async (req, res) => {
+  const moderation = await Moderation.findOne({ _id: req.params.moderationId, classId: req.classDoc._id });
+  if (!moderation) return res.status(404).json({ error: 'محدودیت پیدا نشد.' });
+  await moderation.deleteOne();
+  res.status(204).end();
 });
 
 module.exports = router;

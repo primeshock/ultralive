@@ -118,6 +118,9 @@ export const api = {
   phase2Attendance: (sessionId) => apiFetch(`/api/sessions/${sessionId}/attendance`),
   phase2Notes: (classId) => apiFetch(`/api/classes/${classId}/notes`),
   createPhase2Note: (classId, content) => apiFetch(`/api/classes/${classId}/notes`, { method: "POST", body: JSON.stringify({ content }) }),
+  classModeration: (classId) => apiFetch(`/api/classes/${classId}/moderation`),
+  moderateStudent: (classId, payload) => apiFetch(`/api/classes/${classId}/moderation`, { method: "POST", body: JSON.stringify(payload) }),
+  removeClassModeration: (classId, moderationId) => apiFetch(`/api/classes/${classId}/moderation/${moderationId}`, { method: "DELETE" }),
 
   // --- Admin panel (admin + owner) ---
   myManagedChannels: () => apiFetch("/api/admin/channels"),
