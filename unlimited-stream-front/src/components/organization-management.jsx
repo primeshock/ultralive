@@ -42,7 +42,7 @@ export function OrganizationManagement({ activeOrganization, onContextChange }) 
     setError("");
     setMessage("");
     try {
-      await api.createOrganization(form);
+      await api.createOrganization({ ...form, slug: `org-${Date.now()}` });
       setForm({ name: "", slug: "", ownerUsername: "", ownerPassword: "" });
       setMessage("سازمان با موفقیت ساخته شد.");
       await loadOrganizations();
@@ -89,13 +89,13 @@ export function OrganizationManagement({ activeOrganization, onContextChange }) 
         <CardContent>
           {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
           {message && <p className="mb-4 text-sm text-emerald-600">{message}</p>}
-          {loading ? <p className="text-sm text-muted-foreground">در حال دریافت سازمان‌ها...</p> : organizations.length === 0 ? <p className="text-sm text-muted-foreground">هنوز سازمانی ساخته نشده است.</p> : <div className="space-y-3">{organizations.map((organization) => <div key={organization._id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"><div><p className="font-semibold">{organization.name}</p><p className="text-sm text-muted-foreground" dir="ltr">{organization.slug} · مالک: {organization.ownerId?.displayName || organization.ownerId?.username || "-"} · {formatDate(organization.createdAt)}</p></div><div className="flex items-center gap-2"><span className="rounded-full bg-muted px-3 py-1 text-xs">{organization.status}</span><Button size="sm" onClick={() => enterOrganization(organization)} disabled={organization.status !== "ACTIVE"}><LogIn className="ml-2 size-4" />ورود به پنل</Button></div></div>)}</div>}
+          {loading ? <p className="text-sm text-muted-foreground">در حال دریافت سازمان‌ها...</p> : organizations.length === 0 ? <p className="text-sm text-muted-foreground">هنوز سازمانی ساخته نشده است.</p> : <div className="space-y-3">{organizations.map((organization) => <div key={organization._id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"><div><p className="font-semibold">{organization.name}</p><p className="text-sm text-muted-foreground">مالک: {organization.ownerId?.displayName || organization.ownerId?.username || "-"} · {formatDate(organization.createdAt)}</p></div><div className="flex items-center gap-2"><span className="rounded-full bg-muted px-3 py-1 text-xs">{organization.status}</span><Button size="sm" onClick={() => enterOrganization(organization)} disabled={organization.status !== "ACTIVE"}><LogIn className="ml-2 size-4" />ورود به پنل</Button></div></div>)}</div>}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle>ساخت سازمان</CardTitle></CardHeader>
-        <CardContent><form onSubmit={createOrganization} className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="org-name">نام سازمان</Label><Input id="org-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></div><div className="space-y-2"><Label htmlFor="org-slug">slug</Label><Input id="org-slug" dir="ltr" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} pattern="[a-z0-9][a-z0-9-]{2,48}" required /></div><div className="space-y-2"><Label htmlFor="org-owner">نام کاربری مالک</Label><Input id="org-owner" dir="ltr" value={form.ownerUsername} onChange={(event) => setForm({ ...form, ownerUsername: event.target.value })} pattern="[a-zA-Z0-9_]{3,24}" required /></div><div className="space-y-2"><Label htmlFor="org-password">رمز مالک</Label><Input id="org-password" type="password" minLength={8} value={form.ownerPassword} onChange={(event) => setForm({ ...form, ownerPassword: event.target.value })} required /></div><div className="sm:col-span-2"><Button type="submit" disabled={saving}><Plus className="ml-2 size-4" />{saving ? "در حال ساخت..." : "ساخت سازمان"}</Button></div></form></CardContent>
+        <CardContent><form onSubmit={createOrganization} className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="org-name">نام سازمان</Label><Input id="org-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></div><div className="space-y-2"><Label htmlFor="org-owner">نام کاربری مالک</Label><Input id="org-owner" dir="ltr" value={form.ownerUsername} onChange={(event) => setForm({ ...form, ownerUsername: event.target.value })} pattern="[a-zA-Z0-9_]{3,24}" required /></div><div className="space-y-2"><Label htmlFor="org-password">رمز مالک</Label><Input id="org-password" type="password" minLength={8} value={form.ownerPassword} onChange={(event) => setForm({ ...form, ownerPassword: event.target.value })} required /></div><div className="flex items-end sm:col-span-2"><Button type="submit" disabled={saving}><Plus className="ml-2 size-4" />{saving ? "در حال ساخت..." : "ساخت سازمان"}</Button></div></form></CardContent>
       </Card>
     </div>
   );

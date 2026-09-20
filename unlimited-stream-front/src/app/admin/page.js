@@ -6,7 +6,6 @@ import { Loader2 } from "lucide-react";
 import { ManagementPanel } from "@/components/management-panel";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { OrganizationManagement } from "@/components/organization-management";
 
 export default function AdminPage() {
   const { user, loading, setUser, activeOrganization, setActiveOrganization } = useAuth();
@@ -27,5 +26,5 @@ export default function AdminPage() {
     router.push("/");
   }
 
-  return <div className="admin-shell min-h-full w-full space-y-6"><div className="mx-auto max-w-6xl px-4 pt-6">{user.role === "SUPER_OWNER" && <OrganizationManagement activeOrganization={activeOrganization} onContextChange={setActiveOrganization} />}</div><ManagementPanel user={user} onLogout={logout} /></div>;
+  return <div className="admin-shell min-h-full w-full"><ManagementPanel user={user} onLogout={logout} activeOrganization={activeOrganization} onContextChange={setActiveOrganization} /></div>;
 }
