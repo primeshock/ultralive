@@ -366,7 +366,7 @@ function AdminPathSetting() {
 function OwnerSection({ section, ownerStats, user, classes }) { if (section === "infrastructure") return <OwnerInfrastructure />; if (section === "load-testing") return <LoadTesting classes={classes} />; if (section === "settings") return <div className="space-y-4"><OwnerAppearanceEditor /><AdminPathSetting /></div>; if (section === "security") return <OwnerSecurity user={user} />; if (section === "admins") return <OwnerAdmins />; if (section === "logs") return <OwnerLogs />; return <Card><CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="size-5" />تحلیل داده</CardTitle></CardHeader><CardContent><div className="grid gap-4 sm:grid-cols-3"><Stat icon={Database} label="کلاس‌ها" value={ownerStats.classes} detail="داده واقعی Phase 2" /><Stat icon={Activity} label="جلسه‌های زنده" value={ownerStats.live} detail="وضعیت فعلی" /><Stat icon={Users} label="دانش‌آموزان آنلاین" value={ownerStats.online} detail="بر اساس attendance" /></div></CardContent></Card>; }
 
 export function ManagementPanel({ user, onLogout }) {
-  const isOwner = user?.role === "owner";
+  const isOwner = ["owner", "SUPER_OWNER"].includes(user?.role);
   const items = [...adminItems, ...(isOwner ? ownerItems : [])];
   const [section, setSection] = useState("overview");
   const [classes, setClasses] = useState([]);

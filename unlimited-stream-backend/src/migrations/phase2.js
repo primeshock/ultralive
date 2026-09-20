@@ -10,6 +10,11 @@ async function backfillOrganizationIds() {
   return results.reduce((total, result) => total + result.modifiedCount, 0);
 }
 
+async function migrateLegacyOwnerRoles() {
+  const result = await User.updateMany({ role: 'owner' }, { $set: { role: 'SUPER_OWNER' } });
+  return result.modifiedCount;
+}
+
 async function syncLegacyClasses() {
   const teachers = await User.find({ role: 'teacher' }).select('_id username displayName streamTitle streamKey accessMode managedBy organizationId');
   if (!teachers.length) return 0;
@@ -36,4 +41,4 @@ async function syncLegacyClasses() {
   return teachers.length;
 }
 
-module.exports = { backfillOrganizationIds, syncLegacyClasses };
+module.exports = { backfillOrganizationIds, migrateLegacyOwnerRoles, syncLegacyClasses };
