@@ -97,7 +97,7 @@ async function collectSnapshot() {
     pm2Services(),
     redisStatus(),
     nginxStatus(),
-    livekitEnabled ? getRoomTelemetry().catch(() => ({ status: 'unavailable', rooms: 0, participants: 0, publishers: 0 })) : Promise.resolve({ status: 'disabled', rooms: 0, participants: 0, publishers: 0 }),
+    livekitEnabled ? getRoomTelemetry().catch(() => ({ status: 'unavailable', rooms: 0, participants: 0, publishers: 0, subscribers: 0 })) : Promise.resolve({ status: 'disabled', rooms: 0, participants: 0, publishers: 0, subscribers: 0 }),
   ]);
   const memory = { total: Math.round(os.totalmem() / 1024 / 1024), free: Math.round(os.freemem() / 1024 / 1024) };
   const rates = networkRates(network);
@@ -105,6 +105,7 @@ async function collectSnapshot() {
     capturedAt: new Date(),
     serverUptimeSeconds: os.uptime(),
     cpu: cpuUsage(),
+    loadAverage: os.loadavg()[0],
     ramUsed: memory.total - memory.free,
     ramTotal: memory.total,
     networkRx: rates.rx,
@@ -112,6 +113,7 @@ async function collectSnapshot() {
     activeRooms: rooms.rooms,
     activeParticipants: rooms.participants,
     activePublishers: rooms.publishers,
+    activeSubscribers: rooms.subscribers,
     services: {
       backend: services.backend,
       frontend: services.frontend,
@@ -131,7 +133,7 @@ async function collectSnapshot() {
 }
 
 async function telemetryHistory(limit = 360) {
-  const snapshots = await TelemetrySnapshot.find().sort({ capturedAt: -1 }).limit(Math.min(Number(limit) || 360, 360)).lean();
+  const snapshots = await TelemetrySnapshot.find().sort({ capturedAt: -1 }).limit(Math.min(Math.max(Number(limit) || 360, 1), 17280)).lean();
   return snapshots.reverse();
 }
 

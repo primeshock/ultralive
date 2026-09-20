@@ -22,6 +22,7 @@ const { normalizeLivekitSettings, withLivekitSettings } = require('../utils/live
 const { publicBaseUrl } = require('../config/env');
 const { ensureIngress } = require('../services/livekit');
 const { telemetryHistory } = require('../services/telemetry');
+const { PROFILES, listResults, getJob, startJob, stopJob } = require('../services/loadTestJobs');
 const { deleteClassArchitecture } = require('../utils/phase2Data');
 
 const router = express.Router();
@@ -348,9 +349,35 @@ router.get('/system-stats', async (_req, res) => {
 });
 
 router.get('/telemetry', async (_req, res) => {
-  const history = await telemetryHistory();
+  const requestedLimit = Number(_req.query.limit);
+  const history = await telemetryHistory(Number.isFinite(requestedLimit) ? requestedLimit : 360);
   const latest = history.at(-1) || null;
   res.json({ current: latest, latest, history });
+});
+
+router.get('/load-tests/profiles', (_req, res) => res.json(PROFILES));
+
+router.get('/load-tests', async (_req, res) => {
+  const results = await listResults();
+  res.json({ results });
+});
+
+router.get('/load-tests/:testId', async (req, res) => {
+  const job = await getJob(req.params.testId);
+  if (!job) return res.status(404).json({ error: 'نتیجه یا تست پیدا نشد.' });
+  res.json(job);
+});
+
+router.post('/load-tests/start', async (req, res) => {
+  const { profile, channel, duration, rampPerSecond, confirmLarge } = req.body || {};
+  const selected = PROFILES[String(profile)];
+  if (selected?.users >= 100 && confirmLarge !== true) return res.status(400).json({ error: 'برای تست‌های ۱۰۰ کاربر یا بیشتر تأیید صریح لازم است.' });
+  const job = await startJob({ profile, channel, duration, rampPerSecond, authCookie: req.headers.cookie, allowLarge: confirmLarge === true });
+  res.status(202).json(job);
+});
+
+router.post('/load-tests/:testId/stop', async (req, res) => {
+  res.json(await stopJob(req.params.testId));
 });
 
 // ---- User stats: recent logins/logouts across all real accounts ----

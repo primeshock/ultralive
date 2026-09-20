@@ -8,6 +8,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { monitorEventLoopDelay, performance } = require('node:perf_hooks');
 const execFileAsync = promisify(execFile);
+let stopRequested = null;
 
 const PROFILES = {
   smoke: { users: 5, duration: 60 },
@@ -95,6 +96,12 @@ async function login(baseUrl, username, password) {
   return cookies;
 }
 
+function cookiesFromHeader(header) {
+  return Object.fromEntries(String(header || '').split(';').map((part) => part.trim().split('='))
+    .filter(([name, value]) => name && value !== undefined)
+    .map(([name, ...value]) => [name, value.join('=')]));
+}
+
 async function createStudentCookies(baseUrl, adminCookies, channel, index) {
   const response = await request(baseUrl, `/api/admin/channels/${encodeURIComponent(channel)}/test-link`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ displayName: `loadtest-${index}` }) }, adminCookies);
   const link = await jsonResponse(response);
@@ -138,7 +145,13 @@ function validate(args, profile) {
   const isLocal = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
   if (!isLocal && !args.targetProduction) throw new Error('Non-local targets require explicit --target-production.');
   if (number(args.rampPerSecond, 0) <= 0) throw new Error('--ramp-per-second must be greater than zero.');
-  if (!args.channel || !args.username || !(args.password || process.env.KOOSHA_LOADTEST_PASSWORD)) throw new Error('--channel, --username, and --password (or KOOSHA_LOADTEST_PASSWORD) are required.');
+  const hasAuthCookie = args.authCookie || process.env.KOOSHA_LOADTEST_AUTH_COOKIE;
+  if (!args.channel || (!hasAuthCookie && (!args.username || !(args.password || process.env.KOOSHA_LOADTEST_PASSWORD)))) throw new Error('--channel and authentication credentials are required.');
+}
+
+async function writeStatus(outputDir, testId, status) {
+  await fs.mkdir(outputDir, { recursive: true });
+  await fs.writeFile(path.join(outputDir, `${testId}.status.json`), JSON.stringify({ testId, updatedAt: new Date().toISOString(), ...status }, null, 2));
 }
 
 async function loadRtc() {
@@ -161,9 +174,11 @@ async function run(args) {
     maxReconnectRate: number(args.maxReconnectRate, DEFAULTS.maxReconnectRate),
     maxEventLoopLagMs: number(args.maxEventLoopLag, DEFAULTS.maxEventLoopLagMs),
   };
-  const testId = `loadtest-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${args.profile}`;
+  const testId = args.testId || `loadtest-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${args.profile}`;
   const startedAt = new Date();
-  const adminCookies = await login(args.baseUrl, args.username, args.password || process.env.KOOSHA_LOADTEST_PASSWORD);
+  const adminCookies = (args.authCookie || process.env.KOOSHA_LOADTEST_AUTH_COOKIE)
+    ? cookiesFromHeader(args.authCookie || process.env.KOOSHA_LOADTEST_AUTH_COOKIE)
+    : await login(args.baseUrl, args.username, args.password || process.env.KOOSHA_LOADTEST_PASSWORD);
   const rtc = await loadRtc();
   const clients = new Map();
   const errors = [];
@@ -175,9 +190,11 @@ async function run(args) {
   const loopLag = monitorEventLoopDelay({ resolution: 20 }); loopLag.enable();
   const startedMs = performance.now();
 
-  function currentErrorRate() { return (failedConnections + errors.length) / Math.max(1, clients.size + failedConnections); }
+  function currentErrorRate() { return (failedConnections + subscriptionFailures) / Math.max(1, clients.size); }
   function currentReconnectRate() { return reconnects / Math.max(1, clients.size); }
   function abort(reason) { if (!aborted) { aborted = true; abortReason = reason; console.error(`\nABORT: ${reason}`); } }
+  stopRequested = () => abort('تست توسط مالک متوقف شد.');
+  await writeStatus(args.outputDir, testId, { profile: String(args.profile), targetUsers, durationSeconds, status: 'starting', connected: 0, failed: 0, elapsedSeconds: 0, aborted: false });
 
   async function collectTelemetry() {
     try {
@@ -188,6 +205,7 @@ async function run(args) {
       const lag = loopLag.mean / 1e6;
       if (cpu >= thresholds.maxCpuPercent) breaches += 1; else if (memory >= thresholds.maxMemoryPercent) breaches += 1; else if (currentErrorRate() >= thresholds.maxErrorRate) breaches += 1; else if (currentReconnectRate() >= thresholds.maxReconnectRate) breaches += 1; else if (lag >= thresholds.maxEventLoopLagMs) breaches += 1; else breaches = 0;
       if (breaches >= DEFAULTS.consecutiveBreaches) abort(`safety threshold exceeded (cpu=${cpu ?? '-'}%, memory=${memory?.toFixed(1) ?? '-'}%, errors=${currentErrorRate().toFixed(3)}, reconnects=${currentReconnectRate().toFixed(3)}, eventLoop=${lag.toFixed(1)}ms)`);
+      await writeStatus(args.outputDir, testId, { profile: String(args.profile), targetUsers, durationSeconds, status: aborted ? 'aborted' : 'running', connected: [...clients.values()].filter((client) => client.state === 'connected').length, failed: failedConnections, reconnects, elapsedSeconds: Math.round((performance.now() - startedMs) / 1000), latestTelemetry, infrastructureSamples: infrastructure, aborted, abortReason });
     } catch (error) { errors.push(`telemetry: ${error.message}`); }
   }
 
@@ -230,7 +248,7 @@ async function run(args) {
     testId, profile: String(args.profile), targetUsers, durationSeconds, startedAt: startedAt.toISOString(), endedAt: new Date().toISOString(),
     successfulConnections: connected, failedConnections, reconnects, disconnectCount: disconnected,
     tokenRequests: tokenLatencies.length, averageTokenLatencyMs: average(tokenLatencies), averageConnectLatencyMs: average(connectLatencies), p95ConnectLatencyMs: percentile(connectLatencies, 0.95),
-    subscriptions, subscriptionFailures, errorCount: errors.length, errorRate: (failedConnections + errors.length) / Math.max(1, targetUsers), reconnectRate: reconnects / Math.max(1, connected),
+    subscriptions, subscriptionFailures, errorCount: errors.length, errorRate: (failedConnections + subscriptionFailures) / Math.max(1, targetUsers), reconnectRate: reconnects / Math.max(1, connected),
     peakCpuPercent: peak('cpu'), peakMemoryPercent: peakMemory, peakNetworkRxBytesPerSecond: peak('networkRx'), peakNetworkTxBytesPerSecond: peak('networkTx'),
     peakRooms: peak('activeRooms'), peakParticipants: peak('activeParticipants'), peakPublishers: peak('activePublishers'), eventLoopLagMeanMs: loopLag.mean / 1e6,
     peakLoadAverage: peak('loadAverage', (value) => Array.isArray(value) ? value[0] : 0), peakProcessCount: peak('processCount'),
@@ -240,6 +258,8 @@ async function run(args) {
   };
   await fs.mkdir(args.outputDir, { recursive: true });
   const resultPath = path.join(args.outputDir, `${testId}.json`); await fs.writeFile(resultPath, JSON.stringify(result, null, 2));
+  await writeStatus(args.outputDir, testId, { profile: String(args.profile), targetUsers, durationSeconds, status: aborted ? 'aborted' : 'completed', connected, failed: failedConnections, reconnects, elapsedSeconds: Math.round((performance.now() - startedMs) / 1000), latestTelemetry, aborted, abortReason, resultPath });
+  stopRequested = null;
   printReport(result, resultPath);
   return result;
 }
@@ -257,3 +277,6 @@ function printReport(result, resultPath) {
   if (!args.profile) throw new Error('--profile is required. Use --help.');
   await run(args);
 })().catch((error) => { console.error(`Load test refused: ${error.message}`); process.exitCode = 1; });
+
+process.on('SIGTERM', () => { if (stopRequested) stopRequested(); });
+process.on('SIGINT', () => { if (stopRequested) stopRequested(); });

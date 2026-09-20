@@ -100,7 +100,12 @@ export const api = {
   },
   removeBackground: () => apiFetch("/api/master/appearance/background", { method: "DELETE" }),
   systemStats: () => apiFetch("/api/master/system-stats"),
-  telemetry: () => apiFetch("/api/master/telemetry"),
+  telemetry: (limit = 360) => apiFetch(`/api/master/telemetry?limit=${encodeURIComponent(limit)}`),
+  loadTestProfiles: () => apiFetch("/api/master/load-tests/profiles"),
+  loadTests: () => apiFetch("/api/master/load-tests"),
+  loadTest: (testId) => apiFetch(`/api/master/load-tests/${encodeURIComponent(testId)}`),
+  startLoadTest: (payload) => apiFetch("/api/master/load-tests/start", { method: "POST", body: JSON.stringify(payload) }),
+  stopLoadTest: (testId) => apiFetch(`/api/master/load-tests/${encodeURIComponent(testId)}/stop`, { method: "POST" }),
   activityLog: () => apiFetch("/api/master/activity"),
 
   // --- Phase 3 management, backed by the Phase 2 class models ---

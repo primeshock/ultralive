@@ -181,14 +181,27 @@ function roomService() {
 
 async function getRoomTelemetry() {
   if (!livekitEnabled || !livekitUrl || !livekitApiKey || !livekitApiSecret) {
-    return { status: 'disabled', rooms: 0, participants: 0, publishers: 0 };
+    return { status: 'disabled', rooms: 0, participants: 0, publishers: 0, subscribers: 0 };
   }
   const service = roomService();
   const rooms = await service.listRooms();
   const participantLists = await Promise.all(rooms.map((room) => service.listParticipants(room.name)));
   const participants = participantLists.flat();
   const publishers = participants.filter((participant) => isIngressParticipant(participant.identity)).length;
-  return { status: 'online', rooms: rooms.length, participants: participants.length, publishers };
+  return { status: 'online', rooms: rooms.length, participants: participants.length, publishers, subscribers: participants.length - publishers };
+}
+
+async function getChannelTelemetry(channel) {
+  if (!livekitEnabled || !livekitUrl || !livekitApiKey || !livekitApiSecret) {
+    return { status: 'disabled', room: roomName(channel), participants: 0, publishers: 0, subscribers: 0 };
+  }
+  const service = roomService();
+  const name = roomName(channel);
+  const rooms = await service.listRooms([name]);
+  if (!rooms.length) return { status: 'online', room: name, participants: 0, publishers: 0, subscribers: 0 };
+  const participants = await service.listParticipants(name);
+  const publishers = participants.filter((participant) => isIngressParticipant(participant.identity)).length;
+  return { status: 'online', room: name, participants: participants.length, publishers, subscribers: participants.length - publishers };
 }
 
 async function publisherIsLive(username) {
@@ -392,6 +405,7 @@ module.exports = {
   classifyLiveEvent,
   isIngressParticipant,
   getRoomTelemetry,
+  getChannelTelemetry,
   syncChannelLiveState,
   startLiveStateSync,
 };
