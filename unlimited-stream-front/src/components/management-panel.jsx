@@ -328,15 +328,16 @@ export function ManagementPanel({ user, onLogout }) {
     setLoading(true); setError("");
     try {
       const result = await api.phase2Classes();
-      setClasses(result || []);
+      const classList = Array.isArray(result) ? result : [];
+      setClasses(classList);
       if (isOwner) setAdminCount((await api.listAdmins().catch(() => []))?.length || 0);
-      const entries = await Promise.all((result || []).map(async (item) => [keyOf(item), await api.phase2Sessions(keyOf(item))]));
-      const next = Object.fromEntries(entries); setSessions(next);
+      const entries = await Promise.all(classList.map(async (item) => [keyOf(item), await api.phase2Sessions(keyOf(item))]));
+      const next = Object.fromEntries(entries.map(([id, list]) => [id, Array.isArray(list) ? list : []])); setSessions(next);
       const sessionsToLoad = Object.values(next).flat().filter((item) => item.status === "live" || item.status === "ended").slice(0, 30);
       const attendanceEntries = await Promise.all(sessionsToLoad.map(async (item) => [String(item._id), await api.phase2Attendance(item._id).catch(() => [])]));
       setAttendance(Object.fromEntries(attendanceEntries));
-      const noteEntries = await Promise.all((result || []).map(async (item) => [keyOf(item), await api.phase2Notes(keyOf(item)).catch(() => [])]));
-      setNotes(Object.fromEntries(noteEntries)); setSelected((current) => current || result?.[0] || null); setLivekit(await api.livekitStatus().catch(() => null));
+      const noteEntries = await Promise.all(classList.map(async (item) => [keyOf(item), await api.phase2Notes(keyOf(item)).catch(() => [])]));
+      setNotes(Object.fromEntries(noteEntries.map(([id, list]) => [id, Array.isArray(list) ? list : []]))); setSelected((current) => current || classList[0] || null); setLivekit(await api.livekitStatus().catch(() => null));
     } catch (err) { setError(err.message || "دریافت اطلاعات پنل انجام نشد."); } finally { setLoading(false); }
   }
   // The loader is intentionally invoked once for the current role; it updates the panel's data state.
