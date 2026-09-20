@@ -35,8 +35,9 @@ export function AuthProvider({ children }) {
 
   const refresh = useCallback(async () => {
     try {
-      const { user } = await api.me();
-      setUser(user);
+      const result = await api.me();
+      setUser(result.user);
+      setActiveOrganization(result.activeOrganization || null);
     } catch {
       setUser(null);
     }

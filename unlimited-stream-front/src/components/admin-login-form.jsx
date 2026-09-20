@@ -26,8 +26,11 @@ export default function AdminLoginForm() {
     try {
       const { user } = await api.login(username, password);
       setUser(user);
-      if (user.role === "owner" || user.role === "admin") router.push("/admin");
-      else router.push("/");
+      if (["owner", "admin", "SUPER_OWNER", "ORGANIZATION_OWNER", "ADMIN_L1", "ADMIN_L2"].includes(user.role)) {
+        router.replace("/admin");
+      } else {
+        router.replace("/");
+      }
     } catch (err) {
       setError(err.message);
     } finally {

@@ -8,10 +8,56 @@ const Attendance = require('../models/Attendance');
 const AdminNote = require('../models/AdminNote');
 const Moderation = require('../models/Moderation');
 const Student = require('../models/Student');
+const User = require('../models/User');
+const { hashPassword } = require('../utils/password');
+const { generateStreamKey } = require('../utils/streamKey');
 const { organizationFilter, isSuperOwner } = require('../utils/organizationScope');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner', 'SUPER_OWNER', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'));
+
+router.post('/organization-admins/l2', async (req, res) => {
+  if (!['ADMIN_L1', 'ORGANIZATION_OWNER'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'فقط مدیر سطح اول یا مالک سازمان می‌تواند مدیر سطح دوم بسازد.' });
+  }
+  if (!req.user.organizationId) return res.status(403).json({ error: 'حساب شما به سازمانی متصل نیست.' });
+  const username = String(req.body?.username || '').trim().toLowerCase();
+  const password = req.body?.password;
+  if (!/^[a-z0-9_]{3,24}$/.test(username) || typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'یوزرنیم معتبر و رمز حداقل ۸ کاراکتر لازم است.' });
+  }
+  if (await User.findOne({ username })) return res.status(409).json({ error: 'این یوزرنیم قبلاً استفاده شده است.' });
+  const admin = await User.create({
+    username,
+    passwordHash: await hashPassword(password),
+    streamKey: generateStreamKey(),
+    displayName: username,
+    role: 'ADMIN_L2',
+    organizationId: req.user.organizationId,
+    parentAdminId: req.user._id,
+  });
+  res.status(201).json({ id: admin._id, username: admin.username, role: admin.role, organizationId: admin.organizationId, parentAdminId: admin.parentAdminId });
+});
+
+router.get('/organization-admins/l2', async (req, res) => {
+  if (!['ADMIN_L1', 'ORGANIZATION_OWNER'].includes(req.user.role) || !req.user.organizationId) {
+    return res.status(403).json({ error: 'دسترسی به مدیران سطح دوم ندارید.' });
+  }
+  const filter = { role: 'ADMIN_L2', organizationId: req.user.organizationId };
+  if (req.user.role === 'ADMIN_L1') filter.parentAdminId = req.user._id;
+  res.json(await User.find(filter).select('username displayName status organizationId parentAdminId createdAt').sort({ createdAt: -1 }));
+});
+
+router.delete('/organization-admins/l2/:id', async (req, res) => {
+  if (!['ADMIN_L1', 'ORGANIZATION_OWNER'].includes(req.user.role) || !req.user.organizationId) {
+    return res.status(403).json({ error: 'دسترسی به مدیران سطح دوم ندارید.' });
+  }
+  const filter = { _id: req.params.id, role: 'ADMIN_L2', organizationId: req.user.organizationId };
+  if (req.user.role === 'ADMIN_L1') filter.parentAdminId = req.user._id;
+  const deleted = await User.deleteOne(filter);
+  if (!deleted.deletedCount) return res.status(404).json({ error: 'مدیر سطح دوم پیدا نشد.' });
+  res.json({ ok: true });
+});
 
 function idOrSlug(value) {
   const text = String(value || '').trim().toLowerCase();
@@ -165,7 +211,7 @@ router.post('/classes/:classId/moderation', loadClass, async (req, res) => {
   if (scope === 'timed' && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1)) {
     return res.status(400).json({ error: 'مدت محدودیت نامعتبر است.' });
   }
-  const student = await Student.findById(studentId).select('externalId name');
+  const student = await Student.findOne({ _id: studentId, organizationId: req.classDoc.organizationId }).select('externalId name');
   if (!student) return res.status(404).json({ error: 'دانش‌آموز پیدا نشد.' });
   const moderation = await Moderation.create({
     classId: req.classDoc._id,

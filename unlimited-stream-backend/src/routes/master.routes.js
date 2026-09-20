@@ -26,7 +26,7 @@ const { PROFILES, listResults, getJob, startJob, stopJob } = require('../service
 const { deleteClassArchitecture } = require('../utils/phase2Data');
 
 const router = express.Router();
-router.use(requireAuth, requireRole('owner'));
+router.use(requireAuth, requireRole('owner', 'SUPER_OWNER'));
 
 const USERNAME_RE = /^[a-z0-9_]{3,24}$/i;
 
