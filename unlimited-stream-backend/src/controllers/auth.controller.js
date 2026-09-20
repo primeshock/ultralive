@@ -61,6 +61,7 @@ async function login(req, res) {
 
   const token = signToken(user._id.toString());
   setAuthCookie(res, token);
+  res.clearCookie(CONTEXT_COOKIE);
   LoginLog.create({ username: user.username, action: 'login', ip: req.ip }).catch(() => {});
   res.json({ user: ownerUser(user, { serverIp, rtmpPort, apiPort }) });
 }
