@@ -7,6 +7,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [activeOrganization, setActiveOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,8 +15,11 @@ export function AuthProvider({ children }) {
 
     async function load() {
       try {
-        const { user } = await api.me();
-        if (!cancelled) setUser(user);
+        const result = await api.me();
+        if (!cancelled) {
+          setUser(result.user);
+          setActiveOrganization(result.activeOrganization || null);
+        }
       } catch {
         if (!cancelled) setUser(null);
       } finally {
@@ -39,7 +43,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, refresh }}>
+    <AuthContext.Provider value={{ user, setUser, loading, refresh, activeOrganization, setActiveOrganization }}>
       {children}
     </AuthContext.Provider>
   );
