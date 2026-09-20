@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, BarChart3, BookOpen, Building2, CheckCircle2, ClipboardList, Copy, Database, Eye, EyeOff, ExternalLink, FileText, LayoutDashboard, LockKeyhole, Plus, RefreshCw, Server, Settings, ShieldCheck, Trash2, Users, Wifi, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -372,6 +372,7 @@ export function ManagementPanel({ user, onLogout, activeOrganization, onContextC
   const isOrganizationUser = ["ORGANIZATION_OWNER", "ADMIN_L1", "ADMIN_L2"].includes(user?.role);
   const isTenantContext = isSuperOwner && Boolean(activeOrganization);
   const canUsePlatformFeatures = isOwner && !isTenantContext;
+  const dataContextKey = activeOrganization?._id ? `organization:${activeOrganization._id}` : isOrganizationUser ? `organization:${user?.organizationId || "unassigned"}` : "platform";
   const items = [...adminItems, ...(canUsePlatformFeatures ? ownerItems : []), ...(isSuperOwner && !isTenantContext ? [["organizations", "سازمان‌ها", Building2]] : [])];
   const [section, setSection] = useState("overview");
   const [classes, setClasses] = useState([]);
@@ -387,33 +388,49 @@ export function ManagementPanel({ user, onLogout, activeOrganization, onContextC
   const [error, setError] = useState("");
   const [livekit, setLivekit] = useState(null);
   const [adminCount, setAdminCount] = useState(0);
-  const allAttendance = Object.values(attendance).flat();
-  const liveSessions = Object.values(sessions).flat().filter((item) => item.status === "live");
+  const [loadedContext, setLoadedContext] = useState(null);
+  const requestVersion = useRef(0);
+  const contextReady = loadedContext === dataContextKey;
+  const visibleSessions = contextReady ? sessions : {};
+  const visibleAttendance = contextReady ? attendance : {};
+  const allAttendance = Object.values(visibleAttendance).flat();
+  const liveSessions = Object.values(visibleSessions).flat().filter((item) => item.status === "live");
   const onlineRows = allAttendance.filter((item) => !item.leftAt);
-  const recentSessions = Object.values(sessions).flat().sort((a, b) => new Date(b.startedAt || 0) - new Date(a.startedAt || 0)).slice(0, 6);
+  const recentSessions = Object.values(visibleSessions).flat().sort((a, b) => new Date(b.startedAt || 0) - new Date(a.startedAt || 0)).slice(0, 6);
   const students = [...new Map(allAttendance.map((row) => [row.studentId?._id || row.studentId?.externalId, row.studentId])).values()].filter(Boolean);
 
   async function load() {
-    setLoading(true); setError("");
+    const version = ++requestVersion.current;
+    setLoading(true); setError(""); setLoadedContext(null);
     try {
       const result = await api.phase2Classes();
+      if (version !== requestVersion.current) return;
       const classList = Array.isArray(result) ? result : [];
       setClasses(classList);
       const channels = canUsePlatformFeatures ? await api.listAllChannels().catch(() => []) : isOrganizationUser ? await api.myManagedChannels().catch(() => []) : [];
+      if (version !== requestVersion.current) return;
       setLegacyChannels(Array.isArray(channels) ? channels : []);
       if (canUsePlatformFeatures) setAdminCount((await api.listAdmins().catch(() => []))?.length || 0);
       const entries = await Promise.all(classList.map(async (item) => [keyOf(item), await api.phase2Sessions(keyOf(item))]));
+      if (version !== requestVersion.current) return;
       const next = Object.fromEntries(entries.map(([id, list]) => [id, Array.isArray(list) ? list : []])); setSessions(next);
       const sessionsToLoad = Object.values(next).flat().filter((item) => item.status === "live" || item.status === "ended").slice(0, 30);
       const attendanceEntries = await Promise.all(sessionsToLoad.map(async (item) => [String(item._id), await api.phase2Attendance(item._id).catch(() => [])]));
+      if (version !== requestVersion.current) return;
       setAttendance(Object.fromEntries(attendanceEntries));
       const noteEntries = await Promise.all(classList.map(async (item) => [keyOf(item), await api.phase2Notes(keyOf(item)).catch(() => [])]));
-      setNotes(Object.fromEntries(noteEntries.map(([id, list]) => [id, Array.isArray(list) ? list : []]))); setSelected((current) => current || classList[0] || null); setLivekit(canUsePlatformFeatures ? await api.livekitStatus().catch(() => null) : null);
-    } catch (err) { setError(err.message || "دریافت اطلاعات پنل انجام نشد."); } finally { setLoading(false); }
+      if (version !== requestVersion.current) return;
+      setNotes(Object.fromEntries(noteEntries.map(([id, list]) => [id, Array.isArray(list) ? list : []]))); setSelected(classList[0] || null); setLivekit(canUsePlatformFeatures ? await api.livekitStatus().catch(() => null) : null); setLoadedContext(dataContextKey);
+    } catch (err) { if (version === requestVersion.current) setError(err.message || "دریافت اطلاعات پنل انجام نشد."); } finally { if (version === requestVersion.current) setLoading(false); }
   }
-  // The loader is intentionally invoked once for the current role; it updates the panel's data state.
+  // Invalidate all class-derived state when the active data context changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { Promise.resolve().then(load); }, [isOwner, activeOrganization]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setClasses([]); setLegacyChannels([]); setSessions({}); setAttendance({}); setNotes({}); setSelected(null); setEditing(null); setSessionFormOpen(false); setLivekit(null); setAdminCount(0); setLoadedContext(null);
+    Promise.resolve().then(load);
+    return () => { requestVersion.current += 1; };
+  }, [dataContextKey, isOwner, isOrganizationUser]);
 
   async function saveClass(payload) { setBusy(true); setError(""); try { const result = editing?.id ? await api.updatePhase2Class(keyOf(editing), payload) : await api.createPhase2Class(payload); setClasses((current) => editing?.id ? current.map((item) => keyOf(item) === keyOf(editing) ? result : item) : [result, ...current]); setSelected(result); setEditing(null); } catch (err) { setError(err.message || "ذخیره کلاس انجام نشد."); } finally { setBusy(false); } }
   async function deleteClass(item) { if (!window.confirm(`کلاس «${labelOf(item)}» و داده‌های جلسه و یادداشت آن حذف شود؟`)) return; setBusy(true); try { await api.deletePhase2Class(keyOf(item)); setClasses((current) => current.filter((entry) => keyOf(entry) !== keyOf(item))); setSelected(null); } catch (err) { setError(err.message || "حذف کلاس انجام نشد."); } finally { setBusy(false); } }

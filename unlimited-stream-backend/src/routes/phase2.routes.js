@@ -16,6 +16,13 @@ const { organizationFilter, isSuperOwner } = require('../utils/organizationScope
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner', 'SUPER_OWNER', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'));
 
+router.use((req, res, next) => {
+  if (['ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'].includes(req.user.role) && !req.user.organizationId) {
+    return res.status(403).json({ error: 'حساب شما به سازمانی متصل نیست.' });
+  }
+  next();
+});
+
 router.post('/organization-admins/l2', async (req, res) => {
   if (!['ADMIN_L1', 'ORGANIZATION_OWNER'].includes(req.user.role)) {
     return res.status(403).json({ error: 'فقط مدیر سطح اول یا مالک سازمان می‌تواند مدیر سطح دوم بسازد.' });
@@ -178,7 +185,7 @@ router.get('/sessions/:sessionId/attendance', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.sessionId)) return res.status(404).json({ error: 'جلسه پیدا نشد.' });
   const session = await LiveSession.findById(req.params.sessionId);
   if (!session) return res.status(404).json({ error: 'جلسه پیدا نشد.' });
-  const classDoc = await Class.findById(session.classId);
+  const classDoc = await Class.findOne({ _id: session.classId, ...organizationFilter(req) });
   if (!classDoc) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
   if (!canManageClass(req, classDoc)) return res.status(403).json({ error: 'به این جلسه دسترسی ندارید.' });
   const attendance = await Attendance.find({ sessionId: session._id }).populate('studentId').sort({ joinedAt: 1 });
