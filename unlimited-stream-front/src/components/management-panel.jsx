@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { api, RTMP_URL } from "@/lib/api";
 
 const adminItems = [["overview", "داشبورد", LayoutDashboard], ["live", "کلاس‌های زنده", Activity], ["classes", "کلاس‌ها", BookOpen], ["students", "دانش‌آموزان", Users], ["attendance", "حضور و غیاب", ClipboardList], ["reports", "گزارش‌ها", BarChart3]];
-const ownerItems = [["infrastructure", "زیرساخت", Server], ["analytics", "تحلیل داده", BarChart3], ["admins", "مدیریت ادمین‌ها", ShieldCheck], ["logs", "سیستم لاگ", FileText], ["security", "امنیت", LockKeyhole], ["settings", "تنظیمات", Settings]];
+const ownerItems = [["infrastructure", "زیرساخت", Server], ["load-testing", "تست ظرفیت", Activity], ["analytics", "تحلیل داده", BarChart3], ["admins", "مدیریت ادمین‌ها", ShieldCheck], ["logs", "سیستم لاگ", FileText], ["security", "امنیت", LockKeyhole], ["settings", "تنظیمات", Settings]];
 const appearancePresets = {
   aurora: { backgroundDarkness: 52, glassOpacity: 62, glassBlur: 22, glowIntensity: 55 },
   gemini: { backgroundDarkness: 44, glassOpacity: 56, glassBlur: 26, glowIntensity: 78 },
@@ -77,7 +77,7 @@ function ClassDetails({ selected, legacy, sessions, notes, attendance, onNote, o
   const [studentUrl, setStudentUrl] = useState("");
   const [publicUrl, setPublicUrl] = useState("");
   const [ingress, setIngress] = useState(null);
-    if (!selected) return <Empty>لطفاً یک کلاس را برای مشاهده جزئیات انتخاب کنید.</Empty>;
+  if (!selected) return <Empty>لطفاً یک کلاس را برای مشاهده جزئیات انتخاب کنید.</Empty>;
   async function runAction(action) {
     try {
       const result = await action();
@@ -145,11 +145,11 @@ function Classes({ classes, selected, setSelected, editing, setEditing, sessions
 }
 
 function ClassOperations({ selected, legacy }) {
-  return <details className="admin-disclosure" open><summary>ابزارهای کلاس</summary><div className="admin-disclosure-content"><LegacyClassOperations selected={selected} legacy={legacy} /></div></details>;
+  return <details className="admin-disclosure"><summary>ابزارهای کلاس</summary><div className="admin-disclosure-content"><LegacyClassOperations selected={selected} legacy={legacy} /></div></details>;
 }
 
 function AcademicModeration({ classId, attendance }) {
-  return <details className="admin-disclosure" open><summary>محدودیت دانش‌آموزان</summary><div className="admin-disclosure-content admin-scroll"><LegacyAcademicModeration classId={classId} attendance={attendance} /></div></details>;
+  return <details className="admin-disclosure"><summary>محدودیت دانش‌آموزان</summary><div className="admin-disclosure-content admin-scroll"><LegacyAcademicModeration classId={classId} attendance={attendance} /></div></details>;
 }
 
 function Overview({ classes, liveSessions, onlineRows, recentSessions, livekit }) { return <div className="space-y-6"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={BookOpen} label="کلاس‌ها" value={classes.length} detail="کلاس‌های قابل مدیریت" /><Stat icon={Activity} label="جلسه‌های زنده" value={liveSessions.length} detail="بر اساس وضعیت ثبت‌شده" /><Stat icon={Users} label="دانش‌آموزان آنلاین" value={onlineRows.length} detail="حضورهای باز" /><Stat icon={ClipboardList} label="جلسه‌های اخیر" value={recentSessions.length} detail="آخرین داده‌های موجود" /></div><div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]"><Card><CardHeader><CardTitle className="text-base">جلسه‌های اخیر</CardTitle></CardHeader><CardContent>{recentSessions.length ? <div className="space-y-2">{recentSessions.map((item) => <div key={item._id} className="flex items-center justify-between rounded-md border p-3 text-sm"><span>{dateOf(item.startedAt)}</span><Badge variant={item.status === "live" ? "default" : "secondary"}>{item.status === "live" ? "زنده" : item.status === "ended" ? "پایان‌یافته" : "زمان‌بندی‌شده"}</Badge></div>)}</div> : <Empty>هنوز جلسه‌ای ثبت نشده است.</Empty>}</CardContent></Card><Card><CardHeader><CardTitle className="text-base">وضعیت سیستم</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><div className="flex items-center justify-between"><span className="flex items-center gap-2"><Database className="size-4" /> API مدیریت</span><span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="size-4" /> متصل</span></div><div className="flex items-center justify-between"><span className="flex items-center gap-2"><Wifi className="size-4" /> LiveKit</span><span className={livekit?.livekit?.enabled ? "text-emerald-600" : "text-muted-foreground"}>{livekit?.livekit?.enabled ? "فعال" : "وضعیت نامشخص"}</span></div></CardContent></Card></div></div>; }
@@ -245,13 +245,17 @@ function RingMetric({ label, value, detail, percent, color }) {
   return <Card><CardContent className="flex items-center gap-4 p-5"><div className="relative grid size-20 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(${color} ${safePercent}%, color-mix(in oklab, var(--muted) 80%, transparent) 0)` }}><div className="grid size-14 place-items-center rounded-full bg-card text-sm font-bold">{value}</div></div><div className="min-w-0"><p className="text-sm font-medium">{label}</p><p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p></div></CardContent></Card>;
 }
 
-function OwnerInfrastructure() {
+function RingOwnerInfrastructure() {
   const [data, setData] = useState(null); const [error, setError] = useState("");
   async function load() { try { setData(await api.telemetry(720)); setError(""); } catch (err) { setError(err.message || "دریافت زیرساخت انجام نشد."); } }
   useEffect(() => { Promise.resolve().then(load); const timer = setInterval(() => void load(), 10000); return () => clearInterval(timer); }, []);
   if (error && !data) return <ErrorBox message={error} onRetry={() => void load()} />;
   const current = data?.latest || data?.current; const ramPercent = current?.ramTotal ? current.ramUsed / current.ramTotal * 100 : 0; const rx = Number(current?.networkRx) || 0; const tx = Number(current?.networkTx) || 0; const maxNetwork = Math.max(rx, tx, 1);
   return <div className="space-y-5"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">نمایش زنده و خوانای وضعیت منابع سرور</p><Button variant="outline" size="sm" onClick={() => void load()}><RefreshCw className="size-4" /> تازه‌سازی</Button></div>{!current ? <Empty>هنوز داده‌ای برای زیرساخت دریافت نشده است.</Empty> : <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><RingMetric label="CPU" value={`${Math.round(current.cpu || 0)}%`} detail={`Load ${Number(current.loadAverage || 0).toFixed(2)}`} percent={current.cpu} color="#22c7c9" /><RingMetric label="RAM" value={`${Math.round(ramPercent)}%`} detail={`${fmtMb(current.ramUsed)} از ${fmtMb(current.ramTotal)}`} percent={ramPercent} color="#5b8cff" /><RingMetric label="Network RX" value={formatRate(rx)} detail="دریافت از شبکه" percent={rx / maxNetwork * 100} color="#a779ff" /><RingMetric label="Network TX" value={formatRate(tx)} detail="ارسال به شبکه" percent={tx / maxNetwork * 100} color="#f28bc8" /></div><div className="grid gap-4 sm:grid-cols-2"><Stat icon={Server} label="اتاق‌های فعال" value={current.activeRooms ?? 0} detail="LiveKit" /><Stat icon={Users} label="Subscribers" value={current.activeSubscribers ?? current.activeParticipants ?? 0} detail="دریافت‌کنندگان فعال" /></div><div className="admin-scroll space-y-2">{Object.entries(current.services || {}).map(([name, status]) => <div key={name} className="flex items-center justify-between rounded-xl border bg-card/60 p-3 text-sm"><span>{name}</span><Badge>{status}</Badge></div>)}</div></>}</div>;
+}
+
+function OwnerInfrastructure() {
+  return <div className="space-y-4"><RingOwnerInfrastructure /><details className="admin-disclosure"><summary>نمودارهای تاریخی پایش</summary><div className="admin-disclosure-content"><LegacyOwnerInfrastructure /></div></details></div>;
 }
 
 function LoadTestStatus({ active }) {
