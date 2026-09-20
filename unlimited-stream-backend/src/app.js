@@ -27,6 +27,7 @@ const app = express();
 // treat every visitor as the same client, sharing one bucket. `1` means "trust
 // exactly one proxy hop", matching Nginx running on the same host.
 app.set('trust proxy', 1);
+app.disable('etag');
 
 app.use(helmet());
 app.use(cors({ origin: corsOrigin, credentials: true }));
