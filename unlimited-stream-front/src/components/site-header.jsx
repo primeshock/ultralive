@@ -59,17 +59,23 @@ export function SiteHeader() {
   return (
     <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between gap-4">
-        <Link href="/" className="font-bold text-lg flex items-center gap-2 min-w-0">
+        {isStudentStream ? <div className="font-bold text-lg flex items-center gap-2 min-w-0" aria-label={brand.siteName || "Ultra Live"}>
           {brand.logoUrl && !logoFailed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={brand.logoUrl} alt="لوگو" onError={() => setLogoFailed(true)} className="order-first h-8 w-8 shrink-0 rounded-md object-contain bg-white/5 p-0.5" />
           ) : <ImageOff className="order-first size-5 shrink-0 text-muted-foreground" aria-hidden="true" />}
           <span className="truncate">{brand.siteName || "Ultra Live"}</span>
-        </Link>
+        </div> : <Link href="/" className="font-bold text-lg flex items-center gap-2 min-w-0">
+          {brand.logoUrl && !logoFailed ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={brand.logoUrl} alt="لوگو" onError={() => setLogoFailed(true)} className="order-first h-8 w-8 shrink-0 rounded-md object-contain bg-white/5 p-0.5" />
+          ) : <ImageOff className="order-first size-5 shrink-0 text-muted-foreground" aria-hidden="true" />}
+          <span className="truncate">{brand.siteName || "Ultra Live"}</span>
+        </Link>}
 
         <nav className="flex items-center gap-2">
           {!isStudentStream && <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="تغییر تم">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>}
-          {loading ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="در حال بارگذاری" /> : user ? (
+          {!isStudentStream && (loading ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="در حال بارگذاری" /> : user ? (
             <>
               {(user.role === "admin" || user.role === "owner") && (
                 <Button variant="ghost" nativeButton={false} render={<Link href="/admin" />}>
@@ -97,7 +103,7 @@ export function SiteHeader() {
                 ثبت‌نام
               </Button>
             </>
-          )}
+          ))}
         </nav>
       </div>
     </header>
