@@ -11,6 +11,10 @@ const router = express.Router();
 const USERNAME_RE = /^[a-z0-9_]{3,24}$/i;
 router.use(requireAuth, requireRole('owner', 'SUPER_OWNER'));
 
+function validOrganizationId(value) {
+  return require('mongoose').isValidObjectId(value);
+}
+
 router.get('/', async (_req, res) => {
   const organizations = await Organization.find().sort({ createdAt: -1 }).populate('ownerId', 'username displayName status');
   res.json(organizations);
@@ -34,6 +38,7 @@ router.post('/', async (req, res) => {
 });
 
 router.patch('/:id', async (req, res) => {
+  if (!validOrganizationId(req.params.id)) return res.status(400).json({ error: 'شناسه سازمان نامعتبر است.' });
   const organization = await Organization.findById(req.params.id);
   if (!organization) return res.status(404).json({ error: 'Organization not found.' });
   if (req.body?.name !== undefined) organization.name = String(req.body.name).trim();
@@ -42,15 +47,8 @@ router.patch('/:id', async (req, res) => {
   res.json(organization);
 });
 
-router.delete('/:id', async (req, res) => {
-  const organization = await Organization.findById(req.params.id);
-  if (!organization) return res.status(404).json({ error: 'Organization not found.' });
-  await User.deleteOne({ _id: organization.ownerId, organizationId: organization._id });
-  await Organization.deleteOne({ _id: organization._id });
-  res.json({ ok: true });
-});
-
 router.patch('/:id/owner', async (req, res) => {
+  if (!validOrganizationId(req.params.id)) return res.status(400).json({ error: 'شناسه سازمان نامعتبر است.' });
   const organization = await Organization.findById(req.params.id);
   const owner = organization && await User.findOne({ _id: organization.ownerId, organizationId: organization._id });
   if (!owner) return res.status(404).json({ error: 'Organization owner not found.' });
@@ -69,6 +67,7 @@ router.patch('/:id/owner', async (req, res) => {
 });
 
 router.post('/:id/context', async (req, res) => {
+  if (!validOrganizationId(req.params.id)) return res.status(400).json({ error: 'شناسه سازمان نامعتبر است.' });
   const organization = await Organization.findOne({ _id: req.params.id, status: 'ACTIVE' });
   if (!organization) return res.status(404).json({ error: 'Active organization not found.' });
   setOrganizationContext(res, signOrganizationContext(req.user._id, organization._id));
@@ -77,6 +76,15 @@ router.post('/:id/context', async (req, res) => {
 
 router.delete('/context', async (_req, res) => {
   res.clearCookie(CONTEXT_COOKIE);
+  res.json({ ok: true });
+});
+
+router.delete('/:id', async (req, res) => {
+  if (!validOrganizationId(req.params.id)) return res.status(400).json({ error: 'شناسه سازمان نامعتبر است.' });
+  const organization = await Organization.findById(req.params.id);
+  if (!organization) return res.status(404).json({ error: 'Organization not found.' });
+  await User.deleteOne({ _id: organization.ownerId, organizationId: organization._id });
+  await Organization.deleteOne({ _id: organization._id });
   res.json({ ok: true });
 });
 

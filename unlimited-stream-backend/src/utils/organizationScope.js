@@ -15,17 +15,22 @@ function organizationFilter(req) {
   return { organizationId: req.user.organizationId || null };
 }
 
-async function loadOrganizationContext(req, _res, next) {
+async function loadOrganizationContext(req, res, next) {
   req.organizationContext = null;
   if (!isSuperOwner(req.user)) return next();
   const token = req.cookies?.[CONTEXT_COOKIE];
   if (!token) return next();
   try {
     const payload = jwt.verify(token, jwtSecret);
-    if (String(payload.userId) !== String(req.user._id)) return next();
+    if (String(payload.userId) !== String(req.user._id)) {
+      res.clearCookie(CONTEXT_COOKIE);
+      return next();
+    }
     req.organizationContext = await Organization.findOne({ _id: payload.organizationId, status: 'ACTIVE' });
+    if (!req.organizationContext) res.clearCookie(CONTEXT_COOKIE);
   } catch {
     req.organizationContext = null;
+    res.clearCookie(CONTEXT_COOKIE);
   }
   next();
 }

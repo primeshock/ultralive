@@ -7,6 +7,7 @@ const { serverIp, rtmpPort, publicPort: apiPort } = require('../config/env');
 const SiteSettings = require('../models/SiteSettings');
 const LoginLog = require('../models/LoginLog');
 const Organization = require('../models/Organization');
+const { CONTEXT_COOKIE } = require('../utils/organizationScope');
 
 const USERNAME_RE = /^[a-z0-9_]{3,24}$/i;
 
@@ -42,6 +43,7 @@ async function register(req, res) {
 
   const token = signToken(user._id.toString());
   setAuthCookie(res, token);
+  res.clearCookie(CONTEXT_COOKIE);
   res.status(201).json({ user: ownerUser(user, { serverIp, rtmpPort, apiPort }) });
 }
 
@@ -76,6 +78,7 @@ function logout(req, res) {
     /* not logged in / expired — nothing to log */
   }
   clearAuthCookie(res);
+  res.clearCookie(CONTEXT_COOKIE);
   res.json({ ok: true });
 }
 
