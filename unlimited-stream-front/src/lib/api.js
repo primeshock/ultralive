@@ -107,6 +107,12 @@ export const api = {
   startLoadTest: (payload) => apiFetch("/api/master/load-tests/start", { method: "POST", body: JSON.stringify(payload) }),
   stopLoadTest: (testId) => apiFetch(`/api/master/load-tests/${encodeURIComponent(testId)}/stop`, { method: "POST" }),
   activityLog: () => apiFetch("/api/master/activity"),
+  organizations: () => apiFetch("/api/organizations"),
+  createOrganization: (payload) => apiFetch("/api/organizations", { method: "POST", body: JSON.stringify(payload) }),
+  updateOrganization: (id, payload) => apiFetch(`/api/organizations/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  updateOrganizationOwner: (id, payload) => apiFetch(`/api/organizations/${id}/owner`, { method: "PATCH", body: JSON.stringify(payload) }),
+  enterOrganization: (id) => apiFetch(`/api/organizations/${id}/context`, { method: "POST" }),
+  exitOrganization: () => apiFetch("/api/organizations/context", { method: "DELETE" }),
 
   // --- Phase 3 management, backed by the Phase 2 class models ---
   phase2Classes: () => apiFetch("/api/classes"),

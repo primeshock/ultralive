@@ -29,6 +29,9 @@ function ownerUser(user, ctx) {
   return {
     ...publicUser(user, ctx),
     role: user.role,
+    organizationId: user.organizationId,
+    parentAdminId: user.parentAdminId,
+    status: user.status,
     email: user.email,
     streamKey: user.streamKey,
     autoChatMessage: user.autoChatMessage,

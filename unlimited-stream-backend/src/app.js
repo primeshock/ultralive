@@ -17,6 +17,7 @@ const liveRoutes = require('./routes/live.routes');
 const livekitRoutes = require('./routes/livekit.routes');
 const livekitWebhookRoutes = require('./routes/livekit-webhook.routes');
 const phase2Routes = require('./routes/phase2.routes');
+const organizationRoutes = require('./routes/organization.routes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const { corsOrigin } = require('./config/env');
 
@@ -39,6 +40,7 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use('/api/livekit/webhook', express.raw({ type: () => true, limit: '1mb' }), livekitWebhookRoutes);
 app.use(express.json());
 app.use(cookieParser());
+app.use('/api/organizations', organizationRoutes);
 app.use('/api', (_req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();

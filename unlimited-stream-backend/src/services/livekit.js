@@ -336,7 +336,7 @@ async function syncStudentAttendance(channel, event) {
   const student = await Student.findOneAndUpdate(
     { externalId },
     {
-      $set: { name: participant.name || '', integrationMetadata: { source: 'livekit', identity } },
+      $set: { name: participant.name || '', integrationMetadata: { source: 'livekit', identity }, organizationId: active.classDoc.organizationId || null },
       $setOnInsert: { externalId },
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }

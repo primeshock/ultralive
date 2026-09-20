@@ -1,5 +1,6 @@
 const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
+const { loadOrganizationContext } = require('../utils/organizationScope');
 
 async function requireAuth(req, res, next) {
   try {
@@ -8,10 +9,10 @@ async function requireAuth(req, res, next) {
 
     const payload = verifyToken(token);
     const user = await User.findById(payload.sub);
-    if (!user) return res.status(401).json({ error: 'Not authenticated' });
+    if (!user || user.status === 'DISABLED') return res.status(401).json({ error: 'Not authenticated' });
 
     req.user = user;
-    next();
+    await loadOrganizationContext(req, res, next);
   } catch (err) {
     return res.status(401).json({ error: 'Not authenticated' });
   }

@@ -79,7 +79,7 @@ function logout(req, res) {
 }
 
 function me(req, res) {
-  res.json({ user: ownerUser(req.user, { serverIp, rtmpPort, apiPort }) });
+  res.json({ user: ownerUser(req.user, { serverIp, rtmpPort, apiPort }), activeOrganization: req.organizationContext || null });
 }
 
 module.exports = { register, login, logout, me };

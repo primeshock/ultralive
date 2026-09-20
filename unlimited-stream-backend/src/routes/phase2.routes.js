@@ -8,9 +8,10 @@ const Attendance = require('../models/Attendance');
 const AdminNote = require('../models/AdminNote');
 const Moderation = require('../models/Moderation');
 const Student = require('../models/Student');
+const { organizationFilter, isSuperOwner } = require('../utils/organizationScope');
 
 const router = express.Router();
-router.use(requireAuth, requireRole('admin', 'owner'));
+router.use(requireAuth, requireRole('admin', 'owner', 'SUPER_OWNER', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'));
 
 function idOrSlug(value) {
   const text = String(value || '').trim().toLowerCase();
@@ -21,11 +22,14 @@ function idOrSlug(value) {
 }
 
 function canManageClass(req, classDoc) {
-  return req.user.role === 'owner' || String(classDoc.ownerId || '') === String(req.user._id);
+  if (isSuperOwner(req.user)) {
+    return String(classDoc.organizationId || '') === String(req.organizationContext?._id || '') || (!req.organizationContext && !classDoc.organizationId);
+  }
+  return String(classDoc.organizationId || '') === String(req.user.organizationId || '') && (String(classDoc.ownerId || '') === String(req.user._id) || ['ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'].includes(req.user.role));
 }
 
 async function loadClass(req, res, next) {
-  const classDoc = await Class.findOne(idOrSlug(req.params.classId));
+  const classDoc = await Class.findOne({ ...idOrSlug(req.params.classId), ...organizationFilter(req) });
   if (!classDoc) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
   if (!canManageClass(req, classDoc)) return res.status(403).json({ error: 'به این کلاس دسترسی ندارید.' });
   req.classDoc = classDoc;
@@ -58,7 +62,8 @@ function normalizedClassPayload(body = {}) {
 }
 
 router.get('/classes', async (req, res) => {
-  const filter = req.user.role === 'owner' ? {} : { ownerId: req.user._id };
+  const filter = { ...organizationFilter(req) };
+  if (!isSuperOwner(req.user) && !['ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'].includes(req.user.role)) filter.ownerId = req.user._id;
   const classes = await Class.find(filter).sort({ createdAt: -1 });
   res.json(classes.map(serializeClass));
 });
@@ -68,7 +73,7 @@ router.post('/classes', async (req, res) => {
   if (!payload.title || !payload.slug) {
     return res.status(400).json({ error: 'عنوان و slug الزامی هستند.' });
   }
-  const classDoc = await Class.create({ ...payload, ownerId: req.user._id });
+  const classDoc = await Class.create({ ...payload, ownerId: req.user._id, organizationId: isSuperOwner(req.user) ? req.organizationContext?._id || null : req.user.organizationId || null });
   res.status(201).json(serializeClass(classDoc));
 });
 

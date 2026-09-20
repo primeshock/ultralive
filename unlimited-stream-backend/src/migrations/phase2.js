@@ -1,8 +1,17 @@
 const User = require('../models/User');
 const Class = require('../models/Class');
+const Student = require('../models/Student');
+
+async function backfillOrganizationIds() {
+  const models = [User, Student, Class];
+  const results = await Promise.all(
+    models.map((Model) => Model.updateMany({ organizationId: { $exists: false } }, { $set: { organizationId: null } }))
+  );
+  return results.reduce((total, result) => total + result.modifiedCount, 0);
+}
 
 async function syncLegacyClasses() {
-  const teachers = await User.find({ role: 'teacher' }).select('_id username displayName streamTitle streamKey accessMode managedBy');
+  const teachers = await User.find({ role: 'teacher' }).select('_id username displayName streamTitle streamKey accessMode managedBy organizationId');
   if (!teachers.length) return 0;
 
   const operations = teachers.map((teacher) => ({
@@ -16,6 +25,7 @@ async function syncLegacyClasses() {
           streamKey: teacher.streamKey || '',
           visibility: teacher.accessMode === 'public' ? 'public' : 'private',
           ownerId: teacher.managedBy || teacher._id,
+          organizationId: teacher.organizationId || null,
         },
         $setOnInsert: { description: '', settings: {} },
       },
@@ -26,4 +36,4 @@ async function syncLegacyClasses() {
   return teachers.length;
 }
 
-module.exports = { syncLegacyClasses };
+module.exports = { backfillOrganizationIds, syncLegacyClasses };
