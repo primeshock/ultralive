@@ -307,6 +307,7 @@ export function ManagementPanel({ user, onLogout }) {
   const items = [...adminItems, ...(isOwner ? ownerItems : [])];
   const [section, setSection] = useState("overview");
   const [classes, setClasses] = useState([]);
+  const [legacyChannels] = useState([]);
   const [sessions, setSessions] = useState({});
   const [attendance, setAttendance] = useState({});
   const [notes, setNotes] = useState({});
