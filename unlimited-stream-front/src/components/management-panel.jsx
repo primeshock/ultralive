@@ -43,7 +43,7 @@ async function copyExactValue(value) {
   if (!copied) throw new Error("کپی در این مرورگر در دسترس نیست.");
 }
 
-function CopyField({ label, value, secret = false }) {
+function CopyField({ label, value, secret = false, openUrl = "" }) {
   const [copied, setCopied] = useState(false);
   const [visible, setVisible] = useState(false);
   if (!value) return null;
@@ -56,7 +56,7 @@ function CopyField({ label, value, secret = false }) {
       setCopied(false);
     }
   }
-  return <div className="space-y-1"><Label>{label}</Label><div className="flex gap-2"><Input readOnly type={secret && !visible ? "password" : "text"} value={value} dir="ltr" className="font-mono text-xs" /><div className="flex shrink-0 gap-1">{secret && <Button type="button" variant="outline" size="icon" onClick={() => setVisible((current) => !current)} aria-label={visible ? "مخفی کردن مقدار" : "نمایش مقدار"}>{visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</Button>}<Button type="button" variant="outline" size="icon" onClick={copyValue} aria-label={`کپی ${label}`}>{copied ? <CheckCircle2 className="size-4 text-emerald-600" /> : <Copy className="size-4" />}</Button></div></div>{copied && <p className="text-xs text-emerald-600">کپی شد</p>}</div>;
+  return <div className="space-y-1"><Label>{label}</Label><div className="flex gap-2"><Input readOnly type={secret && !visible ? "password" : "text"} value={value} dir="ltr" className="font-mono text-xs" /><div className="flex shrink-0 gap-1">{secret && <Button type="button" variant="outline" size="icon" onClick={() => setVisible((current) => !current)} aria-label={visible ? "مخفی کردن مقدار" : "نمایش مقدار"}>{visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</Button>}<Button type="button" variant="outline" size="icon" onClick={copyValue} aria-label={`کپی ${label}`}>{copied ? <CheckCircle2 className="size-4 text-emerald-600" /> : <Copy className="size-4" />}</Button></div></div>{(openUrl || label === "لینک ورود ادمین") && <Button type="button" size="sm" className="mt-2" onClick={() => window.open(openUrl || value, "_blank", "noopener,noreferrer")}><ExternalLink className="size-4" /> ورود به کلاس</Button>}{copied && <p className="text-xs text-emerald-600">کپی شد</p>}</div>;
 }
 
 function ClassForm({ initial, onCancel, onSave, saving }) {
