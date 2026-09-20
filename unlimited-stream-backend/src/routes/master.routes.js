@@ -227,7 +227,7 @@ router.delete('/channels/:id', async (req, res) => {
 router.get('/settings', async (_req, res) => res.json(withLivekitSettings(await SiteSettings.get())));
 
 router.patch('/settings', async (req, res) => {
-  const { siteName, browserTabTitle, logoUrl, allowPublicRegister, playbackMode, livekit, appearance } = req.body || {};
+  const { siteName, browserTabTitle, adminPath, logoUrl, allowPublicRegister, playbackMode, livekit, appearance } = req.body || {};
   const update = {};
   if (siteName !== undefined) {
     const name = String(siteName).trim();
@@ -238,6 +238,13 @@ router.patch('/settings', async (req, res) => {
     const title = String(browserTabTitle).trim();
     if (!title || title.length > 80) return res.status(400).json({ error: 'عنوان تب مرورگر نامعتبر است.' });
     update.browserTabTitle = title;
+  }
+  if (adminPath !== undefined) {
+    const path = String(adminPath).trim().replace(/^\/+|\/+$/g, '');
+    if (!/^[a-z0-9][a-z0-9_-]{2,48}$/i.test(path) || ['admin', 'api', 'login', 'adminlogin'].includes(path)) {
+      return res.status(400).json({ error: 'مسیر پنل مدیریت نامعتبر است.' });
+    }
+    update.adminPath = path;
   }
   if (logoUrl !== undefined) update.logoUrl = logoUrl;
   if (allowPublicRegister !== undefined) update.allowPublicRegister = Boolean(allowPublicRegister);

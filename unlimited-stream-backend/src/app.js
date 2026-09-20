@@ -60,6 +60,7 @@ app.get('/api/site', async (_req, res) => {
   res.json({
     siteName: settings.siteName || 'Ultra Live',
     browserTabTitle: settings.browserTabTitle || settings.siteName || 'Ultra Live',
+    adminPath: settings.adminPath || 'admin',
     logoUrl: normalizeAssetUrl(settings.logoUrl, '/site-logo'),
     faviconUrl: normalizeAssetUrl(settings.faviconUrl, '/site-favicon'),
     livekit: settings.livekit || undefined,

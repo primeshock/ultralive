@@ -144,6 +144,53 @@
   box-shadow: 0 24px 70px rgb(0 0 0 / 0.24), inset 0 1px 0 rgb(255 255 255 / 0.12);
 }
 
+.admin-shell {
+  background:
+    radial-gradient(circle at 8% 0%, rgb(45 212 191 / 0.12), transparent 26%),
+    radial-gradient(circle at 92% 8%, rgb(59 130 246 / 0.12), transparent 28%),
+    var(--background);
+}
+
+.dark .admin-shell {
+  background:
+    radial-gradient(circle at 8% 0%, rgb(45 212 191 / 0.12), transparent 26%),
+    radial-gradient(circle at 92% 8%, rgb(59 130 246 / 0.12), transparent 28%),
+    #0b1020;
+}
+
+.admin-scroll {
+  max-height: 22rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--primary) 45%, transparent) transparent;
+}
+
+.admin-scroll::-webkit-scrollbar { width: 7px; }
+.admin-scroll::-webkit-scrollbar-track { background: transparent; }
+.admin-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--primary) 45%, transparent);
+  border-radius: 999px;
+}
+
+.admin-disclosure {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--card) 94%, transparent);
+}
+
+.admin-disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 1rem 1.1rem;
+  font-weight: 700;
+}
+
+.admin-disclosure > summary::-webkit-details-marker { display: none; }
+.admin-disclosure > summary::after { content: "+"; float: left; color: var(--muted-foreground); }
+.admin-disclosure[open] > summary::after { content: "-"; }
+.admin-disclosure > .admin-disclosure-content { padding: 0 1rem 1rem; }
+
 select,
 option {
   color: var(--foreground);

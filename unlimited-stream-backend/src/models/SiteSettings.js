@@ -8,6 +8,7 @@ const siteSettingsSchema = new mongoose.Schema(
     key: { type: String, default: 'main', unique: true },
     siteName: { type: String, default: 'Ultra Live' },
     browserTabTitle: { type: String, default: 'Ultra Live' },
+    adminPath: { type: String, default: 'admin' },
     logoUrl: { type: String, default: '' },
     logoVersion: { type: Number, default: 0 },
     faviconUrl: { type: String, default: '' },
