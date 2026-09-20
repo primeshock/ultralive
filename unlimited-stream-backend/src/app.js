@@ -38,6 +38,10 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use('/api/livekit/webhook', express.raw({ type: () => true, limit: '1mb' }), livekitWebhookRoutes);
 app.use(express.json());
 app.use(cookieParser());
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/site', async (_req, res) => {
