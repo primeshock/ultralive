@@ -26,5 +26,5 @@ export default function AdminPage() {
     router.push("/");
   }
 
-  return <ManagementPanel user={user} onLogout={logout} />;
+  return <div className="admin-shell min-h-full w-full"><ManagementPanel user={user} onLogout={logout} /></div>;
 }
