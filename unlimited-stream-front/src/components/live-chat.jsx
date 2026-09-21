@@ -182,11 +182,11 @@ export function LiveChat({ channel, initialEnabled = true }) {
                       >
                         <MoreVertical className="size-4" />
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleModeration(m, "mute", "permanent")}>سکوت</DropdownMenuItem>
-                        <DropdownMenuItem variant="destructive" onClick={() => handleModeration(m, "ban", "permanent")}>بن</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleModeration(m, "ban", "timed")}>بن ۱۰ دقیقه</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleModeration(m, "mute", "timed")}>سکوت ۱۰ دقیقه</DropdownMenuItem>
+                      <DropdownMenuContent align="end" className="min-w-36 space-y-1 rounded-xl border-white/15 bg-slate-950/95 p-1.5 shadow-2xl backdrop-blur-xl">
+                        <DropdownMenuItem className="rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-2 text-sky-200 focus:bg-sky-500/20 focus:text-sky-100" onClick={() => handleModeration(m, "mute", "permanent")}>سکوت</DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-lg border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-rose-200 focus:bg-rose-500/20 focus:text-rose-100" onClick={() => handleModeration(m, "ban", "permanent")}>بن</DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-2 text-sky-200 focus:bg-sky-500/20 focus:text-sky-100" onClick={() => handleModeration(m, "mute", "timed")}>سکوت ۱۰ دقیقه</DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-lg border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-rose-200 focus:bg-rose-500/20 focus:text-rose-100" onClick={() => handleModeration(m, "ban", "timed")}>بن ۱۰ دقیقه</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
