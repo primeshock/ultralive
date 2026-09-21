@@ -269,6 +269,11 @@ textarea::placeholder {
   -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(135%);
 }
 
+.spatial-shell > .relative > .glass-float h1.text-2xl,
+.spatial-shell > .relative > .glass-float h1.text-2xl + p {
+  display: none;
+}
+
 .network-monitor-panel {
   border: 1px solid rgb(148 163 184 / 0.34);
   background: #101936;
