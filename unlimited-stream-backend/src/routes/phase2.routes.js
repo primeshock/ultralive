@@ -126,7 +126,14 @@ router.post('/classes', async (req, res) => {
   if (!payload.title || !payload.slug) {
     return res.status(400).json({ error: 'عنوان و slug الزامی هستند.' });
   }
-  const classDoc = await Class.create({ ...payload, ownerId: req.user._id, organizationId: isSuperOwner(req.user) ? req.organizationContext?._id || null : req.user.organizationId || null });
+  const classDoc = await Class.create({
+    ...payload,
+    displayName: payload.title,
+    streamTitle: payload.title,
+    accessMode: payload.visibility,
+    ownerId: req.user._id,
+    organizationId: isSuperOwner(req.user) ? req.organizationContext?._id || null : req.user.organizationId || null,
+  });
   res.status(201).json(serializeClass(classDoc));
 });
 
@@ -136,6 +143,9 @@ router.patch('/classes/:classId', loadClass, async (req, res) => {
     return res.status(400).json({ error: 'عنوان و slug الزامی هستند.' });
   }
   Object.assign(req.classDoc, payload);
+  req.classDoc.accessMode = payload.visibility;
+  if (!req.classDoc.displayName) req.classDoc.displayName = payload.title;
+  if (!req.classDoc.streamTitle) req.classDoc.streamTitle = payload.title;
   await req.classDoc.save();
   res.json(serializeClass(req.classDoc));
 });

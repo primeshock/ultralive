@@ -1,21 +1,19 @@
 const express = require('express');
 const { Poll, PollResponse } = require('../models/Poll');
-const User = require('../models/User');
+const { findScopedStreamTarget, canManageStreamTarget } = require('../utils/streamTarget');
 
 const router = express.Router();
 // Mounted after requireAuth+requireRole('admin','owner') in admin.routes.js (see wiring note).
 
 async function canManagePoll(req, poll) {
   if (!poll) return false;
-  if (req.user.role === 'owner') return true;
-  const channel = await User.findOne({ username: poll.channel, role: 'teacher', managedBy: req.user._id }).select('_id');
-  return Boolean(channel);
+  const target = await findScopedStreamTarget(req, poll.channel);
+  return canManageStreamTarget(req, target);
 }
 
 async function canManageChannel(req, channel) {
-  const filter = { username: channel.toLowerCase(), role: 'teacher' };
-  if (req.user.role !== 'owner') filter.managedBy = req.user._id;
-  return Boolean(await User.exists(filter));
+  const target = await findScopedStreamTarget(req, channel);
+  return canManageStreamTarget(req, target);
 }
 
 async function loadManagedPoll(req, res) {

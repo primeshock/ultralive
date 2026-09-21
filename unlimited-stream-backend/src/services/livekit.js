@@ -7,6 +7,7 @@ const Student = require('../models/Student');
 const Attendance = require('../models/Attendance');
 const { livekitEnabled, livekitUrl, livekitApiKey, livekitApiSecret } = require('../config/env');
 const { recommendedLivekitSettings } = require('../utils/livekitSettings');
+const { findStreamTarget, isClassTarget, streamName } = require('../utils/streamTarget');
 
 function assertEnabled() {
   if (!livekitEnabled || !livekitUrl || !livekitApiKey || !livekitApiSecret) {
@@ -220,7 +221,11 @@ async function publisherIsLive(username) {
 async function syncChannelLiveState(username) {
   const live = await publisherIsLive(username);
   if (live === null) return null;
-  await User.findOneAndUpdate({ username: String(username).toLowerCase(), role: 'teacher' }, { isLive: live });
+  const target = await findStreamTarget(username);
+  if (target) {
+    target.isLive = live;
+    await target.save();
+  }
   return live;
 }
 
@@ -228,12 +233,18 @@ function startLiveStateSync() {
   if (!livekitEnabled) return;
   const tick = async () => {
     try {
-      const channels = await User.find({ role: 'teacher', livekitIngressId: { $gt: '' } }).select('username isLive');
+      const [users, classes] = await Promise.all([
+        User.find({ role: 'teacher', livekitIngressId: { $gt: '' } }).select('username isLive'),
+        Class.find({ livekitIngressId: { $gt: '' } }).select('slug isLive'),
+      ]);
+      const channels = [...users, ...classes];
       for (const channel of channels) {
-        const live = await publisherIsLive(channel.username);
+        const name = streamName(channel);
+        const live = await publisherIsLive(name);
         if (live === null || live === channel.isLive) continue;
-        await User.updateOne({ _id: channel._id }, { isLive: live });
-        console.log('[livekit sync]', { channel: channel.username, isLive: live });
+        if (isClassTarget(channel)) await Class.updateOne({ _id: channel._id }, { isLive: live });
+        else await User.updateOne({ _id: channel._id }, { isLive: live });
+        console.log('[livekit sync]', { channel: name, isLive: live });
       }
     } catch (err) {
       console.error('[livekit sync]', err.message);
@@ -246,8 +257,12 @@ function startLiveStateSync() {
 async function resolveWebhookChannel(event) {
   const ingressId = event.ingressInfo?.ingressId;
   if (ingressId) {
-    const byIngress = await User.findOne({ livekitIngressId: ingressId, role: 'teacher' }).select('username');
-    if (byIngress) return byIngress.username;
+    const [userTarget, classTarget] = await Promise.all([
+      User.findOne({ livekitIngressId: ingressId, role: 'teacher' }).select('username'),
+      Class.findOne({ livekitIngressId: ingressId }).select('slug'),
+    ]);
+    if (userTarget) return streamName(userTarget);
+    if (classTarget) return streamName(classTarget);
   }
 
   const identity = webhookIdentity(event);
@@ -258,29 +273,31 @@ async function resolveWebhookChannel(event) {
 
   for (const username of candidates) {
     if (!username) continue;
-    const doc = await User.findOne({ username, role: 'teacher' }).select('username');
-    if (doc) return doc.username;
+    const doc = await findStreamTarget(username);
+    if (doc) return streamName(doc);
   }
   return null;
 }
 
 async function ensureLiveSession(channel, event) {
-  const teacher = await User.findOne({ username: channel, role: 'teacher' }).select('_id username displayName streamTitle streamKey accessMode managedBy');
+  const teacher = await findStreamTarget(channel);
   if (!teacher) return null;
-  const classDoc = await Class.findOneAndUpdate(
-    { channel },
-    {
-      $set: {
-        title: teacher.streamTitle || teacher.displayName || teacher.username,
-        slug: teacher.username,
-        streamKey: teacher.streamKey || '',
-        visibility: teacher.accessMode === 'public' ? 'public' : 'private',
-        ownerId: teacher.managedBy || teacher._id,
-      },
-      $setOnInsert: { channel, description: '', settings: {} },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  const classDoc = isClassTarget(teacher)
+    ? teacher
+    : await Class.findOneAndUpdate(
+        { channel },
+        {
+          $set: {
+            title: teacher.streamTitle || teacher.displayName || teacher.username,
+            slug: teacher.username,
+            streamKey: teacher.streamKey || '',
+            visibility: teacher.accessMode === 'public' ? 'public' : 'private',
+            ownerId: teacher.managedBy || teacher._id,
+          },
+          $setOnInsert: { channel, description: '', settings: {} },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
   let session = await LiveSession.findOne({ classId: classDoc._id, status: 'live' }).sort({ startedAt: -1 });
   if (!session) {
     try {
@@ -390,7 +407,11 @@ async function handleWebhook(event) {
   } else {
     await closeLiveSession(channel, event);
   }
-  await User.findOneAndUpdate({ username: channel, role: 'teacher' }, { isLive: goLive });
+  const target = await findStreamTarget(channel);
+  if (target) {
+    target.isLive = goLive;
+    await target.save();
+  }
 }
 
 module.exports = {

@@ -18,6 +18,7 @@ const { thumbnailUpload } = require('../utils/upload');
 const { clearChat, stopAutoReminder } = require('../services/chat');
 const { deleteClassArchitecture } = require('../utils/phase2Data');
 const { isSuperOwner } = require('../utils/organizationScope');
+const { findScopedStreamTarget, canManageStreamTarget } = require('../utils/streamTarget');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner', 'SUPER_OWNER', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'));
@@ -44,10 +45,8 @@ async function myChannels(req) {
 router.get('/channels', async (req, res) => res.json(await myChannels(req)));
 
 async function loadOwnedChannel(req, res, next) {
-  const filter = { username: req.params.channel.toLowerCase(), role: 'teacher', ...organizationChannelFilter(req) };
-  if (req.user.role === 'admin') filter.managedBy = req.user._id;
-  const channel = await User.findOne(filter);
-  if (!channel) return res.status(404).json({ error: 'کانال پیدا نشد.' });
+  const channel = await findScopedStreamTarget(req, req.params.channel);
+  if (!channel || !canManageStreamTarget(req, channel)) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
   req.targetChannel = channel;
   next();
 }

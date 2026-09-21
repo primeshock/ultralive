@@ -7,6 +7,7 @@ const Moderation = require('../models/Moderation');
 const { corsOrigin } = require('../config/env');
 const { checkStudentAccess } = require('../utils/checkStudentAccess');
 const { canAccessClass } = require('../utils/classAccess');
+const { findStreamTarget } = require('../utils/streamTarget');
 
 const HISTORY_LIMIT = 50;
 
@@ -18,7 +19,7 @@ const chatModeState = new Map(); // channel -> 'public' | 'private'
 
 async function ensureChannelStateLoaded(room) {
   if (chatEnabledState.has(room) && mutedUsersState.has(room) && chatModeState.has(room)) return;
-  const owner = await User.findOne({ username: room }, 'chatEnabled mutedUsers chatMode').lean();
+  const owner = await findStreamTarget(room);
   if (!owner) return;
   if (!chatEnabledState.has(room)) chatEnabledState.set(room, owner.chatEnabled);
   if (!mutedUsersState.has(room)) mutedUsersState.set(room, new Set(owner.mutedUsers || []));

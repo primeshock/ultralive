@@ -7,19 +7,19 @@ function apiBase({ serverIp, apiPort }) {
 
 function thumbnailUrl(user, ctx) {
   if (!user.thumbnailVersion) return null;
-  return `${apiBase(ctx)}/thumbnails/${user.username}.jpg?v=${user.thumbnailVersion}`;
+  return `${apiBase(ctx)}/thumbnails/${user.username || user.slug}.jpg?v=${user.thumbnailVersion}`;
 }
 
 function publicUser(user, ctx) {
   return {
-    username: user.username,
-    displayName: user.displayName,
-    streamTitle: user.streamTitle,
-    donateUrl: user.donateUrl,
-    isLive: user.isLive,
-    chatEnabled: user.chatEnabled,
-    chatMode: user.chatMode,
-    showViewerCount: user.showViewerCount,
+    username: user.username || user.slug,
+    displayName: user.displayName || user.title,
+    streamTitle: user.streamTitle || user.title,
+    donateUrl: user.donateUrl || '',
+    isLive: Boolean(user.isLive),
+    chatEnabled: user.chatEnabled !== false,
+    chatMode: user.chatMode || 'public',
+    showViewerCount: Boolean(user.showViewerCount),
     thumbnailUrl: thumbnailUrl(user, ctx),
   };
 }

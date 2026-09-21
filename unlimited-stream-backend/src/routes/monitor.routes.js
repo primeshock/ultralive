@@ -1,18 +1,18 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
-const User = require('../models/User');
 const MonitorLink = require('../models/MonitorLink');
+const { findStreamTarget, streamName, streamTitle } = require('../utils/streamTarget');
 
 const router = express.Router();
 
 router.get('/monitor/:token', async (req, res) => {
   const link = await MonitorLink.findOne({ token: req.params.token, active: true });
   if (!link) return res.status(404).send('لینک نامعتبر یا غیرفعال شده است.');
-  const channel = await User.findOne({ username: link.channel }).select('username streamTitle isLive');
+  const channel = await findStreamTarget(link.channel);
   if (!channel) return res.status(404).send('کانال پیدا نشد.');
   // JSON for now; a small frontend page (Phase B) calls this, then points an
   // HLS player at /api/monitor/:token/live.
-  res.json({ channel: channel.username, streamTitle: channel.streamTitle, isLive: channel.isLive });
+  res.json({ channel: streamName(channel), streamTitle: streamTitle(channel), isLive: channel.isLive });
 });
 
 router.use(

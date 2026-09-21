@@ -1,5 +1,4 @@
 const express = require('express');
-const User = require('../models/User');
 const { requireAuth } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/requireRole');
 const { checkStudentAccess } = require('../utils/checkStudentAccess');
@@ -9,6 +8,7 @@ const { createStudentToken, createStaffToken, ensureIngress, deleteIngress, room
 const { livekitEnabled, livekitWsUrl } = require('../config/env');
 const SiteSettings = require('../models/SiteSettings');
 const { withLivekitSettings } = require('../utils/livekitSettings');
+const { findStreamTarget, findScopedStreamTarget, canManageStreamTarget, streamName } = require('../utils/streamTarget');
 
 const router = express.Router();
 
@@ -26,7 +26,7 @@ router.get('/token', async (req, res) => {
   if (!livekitEnabled) return res.status(503).json({ error: 'LiveKit فعال نیست.' });
   const channel = String(req.query.channel || '').toLowerCase();
   if (!/^[a-z0-9_]{3,24}$/.test(channel)) return res.status(400).json({ error: 'کلاس نامعتبر است.' });
-  const target = await User.findOne({ username: channel, role: 'teacher' });
+  const target = await findStreamTarget(channel);
   if (!target) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
 
   const rawToken = req.cookies?.[COOKIE_NAME];
@@ -65,23 +65,24 @@ router.get('/monitor-token/:token', async (req, res) => {
   if (!livekitEnabled) return res.status(503).json({ error: 'LiveKit فعال نیست.' });
   const monitor = await require('../models/MonitorLink').findOne({ token: req.params.token, active: true });
   if (!monitor) return res.status(404).json({ error: 'لینک مانیتور نامعتبر یا غیرفعال است.' });
-  const target = await User.findOne({ username: monitor.channel, role: 'teacher' });
+  const target = await findStreamTarget(monitor.channel);
   if (!target) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
-  const participantToken = await createStudentToken({ channel: target.username, identity: `monitor:${monitor.token}`, name: `Monitor ${target.username}` });
-  res.json({ serverUrl: livekitWsUrl, participantToken, channel: target.username, roomName: roomName(target.username) });
+  const channel = streamName(target);
+  const participantToken = await createStudentToken({ channel, identity: `monitor:${monitor.token}`, name: `Monitor ${channel}` });
+  res.json({ serverUrl: livekitWsUrl, participantToken, channel, roomName: roomName(channel) });
 });
 
-router.use(requireAuth, requireRole('owner', 'admin'));
+router.use(requireAuth, requireRole('owner', 'admin', 'SUPER_OWNER', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'));
 
 router.post('/channels/:channel/ingress', async (req, res) => {
-  const target = await User.findOne({ username: req.params.channel.toLowerCase(), role: 'teacher' });
-  if (!target) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+  const target = await findScopedStreamTarget(req, req.params.channel);
+  if (!target || !canManageStreamTarget(req, target)) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
   res.json(await ensureIngress(target));
 });
 
 router.delete('/channels/:channel/ingress', async (req, res) => {
-  const target = await User.findOne({ username: req.params.channel.toLowerCase(), role: 'teacher' });
-  if (!target) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
+  const target = await findScopedStreamTarget(req, req.params.channel);
+  if (!target || !canManageStreamTarget(req, target)) return res.status(404).json({ error: 'کلاس پیدا نشد.' });
   await deleteIngress(target);
   res.status(204).end();
 });

@@ -5,6 +5,8 @@ const RoomSession = require('../models/RoomSession');
 const Moderation = require('../models/Moderation');
 const AttendanceLog = require('../models/AttendanceLog');
 const { verifyWpToken, signRoomSession } = require('../utils/joinToken');
+const Class = require('../models/Class');
+const { findStreamTarget, streamName } = require('../utils/streamTarget');
 
 const router = express.Router();
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6h — tune to your longest class length
@@ -18,8 +20,8 @@ router.get('/join', async (req, res) => {
   }
 
   const channel = String(payload.channel || '').toLowerCase();
-  const teacher = await User.findOne({ username: channel, role: 'teacher' });
-  if (!teacher) return res.status(404).send('کلاس پیدا نشد.');
+  const target = await findStreamTarget(channel);
+  if (!target) return res.status(404).send('کلاس پیدا نشد.');
 
   const ban = await Moderation.findOne({ channel, externalUserId: payload.userId, type: 'ban' }).sort({
     createdAt: -1,
@@ -66,10 +68,16 @@ router.get('/join', async (req, res) => {
 });
 
 router.get('/public/:token', async (req, res) => {
-  const teacher = await User.findOne({ publicAccessToken: req.params.token, accessMode: 'public', role: 'teacher' }).select('+publicAccessToken');
-  if (!teacher) return res.status(404).send('لینک همگانی نامعتبر یا غیرفعال است.');
-  res.cookie(`public_class_${teacher.username}`, teacher.publicAccessToken, { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_TTL_MS });
-  res.redirect(`/channel/${teacher.username}`);
+  const token = req.params.token;
+  const [classDoc, teacher] = await Promise.all([
+    Class.findOne({ publicAccessToken: token, accessMode: 'public' }).select('+publicAccessToken'),
+    User.findOne({ publicAccessToken: token, accessMode: 'public', role: 'teacher' }).select('+publicAccessToken'),
+  ]);
+  const target = classDoc || teacher;
+  if (!target) return res.status(404).send('لینک همگانی نامعتبر یا غیرفعال است.');
+  const channel = streamName(target);
+  res.cookie(`public_class_${channel}`, target.publicAccessToken, { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_TTL_MS });
+  res.redirect(`/channel/${channel}`);
 });
 
 router.get('/access/:channel', async (req, res) => {
