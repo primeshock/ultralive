@@ -19,6 +19,7 @@ const { clearChat, stopAutoReminder } = require('../services/chat');
 const { deleteClassArchitecture } = require('../utils/phase2Data');
 const { isSuperOwner } = require('../utils/organizationScope');
 const { findScopedStreamTarget, canManageStreamTarget } = require('../utils/streamTarget');
+const { disconnectStudent } = require('../services/livekit');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin', 'owner', 'SUPER_OWNER', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'));
@@ -253,6 +254,12 @@ router.post('/channels/:channel/moderation', loadOwnedChannel, async (req, res) 
     reason: reason || '',
     createdBy: String(req.user._id),
   });
+  if (type === 'ban') {
+    chat.disconnectModeratedUser(req.targetChannel.username, String(externalUserId));
+    disconnectStudent(req.targetChannel.username, String(externalUserId)).catch((error) => {
+      if (!/not found|does not exist|no room/i.test(String(error.message || error))) console.error('[moderation] livekit disconnect failed', error);
+    });
+  }
   res.status(201).json(doc);
 });
 

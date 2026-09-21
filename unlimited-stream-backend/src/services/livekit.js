@@ -218,6 +218,11 @@ async function publisherIsLive(username) {
   }
 }
 
+async function disconnectStudent(channel, externalUserId) {
+  if (!livekitEnabled || !livekitUrl || !livekitApiKey || !livekitApiSecret) return;
+  await roomService().removeParticipant(roomName(channel), `student:${externalUserId}`);
+}
+
 async function syncChannelLiveState(username) {
   const live = await publisherIsLive(username);
   if (live === null) return null;
@@ -427,6 +432,7 @@ module.exports = {
   isIngressParticipant,
   getRoomTelemetry,
   getChannelTelemetry,
+  disconnectStudent,
   syncChannelLiveState,
   startLiveStateSync,
 };

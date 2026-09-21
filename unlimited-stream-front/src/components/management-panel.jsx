@@ -28,6 +28,7 @@ const persianDateOf = (value) => value ? new Intl.DateTimeFormat("fa-IR-u-ca-per
 function Empty({ children }) { return <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{children}</div>; }
 function Stat({ icon: Icon, label, value, detail }) { return <Card><CardContent className="flex items-start justify-between gap-3 p-5"><div><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div><span className="rounded-lg bg-primary/10 p-2.5 text-primary"><Icon className="size-5" /></span></CardContent></Card>; }
 function ErrorBox({ message, onRetry }) { return <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><span>{message}</span><Button variant="outline" size="sm" onClick={onRetry}><RefreshCw className="size-4" /> تلاش دوباره</Button></div>; }
+function AccessSwitch({ checked, onChange, label, detail }) { return <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-sm"><span><span className="block font-medium">{label}</span>{detail && <span className="mt-0.5 block text-xs text-muted-foreground">{detail}</span>}</span><span className="relative shrink-0"><input type="checkbox" className="peer sr-only" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span className="block h-6 w-11 rounded-full bg-muted transition peer-checked:bg-primary after:absolute after:start-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-background after:shadow-sm after:transition peer-checked:after:translate-x-5 rtl:peer-checked:after:-translate-x-5" /></span></label>; }
 
 async function copyExactValue(value) {
   if (navigator.clipboard?.writeText) {
@@ -115,6 +116,23 @@ function LegacyAcademicModeration({ classId, attendance }) {
   return <Card><CardHeader><CardTitle className="text-base">مدیریت محدودیت دانش‌آموزان</CardTitle></CardHeader><CardContent className="space-y-3">{message && <p className="text-sm text-muted-foreground">{message}</p>}{students.length ? students.map((student) => { const restriction = restrictionFor(student._id); return <div key={student._id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm"><div><p className="font-medium">{student.name || "بدون نام"}</p><p className="text-xs text-muted-foreground" dir="ltr">{student.externalId}</p></div><div className="flex flex-wrap gap-2">{restriction ? <><Badge variant="destructive">{restriction.type === "ban" ? "مسدود" : "ساکت"}</Badge><Button size="sm" variant="outline" onClick={() => void remove(restriction)} disabled={busy === restriction._id}>رفع محدودیت</Button></> : <><Button size="sm" variant="outline" onClick={() => void change(student._id, "mute")} disabled={Boolean(busy)}>ساکت‌کردن</Button><Button size="sm" variant="destructive" onClick={() => void change(student._id, "ban")} disabled={Boolean(busy)}>مسدودکردن</Button></>}</div></div>; }) : <Empty>دانش‌آموزی در جلسه اخیر این کلاس ثبت نشده است.</Empty>}</CardContent></Card>;
 }
 
+function ClassAccessControls({ selected, onUpdated }) {
+  const fallbackModes = selected.accessModes?.length ? selected.accessModes : [selected.visibility === "public" ? "public" : "login"];
+  const [modes, setModes] = useState(fallbackModes);
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  async function toggle(mode, checked) {
+    const next = checked ? [...new Set([...modes, mode])] : modes.filter((item) => item !== mode);
+    if (!next.length) { setMessage("حداقل یک روش ورود باید فعال باشد."); return; }
+    setSaving(true); setMessage("");
+    try {
+      const updated = await api.updatePhase2Class(keyOf(selected), { title: selected.title, slug: selected.slug, channel: selected.channel || selected.slug, description: selected.description, visibility: next.includes("public") ? "public" : "private", accessModes: next, guestAccess: next.includes("guest") });
+      setModes(next); onUpdated?.(updated); setMessage("روش ورود ذخیره شد.");
+    } catch (error) { setMessage(error.message || "ذخیره روش ورود انجام نشد."); } finally { setSaving(false); }
+  }
+  return <div className="rounded-2xl border border-border/80 bg-muted/25 p-3"><div className="mb-3 flex items-center justify-between gap-2"><div><p className="text-sm font-medium">روش‌های ورود</p><p className="mt-1 text-xs text-muted-foreground">ورود مهمان با شماره موبایل ۱۱ رقمی اجباری است.</p></div>{saving && <span className="text-xs text-muted-foreground">در حال ذخیره...</span>}</div><div className="grid gap-2 sm:grid-cols-2"><AccessSwitch checked={modes.includes("login")} onChange={(checked) => void toggle("login", checked)} label="ورود دانش‌آموز" detail="حساب ثبت‌شده سامانه" /><AccessSwitch checked={modes.includes("guest")} onChange={(checked) => void toggle("guest", checked)} label="ورود مهمان" detail="شماره ۰۹ و ۱۱ رقم الزامی" /><AccessSwitch checked={modes.includes("public")} onChange={(checked) => void toggle("public", checked)} label="لینک عمومی" detail="بدون ورود حساب" /><AccessSwitch checked={modes.includes("api")} onChange={(checked) => void toggle("api", checked)} label="لینک API" detail="ورود با لینک اختصاصی" /></div>{message && <p className="mt-2 text-xs text-muted-foreground">{message}</p>}</div>;
+}
+
 function LegacyClassOperations({ selected, legacy }) {
   const [studentUrl, setStudentUrl] = useState(""); const [ingress, setIngress] = useState(null); const [message, setMessage] = useState("");
   const classChannel = selected.slug;
@@ -150,8 +168,8 @@ function ClassesClosed({ classes, selected, setSelected, editing, setEditing, se
 
 function Classes(props) { return <ClassesClosed {...props} />; }
 
-function ClassOperations({ selected, legacy }) {
-  return <details className="admin-disclosure"><summary>ابزارهای کلاس</summary><div className="admin-disclosure-content"><LegacyClassOperations selected={selected} legacy={legacy} /></div></details>;
+function ClassOperations({ selected, legacy, onUpdated }) {
+  return <details className="admin-disclosure" open><summary>ابزارهای کلاس</summary><div className="admin-disclosure-content space-y-4"><ClassAccessControls selected={selected} onUpdated={onUpdated} /><LegacyClassOperations selected={selected} legacy={legacy} /></div></details>;
 }
 
 function AcademicModeration({ classId, attendance }) {

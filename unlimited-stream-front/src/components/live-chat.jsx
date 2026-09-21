@@ -41,7 +41,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
   const [showEmoji, setShowEmoji] = useState(false);
   const bottomRef = useRef(null);
 
-  const canModerate = user && ["admin", "owner"].includes(user.role);
+  const canModerate = user && ["admin", "owner", "SUPER_OWNER", "ORGANIZATION_OWNER", "ADMIN_L1", "ADMIN_L2"].includes(user.role);
 
   // NOTE: this used to bail out entirely when `user` was falsy, which meant a
   // student (no real logged-in account, only a room-session cookie) could
@@ -166,7 +166,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
                     <MessageText text={m.text} />
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100">
+                <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
                   <button
                     type="button"
                     onClick={() => setReplyTarget({ id: m.id, username: m.username, text: m.text })}
@@ -183,10 +183,10 @@ export function LiveChat({ channel, initialEnabled = true }) {
                         <MoreVertical className="size-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleModeration(m, "mute", "timed")}>میوت ۱۰ دقیقه</DropdownMenuItem>
-                        <DropdownMenuItem variant="destructive" onClick={() => handleModeration(m, "mute", "permanent")}>میوت دائمی</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleModeration(m, "mute", "permanent")}>سکوت</DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onClick={() => handleModeration(m, "ban", "permanent")}>بن</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleModeration(m, "ban", "timed")}>بن ۱۰ دقیقه</DropdownMenuItem>
-                        <DropdownMenuItem variant="destructive" onClick={() => handleModeration(m, "ban", "permanent")}>بن دائمی</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleModeration(m, "mute", "timed")}>سکوت ۱۰ دقیقه</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

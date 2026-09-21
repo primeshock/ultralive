@@ -98,15 +98,18 @@ router.post('/guest/:channel', async (req, res) => {
   const modes = target?.accessModes?.length ? target.accessModes : [];
   if (!target || (!target.guestAccess && !modes.includes('guest'))) return res.status(403).json({ error: 'ورود مهمان برای این کلاس فعال نیست.' });
 
-  const displayName = String(req.body?.displayName || '').trim().slice(0, 80);
-  if (displayName.length < 2) return res.status(400).json({ error: 'نام نمایشی مهمان را وارد کنید.' });
+  const phone = String(req.body?.phone || req.body?.displayName || '')
+    .trim()
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+  if (!/^09\d{9}$/.test(phone)) return res.status(400).json({ error: 'شماره موبایل باید ۱۱ رقمی و با ۰۹ شروع شود.' });
 
   const externalUserId = `guest-${crypto.randomBytes(12).toString('hex')}`;
   const deviceId = crypto.randomUUID();
   const session = await RoomSession.create({
     channel,
     externalUserId,
-    displayName,
+    displayName: phone,
     sessionId: crypto.randomUUID(),
     deviceId,
     expiresAt: new Date(Date.now() + SESSION_TTL_MS),

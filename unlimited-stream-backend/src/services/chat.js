@@ -253,6 +253,18 @@ function unmuteUser(channel, username) {
   mutedUsersState.get(room)?.delete(username.toLowerCase());
 }
 
+function disconnectModeratedUser(channel, externalUserId) {
+  if (!io) return;
+  const room = channel.toLowerCase();
+  for (const socketId of io.sockets.adapter.rooms.get(room) || []) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket?.data.studentId === String(externalUserId)) {
+      socket.emit('chat:error', { message: 'به دلیل بن شدن از کلاس خارج شدید.' });
+      socket.disconnect(true);
+    }
+  }
+}
+
 async function broadcastSystemMessage(channel, text) {
   if (!io || !text) return;
   const room = channel.toLowerCase();
@@ -304,6 +316,7 @@ module.exports = {
   isMuted,
   muteUser,
   unmuteUser,
+  disconnectModeratedUser,
   getViewerCount,
   setChatMode,
   isPrivateMode,
