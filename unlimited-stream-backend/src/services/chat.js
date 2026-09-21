@@ -100,7 +100,7 @@ function initChat(httpServer) {
           const access = await checkStudentAccess(room, socket.data.cookies || {});
           socket.data.studentId = access.externalUserId; // internal identity key
           socket.data.displayName = access.displayName || access.externalUserId;
-          socket.data.participantType = 'student';
+          socket.data.participantType = access.externalUserId.startsWith('guest-') ? 'guest' : 'student';
         } catch {
           if (!(await canAccessClass(room, socket.data.cookies || {}))) {
             socket.emit('chat:error', { message: 'برای چت باید از طریق سایت اصلی وارد شوید.' });

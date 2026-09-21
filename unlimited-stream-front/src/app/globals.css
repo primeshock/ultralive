@@ -48,7 +48,14 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@layer base {
+  html, body, button, input, textarea, select {
+    font-family: Tahoma, "Segoe UI", sans-serif;
+  }
+}
+
 :root {
+  --font-sans: Tahoma, "Segoe UI", sans-serif;
   --background: oklch(0.975 0.018 245);
   --foreground: oklch(0.19 0.025 255);
   --card: oklch(0.99 0.012 245);

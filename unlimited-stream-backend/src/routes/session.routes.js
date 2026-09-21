@@ -83,7 +83,38 @@ router.get('/public/:token', async (req, res) => {
 router.get('/access/:channel', async (req, res) => {
   const { canAccessClass } = require('../utils/classAccess');
   const channel = String(req.params.channel || '').toLowerCase();
-  res.json({ allowed: await canAccessClass(channel, req.cookies || {}) });
+  const target = await findStreamTarget(channel);
+  const modes = target?.accessModes?.length ? target.accessModes : target?.accessMode === 'public' || target?.visibility === 'public' ? ['public'] : ['login'];
+  res.json({
+    allowed: await canAccessClass(channel, req.cookies || {}),
+    loginAllowed: modes.includes('login'),
+    guestAllowed: Boolean(target && (target.guestAccess || modes.includes('guest'))),
+  });
+});
+
+router.post('/guest/:channel', async (req, res) => {
+  const channel = String(req.params.channel || '').toLowerCase();
+  const target = await findStreamTarget(channel);
+  const modes = target?.accessModes?.length ? target.accessModes : [];
+  if (!target || (!target.guestAccess && !modes.includes('guest'))) return res.status(403).json({ error: 'ورود مهمان برای این کلاس فعال نیست.' });
+
+  const displayName = String(req.body?.displayName || '').trim().slice(0, 80);
+  if (displayName.length < 2) return res.status(400).json({ error: 'نام نمایشی مهمان را وارد کنید.' });
+
+  const externalUserId = `guest-${crypto.randomBytes(12).toString('hex')}`;
+  const deviceId = crypto.randomUUID();
+  const session = await RoomSession.create({
+    channel,
+    externalUserId,
+    displayName,
+    sessionId: crypto.randomUUID(),
+    deviceId,
+    expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+  });
+  const cookieOpts = { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_TTL_MS };
+  res.cookie(`device_${channel}`, deviceId, cookieOpts);
+  res.cookie(`room_session_${channel}`, signRoomSession({ channel, externalUserId, sessionId: session.sessionId, deviceId }), cookieOpts);
+  res.json({ ok: true, channel });
 });
 
 function issueCookiesAndRedirect(res, channel, session) {

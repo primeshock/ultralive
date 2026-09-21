@@ -18,9 +18,14 @@ export default function ChannelPage({ params }) {
   const { username } = usePromise(params);
   const searchParams = useSearchParams();
   const previewOnly = searchParams.get("preview") === "1";
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, setUser } = useAuth();
   const [channel, setChannel] = useState(null);
   const [accessAllowed, setAccessAllowed] = useState(null);
+  const [accessOptions, setAccessOptions] = useState({ loginAllowed: true, guestAllowed: false });
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [guestName, setGuestName] = useState("");
+  const [accessError, setAccessError] = useState("");
+  const [accessBusy, setAccessBusy] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [playback, setPlayback] = useState({ enabled: false, mode: "auto" });
   const [chatMode, setChatMode] = useState("public");
@@ -30,8 +35,8 @@ export default function ChannelPage({ params }) {
   const [appearance, setAppearance] = useState(null);
 
   useEffect(() => {
-    api.classAccess(username).then(({ allowed }) => setAccessAllowed(allowed)).catch(() => setAccessAllowed(false));
-  }, [username]);
+    api.sessionAccess(username).then((result) => { setAccessOptions(result); setAccessAllowed(result.allowed); }).catch(() => setAccessAllowed(false));
+  }, [username, user]);
 
   useEffect(() => {
     api.site().then((site) => setAppearance((current) => current || site.appearance || null)).catch(() => {});
@@ -72,7 +77,44 @@ export default function ChannelPage({ params }) {
     };
   }, [authLoading, username, accessAllowed]);
 
-  if (accessAllowed === false) return <div className="flex-1 flex items-center justify-center px-4 text-center">برای ورود به کلاس باید از لینک سایت اصلی یا لینک همگانی کلاس استفاده کنید.</div>;
+  async function refreshAccess() {
+    const result = await api.sessionAccess(username);
+    setAccessOptions(result);
+    setAccessAllowed(result.allowed);
+    return result;
+  }
+
+  async function handleStudentLogin(event) {
+    event.preventDefault();
+    setAccessBusy(true);
+    setAccessError("");
+    try {
+      const result = await api.login(loginForm.username, loginForm.password);
+      setUser(result.user);
+      const access = await refreshAccess();
+      if (!access.allowed) setAccessError("این دانش‌آموز به این کلاس دسترسی ندارد.");
+    } catch (error) {
+      setAccessError(error.message || "ورود انجام نشد.");
+    } finally {
+      setAccessBusy(false);
+    }
+  }
+
+  async function handleGuestJoin(event) {
+    event.preventDefault();
+    setAccessBusy(true);
+    setAccessError("");
+    try {
+      await api.guestJoin(username, guestName);
+      await refreshAccess();
+    } catch (error) {
+      setAccessError(error.message || "ورود مهمان انجام نشد.");
+    } finally {
+      setAccessBusy(false);
+    }
+  }
+
+  if (accessAllowed === false) return <div className="flex flex-1 items-center justify-center px-4 py-12"><div className="w-full max-w-md space-y-4"><div className="text-center"><h1 className="text-2xl font-bold">ورود به کلاس</h1><p className="mt-2 text-sm text-muted-foreground">برای ورود، یکی از روش‌های فعال کلاس را انتخاب کنید.</p></div>{accessError && <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{accessError}</p>}{accessOptions.loginAllowed && <form onSubmit={handleStudentLogin} className="space-y-3 rounded-lg border p-4"><h2 className="font-semibold">ورود دانش‌آموز</h2><input className="h-10 w-full rounded-md border bg-background px-3 text-sm" dir="ltr" placeholder="نام کاربری" value={loginForm.username} onChange={(event) => setLoginForm({ ...loginForm, username: event.target.value })} required /><input className="h-10 w-full rounded-md border bg-background px-3 text-sm" dir="ltr" type="password" placeholder="رمز عبور" value={loginForm.password} onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })} required /><Button className="w-full" type="submit" disabled={accessBusy}>ورود دانش‌آموز</Button></form>}{accessOptions.guestAllowed && <form onSubmit={handleGuestJoin} className="space-y-3 rounded-lg border p-4"><h2 className="font-semibold">ورود مهمان</h2><input className="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="نام نمایشی شما" value={guestName} onChange={(event) => setGuestName(event.target.value)} minLength={2} maxLength={80} required /><Button className="w-full" variant="outline" type="submit" disabled={accessBusy}>ورود به‌عنوان مهمان</Button></form>}{!accessOptions.loginAllowed && !accessOptions.guestAllowed && <p className="rounded-md border p-4 text-center text-sm text-muted-foreground">دسترسی این کلاس فقط از لینک اختصاصی یا API امکان‌پذیر است.</p>}</div></div>;
 
   if (notFound) {
     return (
