@@ -160,6 +160,35 @@ export const api = {
   listModeration: (channel) => apiFetch(`/api/admin/channels/${channel}/moderation`),
   removeModeration: (id) => apiFetch(`/api/admin/moderation/${id}`, { method: "DELETE" }),
 
+  // --- Organization-scoped management ---
+  organizationSettings: () => apiFetch("/api/organization/settings"),
+  updateOrganizationSettings: (payload) => apiFetch("/api/organization/settings", { method: "PATCH", body: JSON.stringify(payload) }),
+  uploadOrganizationLogo: (file) => {
+    const formData = new FormData();
+    formData.append("logo", file);
+    return apiUpload("/api/organization/logo", formData);
+  },
+  organizationAdmins: () => apiFetch("/api/organization/admins"),
+  createOrganizationAdmin: (payload) => apiFetch("/api/organization/admins", { method: "POST", body: JSON.stringify(payload) }),
+  updateOrganizationAdmin: (id, payload) => apiFetch(`/api/organization/admins/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteOrganizationAdmin: (id) => apiFetch(`/api/organization/admins/${id}`, { method: "DELETE" }),
+  organizationStudents: (query = "") => apiFetch(`/api/organization/students${query ? `?q=${encodeURIComponent(query)}` : ""}`),
+  createOrganizationStudent: (payload) => apiFetch("/api/organization/students", { method: "POST", body: JSON.stringify(payload) }),
+  updateOrganizationStudent: (id, payload) => apiFetch(`/api/organization/students/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteOrganizationStudent: (id) => apiFetch(`/api/organization/students/${id}`, { method: "DELETE" }),
+  studentGroups: () => apiFetch("/api/organization/groups"),
+  createStudentGroup: (name) => apiFetch("/api/organization/groups", { method: "POST", body: JSON.stringify({ name }) }),
+  updateStudentGroup: (id, name) => apiFetch(`/api/organization/groups/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  deleteStudentGroup: (id) => apiFetch(`/api/organization/groups/${id}`, { method: "DELETE" }),
+  addStudentToGroup: (id, studentId) => apiFetch(`/api/organization/groups/${id}/students`, { method: "POST", body: JSON.stringify({ studentId }) }),
+  removeStudentFromGroup: (id, studentId) => apiFetch(`/api/organization/groups/${id}/students/${studentId}`, { method: "DELETE" }),
+  classStudents: (classId) => apiFetch(`/api/organization/classes/${classId}/students`),
+  assignStudentToClass: (classId, studentId) => apiFetch(`/api/organization/classes/${classId}/students`, { method: "POST", body: JSON.stringify({ studentId }) }),
+  removeStudentFromClass: (classId, studentId) => apiFetch(`/api/organization/classes/${classId}/students/${studentId}`, { method: "DELETE" }),
+  organizationSecurity: () => apiFetch("/api/organization/me/security"),
+  updateOrganizationSecurity: (payload) => apiFetch("/api/organization/me/security", { method: "PATCH", body: JSON.stringify(payload) }),
+  studentClasses: () => apiFetch("/api/student/classes"),
+
   // --- Polls / quizzes ---
   createPoll: (channel, payload) =>
     apiFetch(`/api/admin/channels/${channel}/polls`, { method: "POST", body: JSON.stringify(payload) }),

@@ -8,6 +8,8 @@ const { corsOrigin } = require('../config/env');
 const { checkStudentAccess } = require('../utils/checkStudentAccess');
 const { canAccessClass } = require('../utils/classAccess');
 const { findStreamTarget } = require('../utils/streamTarget');
+const Student = require('../models/Student');
+const ClassEnrollment = require('../models/ClassEnrollment');
 
 const HISTORY_LIMIT = 50;
 
@@ -57,6 +59,7 @@ function initChat(httpServer) {
           socket.data.username = user.username;
           socket.data.role = user.role;
           socket.data.userId = user._id;
+          socket.data.displayName = user.displayName || user.username;
         }
       }
       next();
@@ -70,12 +73,21 @@ function initChat(httpServer) {
       if (typeof channel !== 'string' || !channel) return;
       const room = channel.toLowerCase();
 
-      if (socket.data.role === 'admin') {
-        const channelDoc = await User.findOne({ username: room, role: 'teacher', managedBy: socket.data.username ? socket.data.userId : null }).select('_id');
-        if (!channelDoc) {
-          socket.emit('chat:error', { message: 'به چت این کلاس دسترسی ندارید.' });
-          return;
-        }
+      const target = await findStreamTarget(room);
+      if (!target) { socket.emit('chat:error', { message: 'کلاس پیدا نشد.' }); return; }
+
+      if (socket.data.username && ['STUDENT', 'student'].includes(socket.data.role)) {
+        const student = await Student.findOne({ userId: socket.data.userId, organizationId: target.organizationId, status: 'ACTIVE' }).select('_id externalId name');
+        const enrolled = target.constructor?.modelName === 'Class' && student && await ClassEnrollment.exists({ classId: target._id, studentId: student._id, organizationId: target.organizationId });
+        if (!enrolled) { socket.emit('chat:error', { message: 'به چت این کلاس دسترسی ندارید.' }); return; }
+        socket.data.studentId = student.externalId;
+        socket.data.displayName = student.name || socket.data.displayName;
+        socket.data.participantType = 'student';
+      } else if (socket.data.username) {
+        const sameOrganization = !target.organizationId || String(target.organizationId) === String(socket.data.organizationId || (await User.findById(socket.data.userId).select('organizationId'))?.organizationId || '');
+        const canStaff = socket.data.role === 'SUPER_OWNER' || socket.data.role === 'owner' || (sameOrganization && ['ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'].includes(socket.data.role)) || (target.username === socket.data.username) || (socket.data.role === 'admin' && String(target.managedBy || '') === String(socket.data.userId));
+        if (!canStaff) { socket.emit('chat:error', { message: 'به چت این کلاس دسترسی ندارید.' }); return; }
+        socket.data.participantType = 'staff';
       }
 
       // Establish identity for THIS channel. A real logged-in account (from
@@ -88,6 +100,7 @@ function initChat(httpServer) {
           const access = await checkStudentAccess(room, socket.data.cookies || {});
           socket.data.studentId = access.externalUserId; // internal identity key
           socket.data.displayName = access.displayName || access.externalUserId;
+          socket.data.participantType = 'student';
         } catch {
           if (!(await canAccessClass(room, socket.data.cookies || {}))) {
             socket.emit('chat:error', { message: 'برای چت باید از طریق سایت اصلی وارد شوید.' });
@@ -95,18 +108,19 @@ function initChat(httpServer) {
           }
           socket.data.studentId = `public:${socket.data.cookies[`public_class_${room}`]}`;
           socket.data.displayName = 'مهمان';
+          socket.data.participantType = 'guest';
         }
       }
 
       socket.join(room);
       // Any real logged-in account (teacher/admin/owner) counts as staff for
       // this channel's private-chat filtering — students never have one.
-      if (socket.data.username) socket.join(`staff:${room}`);
+      if (socket.data.participantType === 'staff') socket.join(`staff:${room}`);
 
       await ensureChannelStateLoaded(room);
       socket.emit('chat:state', { enabled: isChatEnabled(room) });
 
-      const isStaff = Boolean(socket.data.username);
+      const isStaff = socket.data.participantType === 'staff';
       const senderKey = socket.data.username || socket.data.studentId;
       const historyFilter =
         isPrivateMode(room) && !isStaff ? { channel: room, $or: [{ senderKey }, { senderType: 'staff' }, { senderType: 'system' }] } : { channel: room };
@@ -121,7 +135,7 @@ function initChat(httpServer) {
           text: m.text,
           kind: m.kind,
           replyTo: m.replyTo,
-          externalUserId: m.senderType === 'student' ? m.senderKey : null,
+          externalUserId: ['student', 'guest'].includes(m.senderType) ? m.senderKey : null,
           ts: m.createdAt.getTime(),
         }))
       );
@@ -138,7 +152,7 @@ function initChat(httpServer) {
         return;
       }
 
-      const isStaff = Boolean(socket.data.username);
+      const isStaff = socket.data.participantType === 'staff';
       const username = socket.data.username || socket.data.displayName;
       const senderKey = socket.data.username || socket.data.studentId;
       if (!username) return; // never joined this channel's chat — ignore
@@ -168,7 +182,7 @@ function initChat(httpServer) {
           kind: 'user',
           replyTo,
           senderKey,
-          senderType: isStaff ? 'staff' : 'student',
+          senderType: isStaff ? 'staff' : socket.data.participantType || 'student',
         });
       } catch (err) {
         console.error('[chat] failed to persist message', err);

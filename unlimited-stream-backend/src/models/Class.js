@@ -6,6 +6,8 @@ const classSchema = new mongoose.Schema(
     slug: { type: String, required: true, trim: true, lowercase: true, unique: true, index: true },
     description: { type: String, default: '', maxlength: 2000 },
     visibility: { type: String, enum: ['public', 'private'], default: 'private', index: true },
+    accessModes: { type: [String], enum: ['login', 'api', 'public', 'guest'], default: ['login'] },
+    guestAccess: { type: Boolean, default: false },
     // Kept optional for legacy streaming records; academic classes do not need a channel.
     channel: { type: String, trim: true, lowercase: true, unique: true, sparse: true, index: true },
     displayName: { type: String, default: '' },

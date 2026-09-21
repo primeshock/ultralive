@@ -168,6 +168,13 @@ router.post('/channels/:channel/access', loadOwnedChannel, async (req, res) => {
   if (!['private', 'public'].includes(mode)) return res.status(400).json({ error: 'حالت دسترسی نامعتبر است.' });
   if (mode === 'public' && (!req.targetChannel.publicAccessToken || req.body?.regenerate)) req.targetChannel.publicAccessToken = crypto.randomBytes(24).toString('hex');
   req.targetChannel.accessMode = mode;
+  if (req.targetChannel.constructor?.modelName === 'Class') {
+    const modes = new Set(req.targetChannel.accessModes || []);
+    if (mode === 'public') modes.add('public');
+    else modes.delete('public');
+    if (!modes.size) modes.add('login');
+    req.targetChannel.accessModes = [...modes];
+  }
   await req.targetChannel.save();
   res.json({ mode, publicUrl: mode === 'public' ? `${publicBaseUrl}/api/session/public/${req.targetChannel.publicAccessToken}` : null });
 });

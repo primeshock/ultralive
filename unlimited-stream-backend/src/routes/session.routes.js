@@ -70,11 +70,11 @@ router.get('/join', async (req, res) => {
 router.get('/public/:token', async (req, res) => {
   const token = req.params.token;
   const [classDoc, teacher] = await Promise.all([
-    Class.findOne({ publicAccessToken: token, accessMode: 'public' }).select('+publicAccessToken'),
+    Class.findOne({ publicAccessToken: token, $or: [{ accessMode: 'public' }, { accessModes: { $in: ['public', 'guest'] } }, { guestAccess: true }] }).select('+publicAccessToken'),
     User.findOne({ publicAccessToken: token, accessMode: 'public', role: 'teacher' }).select('+publicAccessToken'),
   ]);
   const target = classDoc || teacher;
-  if (!target) return res.status(404).send('لینک همگانی نامعتبر یا غیرفعال است.');
+  if (!target || (target.constructor?.modelName === 'Class' && !target.guestAccess && target.accessMode !== 'public' && !(target.accessModes || []).includes('guest'))) return res.status(404).send('لینک همگانی نامعتبر یا غیرفعال است.');
   const channel = streamName(target);
   res.cookie(`public_class_${channel}`, target.publicAccessToken, { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_TTL_MS });
   res.redirect(`/channel/${channel}`);

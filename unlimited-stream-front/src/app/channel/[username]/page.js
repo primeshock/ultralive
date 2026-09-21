@@ -34,7 +34,7 @@ export default function ChannelPage({ params }) {
   }, [username]);
 
   useEffect(() => {
-    api.site().then((site) => setAppearance(site.appearance || null)).catch(() => {});
+    api.site().then((site) => setAppearance((current) => current || site.appearance || null)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -57,6 +57,7 @@ export default function ChannelPage({ params }) {
         if (!cancelled) {
           setChannel(channel);
           setChatMode(channel.chatMode || "public");
+          setAppearance(channel.appearance || null);
         }
       } catch {
         if (!cancelled) setNotFound(true);
@@ -153,6 +154,7 @@ export default function ChannelPage({ params }) {
 
         <div className="flex flex-wrap items-center justify-between gap-4 px-2">
           <div>
+            {channel.organization?.logoUrl && <img src={channel.organization.logoUrl} alt={channel.organization.name || "سازمان"} className="mb-3 h-10 w-auto object-contain" />}
             <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-cyan-200/70"><Sparkles className="size-3.5" /> Ultra Live classroom</div>
             <h1 className="text-2xl font-bold tracking-tight text-white">
               {channel.streamTitle || channel.displayName || "کلاس زنده"}

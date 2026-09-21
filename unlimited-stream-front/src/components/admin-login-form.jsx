@@ -28,6 +28,8 @@ export default function AdminLoginForm() {
       setUser(user);
       if (["owner", "admin", "SUPER_OWNER", "ORGANIZATION_OWNER", "ADMIN_L1", "ADMIN_L2"].includes(user.role)) {
         router.replace("/admin");
+      } else if (["STUDENT", "student"].includes(user.role)) {
+        router.replace("/student");
       } else {
         router.replace("/");
       }

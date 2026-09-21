@@ -8,7 +8,7 @@ const chatMessageSchema = new mongoose.Schema({
   // Internal identity used for private-mode filtering — real username for
   // staff, or the WordPress user id for students. Not shown to viewers.
   senderKey: { type: String, default: null },
-  senderType: { type: String, enum: ['staff', 'student', 'system'], default: 'staff' },
+  senderType: { type: String, enum: ['staff', 'student', 'guest', 'system'], default: 'staff' },
   // Phase B: lets a message reference an earlier one it's replying to.
   replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatMessage', default: null },
   // TTL: chat history auto-expires so it doesn't grow forever — this is for

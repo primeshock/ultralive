@@ -6,6 +6,7 @@ const router = express.Router();
 const THUMBNAIL_DIR = path.join(process.cwd(), 'media', 'thumbnails');
 const THUMBNAIL_FILE_RE = /^([a-z0-9_]{3,24})\.jpg$/;
 const LOGO_DIR = path.join(process.cwd(), 'media');
+const ORGANIZATION_LOGO_RE = /^[a-f0-9]{24}\.png$/;
 
 router.get('/thumbnails/:file', (req, res) => {
   const match = THUMBNAIL_FILE_RE.exec(req.params.file);
@@ -52,6 +53,15 @@ router.get('/site-background', (req, res) => {
   res.sendFile(file, (err) => {
     if (err && !res.headersSent) res.status(404).end();
   });
+});
+
+router.get('/organization-logos/:file', (req, res) => {
+  if (!ORGANIZATION_LOGO_RE.test(req.params.file)) return res.status(404).end();
+  const file = path.join(process.cwd(), 'media', 'organizations', req.params.file);
+  res.type('image/png');
+  res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  res.sendFile(file, (err) => { if (err && !res.headersSent) res.status(404).end(); });
 });
 
 module.exports = router;

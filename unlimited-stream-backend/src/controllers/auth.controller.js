@@ -11,6 +11,13 @@ const { CONTEXT_COOKIE } = require('../utils/organizationScope');
 
 const USERNAME_RE = /^[a-z0-9_]{3,24}$/i;
 
+function authenticatedUser(user) {
+  if (['STUDENT', 'student'].includes(user.role)) {
+    return { username: user.username, displayName: user.displayName, role: user.role, organizationId: user.organizationId, status: user.status, email: user.email };
+  }
+  return ownerUser(user, { serverIp, rtmpPort, apiPort });
+}
+
 async function register(req, res) {
   const settings = await SiteSettings.get();
   if (!settings.allowPublicRegister) {
@@ -44,7 +51,7 @@ async function register(req, res) {
   const token = signToken(user._id.toString());
   setAuthCookie(res, token);
   res.clearCookie(CONTEXT_COOKIE);
-  res.status(201).json({ user: ownerUser(user, { serverIp, rtmpPort, apiPort }) });
+  res.status(201).json({ user: authenticatedUser(user) });
 }
 
 async function login(req, res) {
@@ -55,6 +62,7 @@ async function login(req, res) {
 
   const user = await User.findOne({ username: username.toLowerCase() });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  if (user.status === 'DISABLED') return res.status(401).json({ error: 'حساب کاربری غیرفعال است.' });
 
   const valid = await comparePassword(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
@@ -63,7 +71,7 @@ async function login(req, res) {
   setAuthCookie(res, token);
   res.clearCookie(CONTEXT_COOKIE);
   LoginLog.create({ username: user.username, action: 'login', ip: req.ip }).catch(() => {});
-  res.json({ user: ownerUser(user, { serverIp, rtmpPort, apiPort }) });
+  res.json({ user: authenticatedUser(user) });
 }
 
 function logout(req, res) {
@@ -85,7 +93,7 @@ function logout(req, res) {
 
 function me(req, res) {
   const activeOrganization = req.organizationContext || (req.user.organizationId ? Organization.findById(req.user.organizationId) : null);
-  Promise.resolve(activeOrganization).then((organization) => res.json({ user: ownerUser(req.user, { serverIp, rtmpPort, apiPort }), activeOrganization: organization || null }));
+  Promise.resolve(activeOrganization).then((organization) => res.json({ user: authenticatedUser(req.user), activeOrganization: organization || null }));
 }
 
 module.exports = { register, login, logout, me };

@@ -15,6 +15,12 @@ async function migrateLegacyOwnerRoles() {
   return result.modifiedCount;
 }
 
+async function migrateStudentIndexes() {
+  const indexes = await Student.collection.indexes();
+  if (indexes.some((index) => index.name === 'externalId_1')) await Student.collection.dropIndex('externalId_1');
+  await Student.collection.createIndex({ organizationId: 1, externalId: 1 }, { unique: true });
+}
+
 async function syncLegacyClasses() {
   const teachers = await User.find({ role: 'teacher' }).select('_id username displayName streamTitle streamKey accessMode managedBy organizationId');
   if (!teachers.length) return 0;
@@ -41,4 +47,4 @@ async function syncLegacyClasses() {
   return teachers.length;
 }
 
-module.exports = { backfillOrganizationIds, migrateLegacyOwnerRoles, syncLegacyClasses };
+module.exports = { backfillOrganizationIds, migrateLegacyOwnerRoles, migrateStudentIndexes, syncLegacyClasses };

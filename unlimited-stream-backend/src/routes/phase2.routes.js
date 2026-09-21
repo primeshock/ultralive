@@ -96,6 +96,8 @@ function serializeClass(classDoc) {
     slug: classDoc.slug,
     description: classDoc.description,
     visibility: classDoc.visibility,
+    accessModes: classDoc.accessModes?.length ? classDoc.accessModes : [classDoc.visibility === 'public' ? 'public' : 'login'],
+    guestAccess: Boolean(classDoc.guestAccess),
     settings: classDoc.settings,
     ownerId: classDoc.ownerId,
     createdAt: classDoc.createdAt,
@@ -104,11 +106,15 @@ function serializeClass(classDoc) {
 }
 
 function normalizedClassPayload(body = {}) {
+  const requestedModes = Array.isArray(body.accessModes) ? body.accessModes.filter((mode) => ['login', 'api', 'public', 'guest'].includes(mode)) : [];
+  const accessModes = requestedModes.length ? [...new Set(requestedModes)] : [body.visibility === 'public' ? 'public' : 'login'];
   return {
     title: String(body.title || '').trim(),
     slug: String(body.slug || '').trim().toLowerCase(),
     description: String(body.description || '').trim(),
     visibility: body.visibility === 'public' ? 'public' : 'private',
+    accessModes,
+    guestAccess: Boolean(body.guestAccess) || accessModes.includes('guest'),
     channel: String(body.channel || body.slug || '').trim().toLowerCase(),
     settings: body.settings && typeof body.settings === 'object' ? body.settings : {},
   };
@@ -126,8 +132,11 @@ router.post('/classes', async (req, res) => {
   if (!payload.title || !payload.slug) {
     return res.status(400).json({ error: 'عنوان و slug الزامی هستند.' });
   }
+  const guestAccess = payload.guestAccess || Boolean(req.organizationContext?.guestAccessDefault);
   const classDoc = await Class.create({
     ...payload,
+    accessModes: guestAccess ? [...new Set([...payload.accessModes, 'guest'])] : payload.accessModes,
+    guestAccess,
     displayName: payload.title,
     streamTitle: payload.title,
     accessMode: payload.visibility,
@@ -156,6 +165,7 @@ router.delete('/classes/:classId', loadClass, async (req, res) => {
   await Promise.all([
     Attendance.deleteMany({ sessionId: { $in: sessionIds } }),
     AdminNote.deleteMany({ classId: req.classDoc._id }),
+    ClassEnrollment.deleteMany({ classId: req.classDoc._id }),
     LiveSession.deleteMany({ classId: req.classDoc._id }),
     Class.deleteOne({ _id: req.classDoc._id }),
   ]);
