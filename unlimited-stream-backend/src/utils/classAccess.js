@@ -11,9 +11,12 @@ async function canAccessClass(channel, cookies = {}) {
       const user = await User.findById(payload.sub).select('role organizationId status');
       const target = await findStreamTarget(channel);
       if (user && user.status !== 'DISABLED' && target) {
-        if (target.constructor?.modelName !== 'Class') return user.role === 'SUPER_OWNER' || user.role === 'owner' || String(target.organizationId || '') === String(user.organizationId || '') || user.role === 'teacher';
-        if (['SUPER_OWNER', 'owner', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2', 'admin', 'teacher'].includes(user.role)) {
-          return user.role === 'SUPER_OWNER' || user.role === 'owner' || String(target.organizationId || '') === String(user.organizationId || '');
+        const staffRoles = ['SUPER_OWNER', 'owner', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2', 'admin', 'teacher'];
+        const sameOrganization = String(target.organizationId || '') === String(user.organizationId || '');
+        const managesTarget = String(target.ownerId || '') === String(user._id) || String(target.managedBy || '') === String(user._id) || target.username === channel;
+        if (target.constructor?.modelName !== 'Class') return staffRoles.includes(user.role) && (user.role === 'SUPER_OWNER' || user.role === 'owner' || sameOrganization || managesTarget);
+        if (staffRoles.includes(user.role)) {
+          return user.role === 'SUPER_OWNER' || user.role === 'owner' || sameOrganization || managesTarget;
         }
         if (['STUDENT', 'student'].includes(user.role)) {
           const student = await require('../models/Student').findOne({ userId: user._id, organizationId: target.organizationId, status: 'ACTIVE' }).select('_id');

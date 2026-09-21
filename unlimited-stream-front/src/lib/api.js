@@ -1,4 +1,6 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
+const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+const isLocalBrowser = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(browserOrigin);
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || (browserOrigin && !isLocalBrowser ? browserOrigin : "http://localhost:5050");
 export const MEDIA_URL = process.env.NEXT_PUBLIC_MEDIA_URL || "http://localhost:8000";
 export const RTMP_URL = process.env.NEXT_PUBLIC_RTMP_URL || "rtmp://localhost:1935/live";
 const API_TIMEOUT_MS = 15000;
