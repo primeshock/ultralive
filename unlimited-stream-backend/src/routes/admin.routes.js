@@ -17,12 +17,26 @@ const { uploadChannelThumbnail } = require('../controllers/user.controller');
 const { thumbnailUpload } = require('../utils/upload');
 const { clearChat, stopAutoReminder } = require('../services/chat');
 const { deleteClassArchitecture } = require('../utils/phase2Data');
+const { isSuperOwner } = require('../utils/organizationScope');
 
 const router = express.Router();
-router.use(requireAuth, requireRole('admin', 'owner'));
+router.use(requireAuth, requireRole('admin', 'owner', 'SUPER_OWNER', 'ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'));
+router.use((req, res, next) => {
+  if (['ORGANIZATION_OWNER', 'ADMIN_L1', 'ADMIN_L2'].includes(req.user.role) && !req.user.organizationId) {
+    return res.status(403).json({ error: 'حساب شما به سازمانی متصل نیست.' });
+  }
+  next();
+});
+
+function organizationChannelFilter(req) {
+  if (isSuperOwner(req.user)) {
+    return { organizationId: req.organizationContext?._id || null };
+  }
+  return { organizationId: req.user.organizationId || null };
+}
 
 async function myChannels(req) {
-  const filter = { role: 'teacher' };
+  const filter = { role: 'teacher', ...organizationChannelFilter(req) };
   if (req.user.role === 'admin') filter.managedBy = req.user._id;
   return User.find(filter).select('username displayName streamTitle donateUrl streamKey livekitIngressUrl livekitStreamKey isLive chatEnabled chatMode showViewerCount managedBy');
 }
@@ -30,7 +44,7 @@ async function myChannels(req) {
 router.get('/channels', async (req, res) => res.json(await myChannels(req)));
 
 async function loadOwnedChannel(req, res, next) {
-  const filter = { username: req.params.channel.toLowerCase(), role: 'teacher' };
+  const filter = { username: req.params.channel.toLowerCase(), role: 'teacher', ...organizationChannelFilter(req) };
   if (req.user.role === 'admin') filter.managedBy = req.user._id;
   const channel = await User.findOne(filter);
   if (!channel) return res.status(404).json({ error: 'کانال پیدا نشد.' });
@@ -63,6 +77,7 @@ router.post('/channels', async (req, res) => {
     displayName,
     streamTitle: streamTitle || '',
     role: 'teacher',
+    organizationId: organizationChannelFilter(req).organizationId,
     managedBy: req.user.role === 'admin' ? req.user._id : null,
   });
   res.status(201).json({

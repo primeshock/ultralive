@@ -90,7 +90,14 @@ export default function ChannelPage({ params }) {
   }
 
   const useLiveKit = playback.enabled || playback.mode === "livekit";
-  const canManageClass = user && ["admin", "owner"].includes(user.role);
+  const canManageClass = user && [
+    "admin",
+    "owner",
+    "SUPER_OWNER",
+    "ORGANIZATION_OWNER",
+    "ADMIN_L1",
+    "ADMIN_L2",
+  ].includes(user.role);
 
   async function handleChatMode(mode) {
     await api.setChatMode(username, mode);
