@@ -7,8 +7,10 @@ const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
 const { createStudentToken, createStaffToken, ensureIngress, deleteIngress, roomName } = require('../services/livekit');
 const { livekitEnabled, livekitWsUrl } = require('../config/env');
 const SiteSettings = require('../models/SiteSettings');
+const User = require('../models/User');
 const { withLivekitSettings } = require('../utils/livekitSettings');
-const { findStreamTarget, findScopedStreamTarget, canManageStreamTarget, streamName } = require('../utils/streamTarget');
+const { loadOrganizationContext } = require('../utils/organizationScope');
+const { findStreamTarget, findScopedStreamTarget, canManageStreamTarget, isClassTarget, streamName } = require('../utils/streamTarget');
 
 const router = express.Router();
 
@@ -34,7 +36,11 @@ router.get('/token', async (req, res) => {
     try {
       const payload = verifyToken(rawToken);
       const user = await User.findById(payload.sub);
-      const canAccess = user?.role === 'owner' || (user?.role === 'admin' && String(target.managedBy) === String(user._id));
+      req.user = user;
+      await new Promise((resolve, reject) => loadOrganizationContext(req, res, (error) => error ? reject(error) : resolve()));
+      const canAccess = user && (isClassTarget(target)
+        ? canManageStreamTarget(req, target)
+        : user.role === 'owner' || (user.role === 'admin' && String(target.managedBy) === String(user._id)));
       if (user && canAccess) {
         const participantToken = await createStaffToken({
           channel,
