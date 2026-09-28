@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const User = require('../models/User');
 const Moderation = require('../models/Moderation');
+const moderationService = require('../services/moderation');
 const MonitorLink = require('../models/MonitorLink');
 const RoomSession = require('../models/RoomSession');
 const AttendanceLog = require('../models/AttendanceLog');
@@ -243,33 +244,25 @@ router.post('/channels/:channel/moderation', loadOwnedChannel, async (req, res) 
   if (!externalUserId || !['mute', 'ban'].includes(type) || !['timed', 'permanent'].includes(scope)) {
     return res.status(400).json({ error: 'ورودی نامعتبر.' });
   }
-  if (scope === 'timed' && !minutes) return res.status(400).json({ error: 'مدت‌زمان لازم است.' });
+  if (scope === 'timed' && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1 || Number(minutes) > 525600)) return res.status(400).json({ error: 'مدت‌زمان لازم است.' });
 
-  const doc = await Moderation.create({
-    channel: req.targetChannel.username,
-    externalUserId: String(externalUserId),
-    type,
-    scope,
-    expiresAt: scope === 'timed' ? new Date(Date.now() + minutes * 60_000) : null,
-    reason: reason || '',
-    createdBy: String(req.user._id),
-  });
-  if (type === 'ban') {
-    chat.disconnectModeratedUser(req.targetChannel.username, String(externalUserId));
-    disconnectStudent(req.targetChannel.username, String(externalUserId)).catch((error) => {
-      if (!/not found|does not exist|no room/i.test(String(error.message || error))) console.error('[moderation] livekit disconnect failed', error);
-    });
-  }
+  const doc = await moderationService.restrict(req.targetChannel, externalUserId, req.body, req.user._id);
   res.status(201).json(doc);
 });
 
 router.get('/channels/:channel/moderation', loadOwnedChannel, async (req, res) => {
-  const list = await Moderation.find({ channel: req.targetChannel.username }).sort({ createdAt: -1 });
+  const list = await moderationService.list(req.targetChannel);
   res.json(list);
 });
 
 router.delete('/moderation/:id', async (req, res) => {
-  await Moderation.findByIdAndDelete(req.params.id);
+  if (!require('mongoose').isValidObjectId(req.params.id)) return res.status(404).json({ error: 'محدودیت پیدا نشد.' });
+  const doc = await Moderation.findById(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'محدودیت پیدا نشد.' });
+  const classDoc = doc.classId ? await require('../models/Class').findById(doc.classId) : null;
+  const target = await findScopedStreamTarget(req, classDoc?.slug || doc.channel);
+  if (!target || !canManageStreamTarget(req, target)) return res.status(403).json({ error: 'دسترسی ندارید.' });
+  await moderationService.remove(target, doc);
   res.status(204).end();
 });
 

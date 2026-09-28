@@ -22,9 +22,7 @@ async function checkStudentAccess(channel, cookies) {
     session.expiresAt > new Date();
   if (!valid) throw new Error('session no longer valid');
 
-  const ban = await Moderation.findOne({ channel, externalUserId: payload.externalUserId, type: 'ban' }).sort({
-    createdAt: -1,
-  });
+  const ban = await require('../services/moderation').active(channel, payload.externalUserId, 'ban');
   if (Moderation.isActive(ban)) throw new Error('banned');
 
   session.lastSeenAt = new Date();

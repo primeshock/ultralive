@@ -7,6 +7,7 @@ const LiveSession = require('../models/LiveSession');
 const Attendance = require('../models/Attendance');
 const AdminNote = require('../models/AdminNote');
 const Moderation = require('../models/Moderation');
+const moderationService = require('../services/moderation');
 const Student = require('../models/Student');
 const User = require('../models/User');
 const { hashPassword } = require('../utils/password');
@@ -225,39 +226,43 @@ router.post('/classes/:classId/notes', loadClass, async (req, res) => {
   res.status(201).json(note);
 });
 
+// Keep enrolled, previously present, and restricted students visible after a ban.
+router.get('/classes/:classId/moderation-students', loadClass, async (req, res) => {
+  const classId = req.classDoc._id;
+  const enrollment = await require('../models/ClassEnrollment').find({ classId }).select('studentId').lean();
+  const sessions = await LiveSession.find({ classId }).select('_id').lean();
+  const present = await Attendance.find({ sessionId: { $in: sessions.map((item) => item._id) } }).select('studentId').lean();
+  const restrictions = await moderationService.list(req.classDoc);
+  const ids = [...enrollment, ...present, ...restrictions].map((row) => row.studentId?._id || row.studentId).filter(Boolean);
+  const students = await Student.find({ _id: { $in: ids }, organizationId: req.classDoc.organizationId || null }).select('externalId name').lean();
+  const rows = new Map(students.map((student) => [student.externalId, student]));
+  for (const item of restrictions) if (!rows.has(item.externalUserId)) rows.set(item.externalUserId, { externalId: item.externalUserId, name: item.externalUserId });
+  res.json([...rows.values()]);
+});
+
 router.get('/classes/:classId/moderation', loadClass, async (req, res) => {
-  const list = await Moderation.find({ classId: req.classDoc._id }).sort({ createdAt: -1 }).populate('studentId', 'externalId name');
+  const list = await moderationService.list(req.classDoc);
   res.json(list);
 });
 
 router.post('/classes/:classId/moderation', loadClass, async (req, res) => {
-  const { studentId, type, scope, minutes, reason } = req.body || {};
-  if (!mongoose.isValidObjectId(studentId) || !['mute', 'ban'].includes(type) || !['timed', 'permanent'].includes(scope)) {
+  const { studentId, externalUserId, type, scope, minutes, reason } = req.body || {};
+  if ((!mongoose.isValidObjectId(studentId) && !externalUserId) || !['mute', 'ban'].includes(type) || !['timed', 'permanent'].includes(scope)) {
     return res.status(400).json({ error: 'ورودی محدودیت نامعتبر است.' });
   }
-  if (scope === 'timed' && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1)) {
+  if (scope === 'timed' && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1 || Number(minutes) > 525600)) {
     return res.status(400).json({ error: 'مدت محدودیت نامعتبر است.' });
   }
-  const student = await Student.findOne({ _id: studentId, organizationId: req.classDoc.organizationId }).select('externalId name');
-  if (!student) return res.status(404).json({ error: 'دانش‌آموز پیدا نشد.' });
-  const moderation = await Moderation.create({
-    classId: req.classDoc._id,
-    studentId: student._id,
-    externalUserId: student.externalId,
-    type,
-    scope,
-    expiresAt: scope === 'timed' ? new Date(Date.now() + Number(minutes) * 60_000) : null,
-    reason: String(reason || '').trim(),
-    createdBy: String(req.user._id),
-  });
-  await moderation.populate('studentId', 'externalId name');
+  const student = mongoose.isValidObjectId(studentId) ? await Student.findOne({ _id: studentId, organizationId: req.classDoc.organizationId }).select('externalId name') : null;
+  if (studentId && !student) return res.status(404).json({ error: 'دانش‌آموز پیدا نشد.' });
+  const moderation = await moderationService.restrict(req.classDoc, student?.externalId || externalUserId, req.body, req.user._id);
   res.status(201).json(moderation);
 });
 
 router.delete('/classes/:classId/moderation/:moderationId', loadClass, async (req, res) => {
-  const moderation = await Moderation.findOne({ _id: req.params.moderationId, classId: req.classDoc._id });
+  const moderation = await Moderation.findOne({ _id: req.params.moderationId, ...moderationService.targetFilter(req.classDoc) });
   if (!moderation) return res.status(404).json({ error: 'محدودیت پیدا نشد.' });
-  await moderation.deleteOne();
+  await moderationService.remove(req.classDoc, moderation);
   res.status(204).end();
 });
 

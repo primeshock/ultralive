@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useModeration } from "@/lib/use-moderation";
 import { api, RTMP_URL } from "@/lib/api";
 import { OrganizationManagement } from "@/components/organization-management";
 import { OrganizationWorkspace } from "@/components/organization-workspace";
@@ -106,14 +107,31 @@ function AcademicClassForm({ initial, onCancel, onSave, saving }) {
 }
 
 function LegacyAcademicModeration({ classId, attendance }) {
-  const [moderation, setModeration] = useState([]); const [message, setMessage] = useState(""); const [busy, setBusy] = useState("");
-  async function load() { setModeration(await api.classModeration(classId)); }
-  useEffect(() => { Promise.resolve().then(load).catch((err) => setMessage(err.message)); }, [classId]);
-  async function change(studentId, type) { setBusy(`${type}:${studentId}`); try { await api.moderateStudent(classId, { studentId, type, scope: "permanent", reason: "مدیریت کلاس" }); await load(); setMessage(type === "ban" ? "دانش‌آموز مسدود شد." : "دانش‌آموز ساکت شد."); } catch (err) { setMessage(err.message); } finally { setBusy(""); } }
-  async function remove(item) { setBusy(item._id); try { await api.removeClassModeration(classId, item._id); await load(); setMessage("محدودیت برداشته شد."); } catch (err) { setMessage(err.message); } finally { setBusy(""); } }
-  const students = [...new Map((attendance || []).filter((row) => row.studentId?._id).map((row) => [String(row.studentId._id), row.studentId])).values()];
-  const restrictionFor = (studentId) => moderation.find((item) => String(item.studentId?._id || item.studentId) === String(studentId) && (item.scope === "permanent" || new Date(item.expiresAt) > new Date()));
-  return <Card><CardHeader><CardTitle className="text-base">مدیریت محدودیت دانش‌آموزان</CardTitle></CardHeader><CardContent className="space-y-3">{message && <p className="text-sm text-muted-foreground">{message}</p>}{students.length ? students.map((student) => { const restriction = restrictionFor(student._id); return <div key={student._id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm"><div><p className="font-medium">{student.name || "بدون نام"}</p><p className="text-xs text-muted-foreground" dir="ltr">{student.externalId}</p></div><div className="flex flex-wrap gap-2">{restriction ? <><Badge variant="destructive">{restriction.type === "ban" ? "مسدود" : "ساکت"}</Badge><Button size="sm" variant="outline" onClick={() => void remove(restriction)} disabled={busy === restriction._id}>رفع محدودیت</Button></> : <><Button size="sm" variant="outline" onClick={() => void change(student._id, "mute")} disabled={Boolean(busy)}>ساکت‌کردن</Button><Button size="sm" variant="destructive" onClick={() => void change(student._id, "ban")} disabled={Boolean(busy)}>مسدودکردن</Button></>}</div></div>; }) : <Empty>دانش‌آموزی در جلسه اخیر این کلاس ثبت نشده است.</Empty>}</CardContent></Card>;
+  const moderation = useModeration(classId, "class");
+  const [roster, setRoster] = useState([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    api.classModerationStudents(classId).then((rows) => { if (!cancelled) { setRoster(rows); setError(""); } }).catch((err) => { if (!cancelled) setError(err.message); });
+    return () => { cancelled = true; };
+  }, [classId, moderation.items]);
+  const students = [...new Map([
+    ...(attendance || []).map((row) => row.studentId).filter((student) => student?.externalId),
+    ...roster,
+    ...moderation.items.map((item) => item.studentId || { externalId: item.externalUserId, name: item.externalUserId }),
+  ].map((student) => [student.externalId, student])).values()];
+  return <Card><CardHeader><CardTitle className="text-base">مدیریت محدودیت دانش‌آموزان</CardTitle></CardHeader><CardContent className="space-y-3">
+    {(error || moderation.error) && <p role="alert" className="text-sm text-destructive">{error || moderation.error}</p>}
+    {students.length ? students.map((student) => <div key={student.externalId} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
+      <div><p className="font-medium">{student.name || student.externalId}</p><p className="text-xs text-muted-foreground" dir="ltr">{student.externalId}</p></div>
+      <div className="flex flex-wrap gap-2">{["mute", "ban"].map((type) => {
+        const active = moderation.restrictionFor(student.externalId, type);
+        return <Button key={type} size="sm" variant={type === "ban" ? "destructive" : "outline"} disabled={moderation.busy || !moderation.ready} onClick={() => void moderation.change(student, type)}>
+          {type === "ban" ? (active ? "رفع بن (Unban)" : "مسدودکردن") : (active ? "رفع سکوت (Unmute)" : "ساکت‌کردن")}
+        </Button>;
+      })}</div>
+    </div>) : <Empty>دانش‌آموزی برای این کلاس ثبت نشده است.</Empty>}
+  </CardContent></Card>;
 }
 
 function ClassAccessControls({ selected, onUpdated }) {

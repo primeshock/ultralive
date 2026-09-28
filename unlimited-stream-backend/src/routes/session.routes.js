@@ -23,9 +23,7 @@ router.get('/join', async (req, res) => {
   const target = await findStreamTarget(channel);
   if (!target) return res.status(404).send('کلاس پیدا نشد.');
 
-  const ban = await Moderation.findOne({ channel, externalUserId: payload.userId, type: 'ban' }).sort({
-    createdAt: -1,
-  });
+  const ban = await require('../services/moderation').active(channel, payload.userId, 'ban');
   if (Moderation.isActive(ban)) {
     return res
       .status(403)

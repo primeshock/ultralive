@@ -19,13 +19,14 @@ async function canAccessClass(channel, cookies = {}) {
           return user.role === 'SUPER_OWNER' || user.role === 'owner' || sameOrganization || managesTarget;
         }
         if (['STUDENT', 'student'].includes(user.role)) {
-          const student = await require('../models/Student').findOne({ userId: user._id, organizationId: target.organizationId, status: 'ACTIVE' }).select('_id');
+          const student = await require('../models/Student').findOne({ userId: user._id, organizationId: target.organizationId, status: 'ACTIVE' }).select('_id externalId');
+          if (student && await require('../services/moderation').active(channel, student.externalId, 'ban')) return false;
           return Boolean(student && await ClassEnrollment.exists({ classId: target._id, studentId: student._id, organizationId: target.organizationId }));
         }
       }
     }
   } catch {}
-  try { await checkStudentAccess(channel, cookies); return true; } catch {}
+  try { await checkStudentAccess(channel, cookies); return true; } catch (error) { if (error.message === 'banned') return false; }
   const target = await findStreamTarget(channel);
   if (!target) return false;
   const modes = target.accessModes?.length ? target.accessModes : target.accessMode === 'public' || target.visibility === 'public' ? ['public'] : [];

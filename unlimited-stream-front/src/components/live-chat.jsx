@@ -14,7 +14,7 @@ import {
 import { getSocket } from "@/lib/socket";
 import { useAuth } from "@/lib/auth-context";
 import { linkifyParts } from "@/lib/linkify";
-import { api } from "@/lib/api";
+import { useModeration } from "@/lib/use-moderation";
 
 const EMOJIS = ["😀", "😂", "❤️", "👍", "👎", "🎉", "🤔", "😢", "🔥", "🙏"];
 
@@ -42,6 +42,8 @@ export function LiveChat({ channel, initialEnabled = true }) {
   const bottomRef = useRef(null);
 
   const canModerate = user && ["admin", "owner", "SUPER_OWNER", "ORGANIZATION_OWNER", "ADMIN_L1", "ADMIN_L2"].includes(user.role);
+
+  const moderation = useModeration(channel, "channel", Boolean(canModerate));
 
   // NOTE: this used to bail out entirely when `user` was falsy, which meant a
   // student (no real logged-in account, only a room-session cookie) could
@@ -120,18 +122,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
   }
 
   async function handleModeration(message, type, scope) {
-    try {
-      await api.moderate(channel, {
-        externalUserId: message.externalUserId || message.username,
-        type,
-        scope,
-        minutes: scope === "timed" ? 10 : undefined,
-        reason: `اعمال از چت توسط ${user.username}`,
-      });
-    } catch (err) {
-      setSendError(err.message);
-      setTimeout(() => setSendError(""), 3000);
-    }
+    await moderation.change({ externalUserId: message.externalUserId }, type, scope);
   }
 
   function findMessage(id) {
@@ -183,10 +174,16 @@ export function LiveChat({ channel, initialEnabled = true }) {
                         <MoreVertical className="size-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-32 space-y-1 rounded-2xl border border-white/20 bg-slate-900/55 p-1.5 text-center shadow-2xl shadow-slate-950/40 backdrop-blur-2xl supports-[backdrop-filter]:bg-white/[0.08]">
-                        <DropdownMenuItem className="justify-center rounded-lg border border-sky-300/25 bg-sky-400/10 px-2 py-1.5 text-center text-xs text-sky-100 shadow-inner shadow-white/5 focus:bg-sky-400/20 focus:text-white" onClick={() => handleModeration(m, "mute", "permanent")}>سکوت</DropdownMenuItem>
-                        <DropdownMenuItem className="justify-center rounded-lg border border-rose-300/25 bg-rose-400/10 px-2 py-1.5 text-center text-xs text-rose-100 shadow-inner shadow-white/5 focus:bg-rose-400/20 focus:text-white" onClick={() => handleModeration(m, "ban", "permanent")}>بن</DropdownMenuItem>
-                        <DropdownMenuItem className="justify-center rounded-lg border border-sky-300/25 bg-sky-400/10 px-2 py-1.5 text-center text-xs text-sky-100 shadow-inner shadow-white/5 focus:bg-sky-400/20 focus:text-white" onClick={() => handleModeration(m, "mute", "timed")}>سکوت ۱۰ دقیقه</DropdownMenuItem>
-                        <DropdownMenuItem className="justify-center rounded-lg border border-rose-300/25 bg-rose-400/10 px-2 py-1.5 text-center text-xs text-rose-100 shadow-inner shadow-white/5 focus:bg-rose-400/20 focus:text-white" onClick={() => handleModeration(m, "ban", "timed")}>بن ۱۰ دقیقه</DropdownMenuItem>
+                        {["mute", "ban"].map((type) => {
+                          const active = moderation.restrictionFor(m.externalUserId, type);
+                          const label = type === "ban" ? "بن" : "سکوت";
+                          return <div key={type}>
+                            <DropdownMenuItem disabled={moderation.busy || !moderation.ready} className="justify-center text-xs text-white" onClick={() => handleModeration(m, type, "permanent")}>
+                              {active ? (type === "ban" ? "رفع بن (Unban)" : "رفع سکوت (Unmute)") : label}
+                            </DropdownMenuItem>
+                            {!active && <DropdownMenuItem disabled={moderation.busy || !moderation.ready} className="justify-center text-xs text-white" onClick={() => handleModeration(m, type, "timed")}>{label} ۱۰ دقیقه</DropdownMenuItem>}
+                          </div>;
+                        })}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -201,6 +198,7 @@ export function LiveChat({ channel, initialEnabled = true }) {
       {!chatEnabled && (
         <p className="border-t border-white/10 bg-black/20 py-2 text-center text-xs text-white/50">چت توسط استریمر بسته شده</p>
       )}
+      {moderation.error && <p role="alert" className="text-xs text-center text-destructive py-1">{moderation.error}</p>}
       {sendError && <p className="text-xs text-center text-destructive py-1">{sendError}</p>}
 
       {replyTarget && (

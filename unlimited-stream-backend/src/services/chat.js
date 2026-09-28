@@ -112,6 +112,10 @@ function initChat(httpServer) {
         }
       }
 
+      if (socket.data.studentId && await require('./moderation').active(room, socket.data.studentId, 'ban')) {
+        socket.emit('chat:error', { message: 'شما از این کلاس محروم شده‌اید.' });
+        return;
+      }
       socket.join(room);
       // Any real logged-in account (teacher/admin/owner) counts as staff for
       // this channel's private-chat filtering — students never have one.
@@ -121,9 +125,9 @@ function initChat(httpServer) {
       socket.emit('chat:state', { enabled: isChatEnabled(room) });
 
       const isStaff = socket.data.participantType === 'staff';
-      const senderKey = socket.data.username || socket.data.studentId;
+      const senderKey = socket.data.participantType === 'staff' ? socket.data.username : socket.data.studentId;
       const historyFilter =
-        isPrivateMode(room) && !isStaff ? { channel: room, $or: [{ senderKey }, { senderType: 'staff' }, { senderType: 'system' }] } : { channel: room };
+        isPrivateMode(room) && !isStaff ? { channel: room, $or: [{ senderKey: { $in: [senderKey, socket.data.username].filter(Boolean) } }, { senderType: 'staff' }, { senderType: 'system' }] } : { channel: room };
 
       const history = await ChatMessage.find(historyFilter).sort({ createdAt: -1 }).limit(HISTORY_LIMIT).lean();
       history.reverse();
@@ -145,7 +149,7 @@ function initChat(httpServer) {
       const channel = payload && typeof payload.channel === 'string' ? payload.channel.toLowerCase() : null;
       const text = payload && typeof payload.text === 'string' ? payload.text.trim().slice(0, 300) : '';
       const replyTo = payload && typeof payload.replyTo === 'string' ? payload.replyTo : null;
-      if (!channel || !text) return;
+      if (!channel || !text || !socket.rooms.has(channel)) return;
 
       if (!isChatEnabled(channel)) {
         socket.emit('chat:error', { message: 'چت توسط استریمر بسته شده' });
@@ -154,7 +158,7 @@ function initChat(httpServer) {
 
       const isStaff = socket.data.participantType === 'staff';
       const username = socket.data.username || socket.data.displayName;
-      const senderKey = socket.data.username || socket.data.studentId;
+      const senderKey = socket.data.participantType === 'staff' ? socket.data.username : socket.data.studentId;
       if (!username) return; // never joined this channel's chat — ignore
 
       if (isMuted(channel, socket.data.username || '')) {
@@ -162,11 +166,11 @@ function initChat(httpServer) {
         return;
       }
       if (socket.data.studentId) {
-        const activeMute = await Moderation.findOne({
-          channel,
-          externalUserId: socket.data.studentId,
-          type: 'mute',
-        }).sort({ createdAt: -1 });
+        if (await require('./moderation').active(channel, socket.data.studentId, 'ban')) {
+          socket.emit('chat:error', { message: 'شما از این کلاس محروم شده‌اید.' });
+          return;
+        }
+        const activeMute = await require('./moderation').active(channel, socket.data.studentId, 'mute');
         if (Moderation.isActive(activeMute)) {
           socket.emit('chat:error', { message: 'شما موقتاً سکوت داده شده‌اید.' });
           return;
