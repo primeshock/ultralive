@@ -9,20 +9,20 @@ export function ContentViewer({ content }) {
   const src = `${API_URL}${content.url}`;
   const mime = content.mime || "";
   return (
-    <div className="absolute inset-0 overflow-hidden bg-slate-950/70">
+    <div className="absolute inset-0 overflow-hidden bg-[var(--pop)]">
       {mime === "application/pdf" && <iframe title={content.name} src={`${src}#view=FitH&toolbar=1`} className="absolute inset-0 h-full w-full border-0 bg-white" />}
       {mime.startsWith("image/") && (
         <div className="absolute inset-0 flex items-center justify-center p-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt={content.name} className="max-h-full max-w-full rounded-md object-contain shadow-2xl" />
+          <img src={src} alt={content.name} className="max-h-full max-w-full rounded-md object-contain" />
         </div>
       )}
       {mime.startsWith("video/") && (
         <div className="absolute inset-0 flex items-center justify-center p-3">
-          <video src={src} controls controlsList="nofullscreen noremoteplayback" playsInline className="max-h-full max-w-full rounded-md bg-black object-contain shadow-2xl" />
+          <video src={src} controls controlsList="nofullscreen noremoteplayback" playsInline className="max-h-full max-w-full rounded-md bg-black object-contain" />
         </div>
       )}
-      {mime.startsWith("audio/") && <div className="absolute inset-0 grid place-items-center p-6"><div className="w-full max-w-md space-y-3 text-center"><p className="text-sm text-white/80">{content.name}</p><audio src={src} controls className="w-full" /></div></div>}
+      {mime.startsWith("audio/") && <div className="absolute inset-0 grid place-items-center p-6"><div className="w-full max-w-md space-y-3 text-center"><p className="text-sm text-[var(--ink)]">{content.name}</p><audio src={src} controls className="w-full" /></div></div>}
     </div>
   );
 }

@@ -14,9 +14,9 @@ export function ModeSwitch({ channel, mode, onChange, className = "" }) {
     try { await api.meetingMode(channel, next); onChange?.(next); } finally { setBusy(false); }
   }
   return (
-    <div className={`inline-flex rounded-xl border border-white/15 bg-white/8 p-1 text-xs backdrop-blur ${className}`} role="group" aria-label="حالت کلاس">
+    <div className={`inline-flex rounded-lg border border-[var(--line-strong)] bg-[var(--s2)] p-1 text-xs ${className}`} role="group" aria-label="حالت کلاس">
       {items.map(([value, label, Icon]) => (
-        <button key={value} onClick={() => pick(value)} disabled={busy} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${mode === value ? "bg-sky-500 text-white shadow" : "text-white/70 hover:bg-white/10"}`}>
+        <button key={value} onClick={() => pick(value)} disabled={busy} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${mode === value ? "bg-[var(--accent)] text-white shadow" : "text-[var(--ink-2)] hover:bg-[var(--s2)]"}`}>
           <Icon className="size-3.5" />{label}
         </button>
       ))}

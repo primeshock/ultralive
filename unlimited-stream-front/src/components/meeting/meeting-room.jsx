@@ -32,7 +32,7 @@ function useSecondTick() {
 function ClassClock() {
   const [seconds, setSeconds] = useState(0);
   useEffect(() => { const id = setInterval(() => setSeconds((x) => x + 1), 1000); return () => clearInterval(id); }, []);
-  return <span className="flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-xs tabular-nums" dir="ltr"><Clock className="size-3.5 text-sky-300" />{clock(seconds)}</span>;
+  return <span className="flex items-center gap-1.5 rounded-full bg-[var(--s2)] px-3 py-1.5 text-xs tabular-nums" dir="ltr"><Clock className="size-3.5 text-[var(--accent-ink)]" />{clock(seconds)}</span>;
 }
 
 // Countdown to a scheduled class end (header pill for the host, floating banner for everyone else).
@@ -40,14 +40,14 @@ function EndCountdown({ endsAt, floating }) {
   const now = useSecondTick();
   const remaining = Math.max(0, Math.round((endsAt - (now || endsAt - 1000)) / 1000));
   const text = `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`;
-  if (floating) return <div className="pointer-events-none absolute inset-x-0 top-14 z-30 mx-auto w-fit rounded-full bg-rose-500/90 px-4 py-1.5 text-xs shadow-lg">کلاس تا {text} دیگر بسته می‌شود</div>;
+  if (floating) return <div className="pointer-events-none absolute inset-x-0 top-14 z-30 mx-auto w-fit rounded-full bg-rose-500/90 px-4 py-1.5 text-xs">کلاس تا {text} دیگر بسته می‌شود</div>;
   return <span className="flex items-center gap-1.5 rounded-full bg-rose-500/25 px-3 py-1.5 text-xs tabular-nums text-rose-100" dir="ltr"><Timer className="size-3.5" />{text}</span>;
 }
 
 function ToolButton({ icon: Icon, label, onClick, active, danger, showLabel }) {
-  const tone = danger ? "bg-rose-500/90 text-white hover:bg-rose-400" : active ? "bg-sky-500/90 text-white hover:bg-sky-400" : "glass-btn text-white";
+  const tone = danger ? "bg-rose-500/90 text-white hover:bg-rose-400" : active ? "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]" : "glass-btn text-white";
   const btn = (
-    <button onClick={onClick} aria-label={label} className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-medium transition ${tone}`}>
+    <button onClick={onClick} aria-label={label} className={`flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-medium transition ${tone}`}>
       <Icon className="size-[18px]" />{showLabel && <span className="whitespace-nowrap">{label}</span>}
     </button>
   );
@@ -287,10 +287,10 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
   const updateSettings = (patch) => { setSettings((c) => ({ ...c, ...patch })); api.meetingSettings(channel, patch).catch(() => {}); };
 
   if (state === "failed") {
-    return <div className="grid h-full place-items-center p-8 text-center text-white"><div><WifiOff className="mx-auto mb-3 size-8 text-rose-300" /><p className="font-medium">اتصال به کلاس برقرار نشد</p><p className="mt-1 text-sm text-white/55">{error}</p><div className="mt-4 flex flex-wrap items-center justify-center gap-3"><button onClick={() => window.location.reload()} className="rounded-xl bg-sky-500 px-4 py-2 text-sm">تلاش دوباره</button>{isStaff && <ModeSwitch channel={channel} mode={mode} onChange={onModeChange} />}</div></div></div>;
+    return <div className="grid h-full place-items-center p-8 text-center text-white"><div><WifiOff className="mx-auto mb-3 size-8 text-rose-300" /><p className="font-medium">اتصال به کلاس برقرار نشد</p><p className="mt-1 text-sm text-[var(--ink-3)]">{error}</p><div className="mt-4 flex flex-wrap items-center justify-center gap-3"><button onClick={() => window.location.reload()} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm">تلاش دوباره</button>{isStaff && <ModeSwitch channel={channel} mode={mode} onChange={onModeChange} />}</div></div></div>;
   }
   if (ended) {
-    return <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell grid h-dvh place-items-center text-center text-white"><div><PhoneOff className="mx-auto mb-4 size-10 text-sky-300" /><h2 className="text-lg font-semibold">کلاس به پایان رسید</h2><p className="mt-1 text-sm text-white/60">از حضور شما سپاسگزاریم.</p><button onClick={onLeave} className="mt-5 rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-medium">خروج</button></div></div>;
+    return <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell grid h-dvh place-items-center text-center text-white"><div><PhoneOff className="mx-auto mb-4 size-10 text-[var(--accent-ink)]" /><h2 className="text-lg font-semibold">کلاس به پایان رسید</h2><p className="mt-1 text-sm text-[var(--ink-2)]">از حضور شما سپاسگزاریم.</p><button onClick={onLeave} className="mt-5 rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-medium">خروج</button></div></div>;
   }
 
   const sideMode = side === "auto" ? "normal" : side;
@@ -300,48 +300,48 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
 
   return (
     <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell relative flex h-dvh w-full max-w-full flex-col overflow-hidden text-white">
-      <header className="relative z-30 flex items-center justify-between gap-3 border-b border-white/8 bg-white/[.03] px-4 py-2 backdrop-blur-xl">
+      <header className="relative z-30 flex items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--s1)] px-4 py-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 shadow-lg shadow-sky-500/20"><Video className="size-4" /></span>
-          <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{title}</h1><p className="truncate text-[11px] text-white/50">{organization || "کلاس آنلاین"}</p></div>
+          <span className="grid size-8 place-items-center rounded-lg bg-[var(--accent)] text-white"><Video className="size-4" /></span>
+          <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{title}</h1><p className="truncate text-[11px] text-[var(--ink-3)]">{organization || "کلاس آنلاین"}</p></div>
         </div>
         <div className="flex items-center gap-2">
           {endsAt && <EndCountdown endsAt={endsAt} />}
           <ClassClock />
-          {local && <span className="hidden items-center gap-1.5 rounded-full bg-white/8 px-2.5 py-1.5 sm:flex"><Quality value={local.connectionQuality} /></span>}
+          {local && <span className="hidden items-center gap-1.5 rounded-full bg-[var(--s2)] px-2.5 py-1.5 sm:flex"><Quality value={local.connectionQuality} /></span>}
           {isStaff && <HeaderActions channel={channel} settings={settings} mode={mode} onMode={onModeChange} onSettings={updateSettings} flash={flash} endsAt={endsAt} rec={rec} onRec={recAction} />}
-          <Tip label="تمام‌صفحه"><button onClick={() => document.documentElement.requestFullscreen?.()} className="hidden size-8 place-items-center rounded-xl bg-white/8 hover:bg-white/15 md:grid" aria-label="تمام‌صفحه"><Maximize2 className="size-4" /></button></Tip>
-          <Tip label="خروج از کلاس"><button onClick={() => { room?.disconnect(); onLeave?.(); }} aria-label="خروج از کلاس" className="grid size-8 place-items-center rounded-xl bg-white/8 text-white/85 transition hover:bg-rose-500/80 hover:text-white"><LogOut className="size-4" /></button></Tip>
+          <Tip label="تمام‌صفحه"><button onClick={() => document.documentElement.requestFullscreen?.()} className="hidden size-8 place-items-center rounded-lg bg-[var(--s2)] hover:bg-[var(--s3)] md:grid" aria-label="تمام‌صفحه"><Maximize2 className="size-4" /></button></Tip>
+          <Tip label="خروج از کلاس"><button onClick={() => { room?.disconnect(); onLeave?.(); }} aria-label="خروج از کلاس" className="grid size-8 place-items-center rounded-lg bg-[var(--s2)] text-[var(--ink)] transition hover:bg-rose-500/80 hover:text-white"><LogOut className="size-4" /></button></Tip>
         </div>
       </header>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pb-24 md:flex-row md:overflow-hidden md:pb-2">
         {sideMode === "hidden" ? (
-          <button onClick={() => setSide("auto")} title="باز کردن چت و افراد" aria-label="باز کردن چت و افراد" className="flex h-10 w-full shrink-0 items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] text-white/75 backdrop-blur-xl transition hover:bg-white/12 hover:text-white md:h-auto md:w-10 md:flex-col md:py-4"><PanelRightOpen className="size-4" /><MessageSquare className="size-4" /><Users className="size-4" /></button>
+          <button onClick={() => setSide("auto")} title="باز کردن چت و افراد" aria-label="باز کردن چت و افراد" className="flex h-10 w-full shrink-0 items-center justify-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--s1)] text-[var(--ink-2)] transition hover:bg-[var(--s2)] hover:text-white md:h-auto md:w-10 md:flex-col md:py-4"><PanelRightOpen className="size-4" /><MessageSquare className="size-4" /><Users className="size-4" /></button>
         ) : (
           <div className={`contents md:flex md:min-h-0 md:shrink-0 md:flex-col md:gap-2 ${sideWidth}`}>
             {withCamera.length > 0 && !camMax && (
-              <section className="order-1 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[.04] backdrop-blur-xl md:order-none">
-                <header className="flex items-center justify-between gap-2 px-3 py-1.5 text-[11px] text-white/70">
-                  <span className="flex items-center gap-1.5"><Video className="size-3.5 text-sky-300" />دوربین‌ها ({withCamera.length})</span>
-                  <Tip label="بزرگ کردن"><button onClick={() => setCamMax(true)} aria-label="بزرگ کردن دوربین‌ها" className="grid size-6 place-items-center rounded-md text-white/65 transition hover:bg-white/12 hover:text-white"><Maximize2 className="size-3.5" /></button></Tip>
+              <section className="order-1 shrink-0 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--s1)] md:order-none">
+                <header className="flex items-center justify-between gap-2 px-3 py-1.5 text-[11px] text-[var(--ink-2)]">
+                  <span className="flex items-center gap-1.5"><Video className="size-3.5 text-[var(--accent-ink)]" />دوربین‌ها ({withCamera.length})</span>
+                  <Tip label="بزرگ کردن"><button onClick={() => setCamMax(true)} aria-label="بزرگ کردن دوربین‌ها" className="grid size-6 place-items-center rounded-md text-[var(--ink-2)] transition hover:bg-[var(--s2)] hover:text-white"><Maximize2 className="size-3.5" /></button></Tip>
                 </header>
                 <div className={`grid max-h-[36vh] gap-1.5 overflow-y-auto p-1.5 pt-0 ${withCamera.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
                   {withCamera.map((p) => <ParticipantTile key={p.identity} compact zoom participant={p} />)}
                 </div>
               </section>
             )}
-          <aside className="order-3 flex min-h-[420px] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[.04] backdrop-blur-xl md:order-none md:min-h-0">
-            <div className="flex shrink-0 items-center gap-1 border-b border-white/8 p-1">
+          <aside className="order-3 flex min-h-[420px] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--s1)] md:order-none md:min-h-0">
+            <div className="flex shrink-0 items-center gap-1 border-b border-[var(--line)] p-1">
               <nav className="flex flex-1 gap-0.5">
                 {tabs.map(([id, label, Icon]) => (
-                  <button key={id} onClick={() => setTab(id)} title={label} className={`relative flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] transition ${tab === id ? "bg-sky-500/20 text-sky-100" : "text-white/55 hover:bg-white/8"}`}>
+                  <button key={id} onClick={() => setTab(id)} title={label} className={`relative flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] transition ${tab === id ? "bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "text-[var(--ink-3)] hover:bg-[var(--s2)]"}`}>
                     <Icon className="size-3.5" /><span>{label}</span>
                     {id === "people" && isStaff && handCount > 0 && <span className="absolute left-1.5 top-1 size-2 rounded-full bg-amber-400" />}
                   </button>
                 ))}
               </nav>
-              <button title="بستن پنل" aria-label="بستن پنل" onClick={() => setSide("hidden")} className="grid size-7 place-items-center rounded-lg text-white/60 hover:bg-white/10"><PanelRightClose className="size-3.5" /></button>
+              <button title="بستن پنل" aria-label="بستن پنل" onClick={() => setSide("hidden")} className="grid size-7 place-items-center rounded-lg text-[var(--ink-2)] hover:bg-[var(--s2)]"><PanelRightClose className="size-3.5" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto"><PanelBoundary key={tab}>
               {tab === "chat" && (
@@ -361,14 +361,14 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
 
         <main className="order-2 flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden max-md:min-h-[58vh] md:order-none">
           {state !== "connected" && !room ? (
-            <div className="grid flex-1 place-items-center text-white/60"><div className="text-center"><Loader2 className="mx-auto mb-3 size-7 animate-spin text-sky-300" />در حال اتصال به کلاس...</div></div>
+            <div className="grid flex-1 place-items-center text-[var(--ink-2)]"><div className="text-center"><Loader2 className="mx-auto mb-3 size-7 animate-spin text-[var(--accent-ink)]" />در حال اتصال به کلاس...</div></div>
           ) : panels.length > 0 ? (
             <PanelBoundary><Stage panels={panels} /></PanelBoundary>
           ) : (
-            <div className="grid min-h-0 flex-1 place-items-center text-center text-white/35"><div><BarChart3 className="mx-auto mb-2 size-7 opacity-40" /><p className="text-sm">ارائه شروع نشده است</p></div></div>
+            <div className="grid min-h-0 flex-1 place-items-center text-center text-[var(--ink-3)]"><div><BarChart3 className="mx-auto mb-2 size-7 opacity-40" /><p className="text-sm">ارائه شروع نشده است</p></div></div>
           )}
 
-          <div className="flex flex-wrap items-center justify-center gap-2 pb-0.5 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:bg-[#0a1020]/80 max-md:px-2 max-md:pb-[max(0.5rem,env(safe-area-inset-bottom))] max-md:pt-2 max-md:backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-center gap-2 pb-0.5 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:bg-[var(--ground)]/90 max-md:px-2 max-md:pb-[max(0.5rem,env(safe-area-inset-bottom))] max-md:pt-2 max-md:">
             {canUse("microphone") && <ToolButton icon={micOn ? Mic : MicOff} label={micOn ? "بستن میکروفون" : "میکروفون"} active={micOn} onClick={() => toggle("mic")} />}
             {canUse("camera") && <ToolButton icon={camOn ? Video : VideoOff} label={camOn ? "بستن دوربین" : "دوربین"} active={camOn} onClick={() => toggle("cam")} />}
             {canUse("screen") && <ToolButton icon={screenOn ? MonitorOff : MonitorUp} label={screenOn ? "توقف اشتراک" : "اشتراک صفحه"} active={screenOn} onClick={() => toggle("screen")} />}
@@ -391,14 +391,14 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
         </div>
       )}
 
-      {state === "reconnecting" && <div className="pointer-events-none absolute inset-x-0 top-14 z-40 mx-auto flex w-fit items-center gap-2 rounded-full bg-amber-500/90 px-4 py-1.5 text-xs font-medium text-slate-900 shadow-lg"><Loader2 className="size-3.5 animate-spin" />اتصال قطع شد؛ در حال اتصال دوباره...</div>}
-      {notice && <div className="pointer-events-none absolute inset-x-0 top-16 z-30 mx-auto w-fit max-w-[90vw] rounded-2xl border border-white/15 bg-slate-900/90 px-5 py-3 text-sm shadow-2xl backdrop-blur">{notice}</div>}
+      {state === "reconnecting" && <div className="pointer-events-none absolute inset-x-0 top-14 z-40 mx-auto flex w-fit items-center gap-2 rounded-full bg-amber-500/90 px-4 py-1.5 text-xs font-medium text-slate-900"><Loader2 className="size-3.5 animate-spin" />اتصال قطع شد؛ در حال اتصال دوباره...</div>}
+      {notice && <div className="pointer-events-none absolute inset-x-0 top-16 z-30 mx-auto w-fit max-w-[90vw] rounded-2xl border border-[var(--line-strong)] bg-slate-900/90 px-5 py-3 text-sm">{notice}</div>}
       {endsAt && !isStaff && <EndCountdown endsAt={endsAt} floating />}
       {request && (
-        <div className="absolute inset-x-0 bottom-24 z-30 mx-auto flex w-fit max-w-[92vw] items-center gap-4 rounded-2xl border border-sky-300/30 bg-slate-900/95 px-5 py-3.5 shadow-2xl backdrop-blur">
+        <div className="absolute inset-x-0 bottom-24 z-30 mx-auto flex w-fit max-w-[92vw] items-center gap-4 rounded-2xl border border-[var(--accent)] bg-slate-900/95 px-5 py-3.5">
           <p className="text-sm">مدیر کلاس از شما {request === "screen" ? "اشتراک صفحه" : request === "camera" ? "روشن کردن دوربین" : "روشن کردن میکروفون"} را درخواست کرده است.</p>
-          <button onClick={answerRequest} className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-medium hover:bg-sky-400">قبول</button>
-          <button onClick={() => setRequest(null)} className="rounded-xl bg-white/10 px-4 py-2 text-sm hover:bg-white/18">رد</button>
+          <button onClick={answerRequest} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium hover:bg-[var(--accent-hover)]">قبول</button>
+          <button onClick={() => setRequest(null)} className="rounded-lg bg-[var(--s2)] px-4 py-2 text-sm hover:bg-[var(--s3)]">رد</button>
         </div>
       )}
     </div>

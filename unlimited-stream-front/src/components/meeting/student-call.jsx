@@ -37,15 +37,15 @@ export function StudentCallOverlay({ room, mayRaiseHand = true }) {
   const raise = () => { const next = !hand; setHand(next); local.setAttributes({ hand: next ? "1" : "0" }).catch(() => {}); };
   const btn = "grid size-11 place-items-center rounded-full transition";
   return (
-    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/85 p-1.5 text-white shadow-2xl backdrop-blur-xl">
+    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-full border border-[var(--line-strong)] bg-slate-900/85 p-1.5 text-white">
       {canPublish ? (
         <>
           <span className="flex items-center gap-1.5 pl-2 pr-3 text-xs text-emerald-200"><PhoneCall className="size-4" />تماس فعال</span>
-          <button onClick={() => local.setMicrophoneEnabled(!mic).catch(() => {})} className={`${btn} ${mic ? "bg-sky-500" : "bg-white/12"}`} aria-label="میکروفون">{mic ? <Mic className="size-5" /> : <MicOff className="size-5" />}</button>
-          <button onClick={() => local.setCameraEnabled(!cam).catch(() => {})} className={`${btn} ${cam ? "bg-sky-500" : "bg-white/12"}`} aria-label="دوربین">{cam ? <Video className="size-5" /> : <VideoOff className="size-5" />}</button>
+          <button onClick={() => local.setMicrophoneEnabled(!mic).catch(() => {})} className={`${btn} ${mic ? "bg-[var(--accent)]" : "bg-[var(--s2)]"}`} aria-label="میکروفون">{mic ? <Mic className="size-5" /> : <MicOff className="size-5" />}</button>
+          <button onClick={() => local.setCameraEnabled(!cam).catch(() => {})} className={`${btn} ${cam ? "bg-[var(--accent)]" : "bg-[var(--s2)]"}`} aria-label="دوربین">{cam ? <Video className="size-5" /> : <VideoOff className="size-5" />}</button>
         </>
       ) : (
-        mayRaiseHand && <button onClick={raise} className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm ${hand ? "bg-amber-400 text-slate-900" : "bg-white/12 hover:bg-white/20"}`}><Hand className="size-4" />{hand ? "دست بالا است" : "بالا بردن دست"}</button>
+        mayRaiseHand && <button onClick={raise} className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm ${hand ? "bg-amber-400 text-slate-900" : "bg-[var(--s2)] hover:bg-[var(--s3)]"}`}><Hand className="size-4" />{hand ? "دست بالا است" : "بالا بردن دست"}</button>
       )}
       {request && canPublish && <span className="pr-2 text-xs text-amber-200">مدیر {request === "camera" ? "دوربین" : "میکروفون"} شما را می‌خواهد</span>}
     </div>

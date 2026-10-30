@@ -232,12 +232,38 @@ textarea::placeholder {
 .spatial-shell {
   position: relative;
   isolation: isolate;
+  /* Design tokens for the classroom (studio + desktop). Navy-grey: low-chroma blue-grey, stepped surfaces. */
+  --ground: oklch(0.155 0.016 255);
+  --s1: oklch(0.205 0.016 255);   /* resting panels */
+  --s2: oklch(0.255 0.016 255);   /* controls, hover */
+  --s3: oklch(0.31 0.018 255);    /* pressed, selected row */
+  --pop: oklch(0.235 0.014 255);  /* floating: menus, popovers, poll card (opaque) */
+  --line: rgb(255 255 255 / 0.09);
+  --line-strong: rgb(255 255 255 / 0.17);
+  --ink: #ffffff;
+  --ink-2: #b4b8c2;               /* secondary text */
+  --ink-3: #8f95a3;               /* meta text */
+  --accent: #0a7bc4;              /* brand blue (fill, white label = 4.7:1) */
+  --accent-hover: #1b8fd8;
+  --accent-ink: #8dd0f5;          /* brand blue as text/icon on dark */
+  --accent-soft: color-mix(in oklab, #0a7bc4 24%, transparent);
+  --danger: oklch(0.704 0.191 22.216);
+  /* shadcn components inside the classroom use the same single blue */
+  --primary: #0a7bc4;
+  --primary-foreground: #ffffff;
+  --ring: #8dd0f5;
+  font-family: "Kalameh", Tahoma, "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at 12% 12%, rgb(0 211 255 / var(--glow-alpha, 0.22)), transparent 30%),
-    radial-gradient(circle at 85% 16%, rgb(161 91 255 / var(--glow-alpha, 0.18)), transparent 28%),
-    radial-gradient(circle at 50% 100%, rgb(255 55 181 / var(--glow-alpha, 0.14)), transparent 35%),
-    linear-gradient(135deg, #090b1b, #11152c 48%, #080a17);
+    radial-gradient(circle at 12% 6%, rgb(80 170 220 / calc(var(--glow-alpha, 0.22) * 0.32)), transparent 34%),
+    linear-gradient(160deg, #0d1118, #141923 52%, #0c1017);
 }
+
+.spatial-shell :where(button, input, select, textarea) { font-family: inherit; }
+.spatial-shell :where(button, a, input, select, textarea, [role="switch"], summary):focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+.spatial-shell button:disabled { opacity: 0.45 !important; cursor: not-allowed; }
 
 .spatial-shell::before {
   content: "";
@@ -262,11 +288,8 @@ textarea::placeholder {
 }
 
 .glass-float {
-  border: 1px solid rgb(255 255 255 / 0.14);
-  background: linear-gradient(145deg, rgb(20 25 53 / calc(var(--glass-opacity, 0.62) * 1)), rgb(12 15 31 / calc(var(--glass-opacity, 0.62) * 0.72)));
-  box-shadow: 0 24px 60px rgb(0 0 0 / 0.24), inset 0 1px 0 rgb(255 255 255 / 0.12);
-  backdrop-filter: blur(var(--glass-blur, 22px)) saturate(135%);
-  -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(135%);
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--s1) calc(88% + var(--glass-opacity, 0.62) * 12%), transparent);
 }
 
 .spatial-shell > .relative > .glass-float h1.text-2xl,
@@ -285,8 +308,10 @@ textarea::placeholder {
 .spatial-shell[data-appearance="custom"] { background-color: #0b1020; }
 
 .accent-gradient {
-  background-image: linear-gradient(110deg, #12c9ff, #6f76ff 48%, #ed4bc4);
+  background-image: none;
+  background-color: var(--accent);
 }
+.accent-gradient:hover { background-color: var(--accent-hover); }
 
 .live-pulse { animation: live-pulse 2s ease-in-out infinite; }
 
@@ -303,7 +328,7 @@ textarea::placeholder {
 @keyframes poll-in { from { opacity: 0; transform: translateY(16px) scale(.96); } to { opacity: 1; transform: none; } }
 .poll-in { animation: poll-in .38s cubic-bezier(.2, .8, .2, 1) both; }
 
-/* small "liquid glass" buttons used by the class room controls */
-.glass-btn { background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.06)); border: 1px solid rgba(255,255,255,.16); box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); }
-.glass-btn:hover { background: linear-gradient(180deg, rgba(255,255,255,.24), rgba(255,255,255,.10)); }
-.glass-btn[data-active="true"] { background: linear-gradient(180deg, rgba(56,189,248,.75), rgba(14,116,244,.6)); border-color: rgba(125,211,252,.55); }
+/* control surface used across the class room (name kept for compatibility; no glass, no gradient) */
+.glass-btn { background: var(--s2); border: 1px solid var(--line-strong); color: var(--ink); }
+.glass-btn:hover { background: var(--s3); }
+.glass-btn[data-active="true"] { background: var(--accent); border-color: var(--accent-hover); color: #fff; }

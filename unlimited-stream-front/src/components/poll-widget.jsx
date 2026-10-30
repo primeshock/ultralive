@@ -74,31 +74,31 @@ export function PollWidget({ channel }) {
   }
 
   return (
-    <section className="glass-float rounded-[1.75rem] p-5 text-white">
+    <section className="glass-float rounded-2xl p-5 text-white">
       <div className="mb-4 flex items-start justify-between gap-4">
-        <div><p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200/65">{poll.mode === "quiz" ? "Quick quiz" : "Live poll"}</p><h2 className="text-lg font-semibold">{poll.question}</h2></div>
-        <div className={`rounded-full px-3 py-1 text-xs ${remaining === 0 ? "bg-amber-400/15 text-amber-200" : "bg-white/8 text-white/60"}`}>{remaining !== null && `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`}</div>
+        <div><p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-[var(--accent-ink)]">{poll.mode === "quiz" ? "Quick quiz" : "Live poll"}</p><h2 className="text-lg font-semibold">{poll.question}</h2></div>
+        <div className={`rounded-full px-3 py-1 text-xs ${remaining === 0 ? "bg-amber-400/15 text-amber-200" : "bg-[var(--s2)] text-[var(--ink-2)]"}`}>{remaining !== null && `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`}</div>
       </div>
-        <div className="mb-3 flex items-center justify-between text-xs text-white/45">
+        <div className="mb-3 flex items-center justify-between text-xs text-[var(--ink-3)]">
           <span>{poll.mode === "quiz" ? "کوئیز" : "نظرسنجی"}</span>
         </div>
         {remaining === 0 && <p className="mb-2 text-sm text-amber-200/75">مهلت پاسخ‌گویی تمام شده است.</p>}
-        {!isOpen && remaining !== 0 && <p className="mb-2 text-sm text-white/50">این نظرسنجی بسته شده است.</p>}
+        {!isOpen && remaining !== 0 && <p className="mb-2 text-sm text-[var(--ink-3)]">این نظرسنجی بسته شده است.</p>}
         {poll.options.map((o, index) => (
           <Button
             key={o.id}
             variant="outline"
             disabled={!isOpen || Boolean(poll.votedOptionId)}
             onClick={() => setSelectedOption(o.id)}
-            className={`relative h-12 w-full justify-start overflow-hidden border-white/12 bg-white/[0.055] text-white hover:bg-white/10 ${selectedOption === o.id ? "border-cyan-300/70 bg-cyan-300/12 shadow-[0_0_24px_rgb(34_211_238_/_0.14)]" : ""}`}
+            className={`relative h-12 w-full justify-start overflow-hidden border-[var(--line-strong)] bg-white/[0.055] text-white hover:bg-[var(--s2)] ${selectedOption === o.id ? "border-cyan-300/70 bg-cyan-300/12 shadow-[0_0_24px_rgb(34_211_238_/_0.14)]" : ""}`}
           >
             <span className="me-2 flex size-6 items-center justify-center rounded-full bg-black/10 text-xs font-bold">{index + 1}</span>
             <span className="flex-1 text-start">{o.text}</span>
-            {poll.mode === "quiz" && poll.revealed && o.isCorrect !== undefined && <span>{o.isCorrect ? "✓ صحیح" : "✕ غلط"}</span>}
+            {poll.mode === "quiz" && poll.revealed && o.isCorrect !== undefined && <span className="taste-skill-ignore">{o.isCorrect ? "✓ صحیح" : "✕ غلط"}</span>}
           </Button>
         ))}
         {!poll.votedOptionId && <Button onClick={submitVote} disabled={!selectedOption || !isOpen || submitting} className="accent-gradient mt-2 rounded-full text-white">{submitting ? "در حال ثبت..." : "ثبت پاسخ"}</Button>}
-        {poll.votedOptionId && <p className="text-xs text-white/50">پاسخ شما ثبت شد و قابل تغییر نیست.</p>}
+        {poll.votedOptionId && <p className="text-xs text-[var(--ink-3)]">پاسخ شما ثبت شد و قابل تغییر نیست.</p>}
         {poll.showResults && poll.results && <PollResultsChart results={poll.results} />}
         {error && <p className="text-xs text-destructive">{error}</p>}
     </section>

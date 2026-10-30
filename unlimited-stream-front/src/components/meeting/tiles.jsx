@@ -55,23 +55,23 @@ export function ParticipantTile({ participant, onClick, active, compact = false,
     <button
       type="button"
       onClick={onClick}
-      className={`group relative isolate aspect-video w-full overflow-hidden rounded-2xl border bg-slate-900/80 text-right shadow-lg transition ${participant.isSpeaking ? "border-cyan-300/80 ring-2 ring-cyan-300/40" : "border-white/10 hover:border-white/30"} ${active ? "ring-2 ring-sky-400/70" : ""}`}
+      className={`group relative isolate aspect-video w-full overflow-hidden rounded-2xl border bg-slate-900/80 text-right transition ${participant.isSpeaking ? "border-cyan-300/80 ring-2 ring-cyan-300/40" : "border-[var(--line)] hover:border-white/30"} ${active ? "ring-2 ring-[var(--accent-ink)]" : ""}`}
     >
       {camera ? (
         <VideoSurface track={camera} mirror={participant.isLocal} className={zoom ? "scale-[1.1]" : ""} />
       ) : (
-        <div className="grid h-full w-full place-items-center bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,.18),transparent_55%),linear-gradient(160deg,#0f1b33,#0a1224)]">
-          <span className={`grid place-items-center rounded-full bg-white/10 font-semibold text-white/90 ring-1 ring-white/15 ${compact ? "size-10 text-base" : "size-16 text-2xl"}`}>{initials(participant.name)}</span>
+        <div className="grid h-full w-full place-items-center bg-[var(--s1)]">
+          <span className={`grid place-items-center rounded-full bg-[var(--s2)] font-semibold text-[var(--ink)] ring-1 ring-white/15 ${compact ? "size-10 text-base" : "size-16 text-2xl"}`}>{initials(participant.name)}</span>
         </div>
       )}
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6">
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent taste-skill-ignore px-3 pb-2 pt-6">
         <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-white">
           {micOn ? <Mic className="size-3.5 shrink-0 text-emerald-300" /> : <MicOff className="size-3.5 shrink-0 text-rose-300" />}
           <span className="truncate">{participant.name || participant.identity}{participant.isLocal ? " (شما)" : ""}</span>
         </span>
-        {staff && <span className="rounded-full bg-sky-400/20 px-2 py-0.5 text-[10px] text-sky-100">مدیر</span>}
+        {staff && <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] text-[var(--accent-ink)]">مدیر</span>}
       </div>
-      {hand && <span className="absolute left-2 top-2 grid size-8 place-items-center rounded-full bg-amber-400 text-slate-900 shadow-lg animate-bounce"><Hand className="size-4" /></span>}
+      {hand && <span className="absolute left-2 top-2 grid size-8 place-items-center rounded-full bg-amber-400 text-slate-900"><Hand className="size-4" /></span>}
       {participant.connectionQuality === "poor" && <Signal className="absolute right-2 top-2 size-4 text-amber-300" />}
     </button>
   );

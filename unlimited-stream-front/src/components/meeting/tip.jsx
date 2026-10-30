@@ -11,7 +11,7 @@ export function Tip({ label, side = "bottom", children, className = "" }) {
   return (
     <span className={`group/tip relative inline-flex ${className}`}>
       {children}
-      <span role="tooltip" className={`pointer-events-none absolute z-[90] whitespace-nowrap rounded-md bg-slate-950/95 px-2 py-1 text-[11px] font-normal text-white opacity-0 shadow-lg ring-1 ring-white/10 transition-opacity delay-150 group-hover/tip:opacity-100 ${POS[side]}`}>{label}</span>
+      <span role="tooltip" className={`pointer-events-none absolute z-[90] whitespace-nowrap rounded-md bg-[var(--pop)] px-2 py-1 text-[11px] font-normal text-white opacity-0 shadow-2xl ring-1 ring-white/10 transition-opacity delay-150 group-hover/tip:opacity-100 ${POS[side]}`}>{label}</span>
     </span>
   );
 }

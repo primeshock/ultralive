@@ -7,7 +7,7 @@ import { useBoardVersion } from "./board-store";
 
 const BASE_W = 1600;
 const MAX_Z = 5;
-const COLORS = ["#111827", "#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ffffff"];
+const COLORS = ["#111827", "#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ffffff"]; // taste-skill-ignore (pen colours are user data)
 const WIDTHS = [3, 6, 12];
 const TOOLS = [
   ["pan", Hand, "جابه‌جایی صفحه"], ["pen", Pencil, "قلم"], ["hl", Highlighter, "هایلایت"], ["eraser", Eraser, "پاک‌کن"],
@@ -277,31 +277,31 @@ export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publi
   });
 
   const btn = "grid size-8 shrink-0 place-items-center rounded-lg transition";
-  const gbtn = "grid size-7 place-items-center rounded-lg border border-white/20 bg-slate-950/80 text-white shadow-lg shadow-black/40 backdrop-blur-md transition hover:bg-slate-800/90 disabled:opacity-40";
+  const gbtn = "grid size-7 place-items-center rounded-lg border border-[var(--line-strong)] bg-[var(--pop)] text-white transition hover:bg-slate-800/90 disabled:opacity-40";
   const panCursor = !canDraw || tool === "pan" ? (z > 1 ? "cursor-grab" : "") : "cursor-crosshair";
   return (
     <div className="relative flex h-full w-full flex-col">
       <div ref={box} className="relative min-h-0 flex-1 overflow-hidden bg-slate-900/60">
         {fit.w > 0 && (
-          <div className="absolute left-0 top-0 shadow-2xl will-change-transform" style={{ width: W, height: H, transform: `translate(${tx}px, ${ty}px)` }}>
+          <div className="absolute left-0 top-0 will-change-transform" style={{ width: W, height: H, transform: `translate(${tx}px, ${ty}px)` }}>
             <canvas ref={baseRef} className="absolute inset-0 h-full w-full" />
             <canvas ref={inkRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} className={`absolute inset-0 h-full w-full ${panCursor}`} style={{ touchAction: "none" }} />
           </div>
         )}
         <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1" dir="ltr">
           <button aria-label="کوچک‌نمایی" title="کوچک‌نمایی" onClick={() => zoomAt(1 / 1.25)} disabled={z <= 1} className={gbtn}><ZoomOut className="size-3.5" /></button>
-          <span className="min-w-[38px] rounded-lg border border-white/20 bg-slate-950/80 px-1.5 py-1 text-center text-[10px] tabular-nums text-white shadow-lg shadow-black/40 backdrop-blur-md">{Math.round(z * 100)}%</span>
+          <span className="min-w-[38px] rounded-lg border border-[var(--line-strong)] bg-[var(--pop)] px-1.5 py-1 text-center text-[11px] tabular-nums text-white">{Math.round(z * 100)}%</span>
           <button aria-label="بزرگ‌نمایی" title="بزرگ‌نمایی" onClick={() => zoomAt(1.25)} disabled={z >= MAX_Z} className={gbtn}><ZoomIn className="size-3.5" /></button>
           <button aria-label="اندازهٔ اصلی" title="اندازهٔ اصلی" onClick={() => commitView({ z: 1, cx: 0.5, cy: 0.5 })} disabled={z === 1} className={gbtn}><RotateCcw className="size-3.5" /></button>
         </div>
         {!canDraw && remoteView && remoteView.key === boardKey && !following && (
-          <button onClick={() => setFollowing(true)} className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-lg border border-sky-300/40 bg-slate-950/85 px-2.5 py-1 text-[11px] text-sky-100 shadow-lg shadow-black/40 backdrop-blur-md hover:bg-slate-800/90"><Link2 className="size-3" />همگام با ارائه‌دهنده</button>
+          <button onClick={() => setFollowing(true)} className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--pop)] px-2.5 py-1 text-[11px] text-[var(--accent-ink)] hover:bg-slate-800/90"><Link2 className="size-3" />همگام با ارائه‌دهنده</button>
         )}
       </div>
-      {pager && <div className="flex shrink-0 items-center justify-center gap-2 border-t border-white/10 bg-slate-950/60 px-2 py-1 text-xs text-white/80">{pager.canChange ? (<>
-        <button onClick={() => pager.set(pager.page + 1)} disabled={pager.page >= pager.total && !pager.canAdd} className={`${btn} hover:bg-white/10 disabled:opacity-30`} aria-label="بعدی">{pager.page >= pager.total && pager.canAdd ? <Plus className="size-4" /> : <ChevronRight className="size-4" />}</button>
+      {pager && <div className="flex shrink-0 items-center justify-center gap-2 border-t border-[var(--line)] bg-[var(--pop)] px-2 py-1 text-xs text-[var(--ink)]">{pager.canChange ? (<>
+        <button onClick={() => pager.set(pager.page + 1)} disabled={pager.page >= pager.total && !pager.canAdd} className={`${btn} hover:bg-[var(--s2)] disabled:opacity-30`} aria-label="بعدی">{pager.page >= pager.total && pager.canAdd ? <Plus className="size-4" /> : <ChevronRight className="size-4" />}</button>
         <span className="tabular-nums" dir="ltr">{pager.page} / {Math.max(pager.total, pager.page)}</span>
-        <button onClick={() => pager.set(pager.page - 1)} disabled={pager.page <= 1} className={`${btn} hover:bg-white/10 disabled:opacity-30`} aria-label="قبلی"><ChevronLeft className="size-4" /></button>
+        <button onClick={() => pager.set(pager.page - 1)} disabled={pager.page <= 1} className={`${btn} hover:bg-[var(--s2)] disabled:opacity-30`} aria-label="قبلی"><ChevronLeft className="size-4" /></button>
       </>) : <span className="tabular-nums" dir="ltr">{pager.page} / {Math.max(pager.total, pager.page)}</span>}</div>}
     </div>
   );

@@ -14,7 +14,7 @@ export function NetworkMonitor({ stats }) {
     ["کیفیت تصویر", stats?.resolution ? `${stats.resolution.height}p` : "—"],
   ];
   return (
-    <div dir="rtl" className="w-60 rounded-2xl border border-white/14 bg-[#0b1226]/92 p-3 text-white shadow-2xl backdrop-blur-xl">
+    <div dir="rtl" className="w-60 rounded-2xl border border-[var(--line-strong)] bg-[var(--pop)]/95 p-3 text-white shadow-2xl backdrop-blur-xl">
       <p className="mb-2 text-xs font-semibold text-white/85">کیفیت اتصال</p>
       <dl className="space-y-1.5">
         {rows.map(([label, value]) => (

@@ -131,7 +131,7 @@ export default function ChannelPage({ params }) {
     }
   }
 
-  if (accessAllowed === false) return <div className="spatial-shell flex flex-1 items-center justify-center overflow-hidden px-4 py-10" data-appearance={appearance?.preset || "aurora"} style={{ "--background-darkness": `${(appearance?.backgroundDarkness ?? 52) / 100}`, "--glass-blur": `${appearance?.glassBlur ?? 22}px`, "--glass-opacity": `${(appearance?.glassOpacity ?? 62) / 100}`, "--glow-alpha": `${(appearance?.glowIntensity ?? 55) / 260}` }}><div className="relative w-full max-w-2xl"><div className="pointer-events-none absolute -inset-12 rounded-[3rem] bg-cyan-400/10 blur-3xl" /><div className="glass-float relative rounded-[2rem] p-6 sm:p-8"><div className="mb-7 text-center"><div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl border border-cyan-200/25 bg-cyan-300/10 text-cyan-100 shadow-[0_0_40px_rgb(34_211_238_/_0.18)]"><Radio className="size-7" /></div><Badge className="mb-3 border-cyan-200/20 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/10">ورود به کلاس</Badge><h1 className="text-2xl font-bold text-white sm:text-3xl">آماده‌ای وارد کلاس بشی؟</h1><p className="mt-2 text-sm text-slate-300">یکی از روش‌های ورود فعال این کلاس را انتخاب کن.</p></div>{accessError && <p className="mb-4 rounded-xl border border-rose-300/30 bg-rose-400/10 p-3 text-sm text-rose-100">{accessError}</p>}{accessOptions.loginAllowed || accessOptions.guestAllowed ? <div className={`grid gap-4 ${accessOptions.loginAllowed && accessOptions.guestAllowed ? "md:grid-cols-2" : "max-w-md mx-auto"}`}>{accessOptions.loginAllowed && <form onSubmit={handleStudentLogin} className="space-y-3 rounded-2xl border border-white/15 bg-white/[0.07] p-4 shadow-inner shadow-white/5"><div><h2 className="font-semibold text-white">ورود دانش‌آموز</h2><p className="mt-1 text-xs text-slate-300">برای اعضای ثبت‌شده کلاس</p></div><input className="h-10 w-full rounded-xl border border-white/15 bg-slate-950/35 px-3 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20" dir="ltr" placeholder="نام کاربری" value={loginForm.username} onChange={(event) => setLoginForm({ ...loginForm, username: event.target.value })} required /><input className="h-10 w-full rounded-xl border border-white/15 bg-slate-950/35 px-3 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20" dir="ltr" type="password" placeholder="رمز عبور" value={loginForm.password} onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })} required /><Button className="w-full rounded-xl bg-cyan-300 text-slate-950 hover:bg-cyan-200" type="submit" disabled={accessBusy}>ورود دانش‌آموز</Button></form>}{accessOptions.guestAllowed && <form onSubmit={handleGuestJoin} className="space-y-3 rounded-2xl border border-fuchsia-200/20 bg-fuchsia-300/[0.08] p-4 shadow-inner shadow-fuchsia-200/5"><div><h2 className="font-semibold text-white">ورود مهمان</h2><p className="mt-1 text-xs text-slate-300">شماره موبایل ۱۱ رقمی الزامی است</p></div><input className="h-10 w-full rounded-xl border border-white/15 bg-slate-950/35 px-3 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-fuchsia-300/60 focus:ring-2 focus:ring-fuchsia-300/20" dir="ltr" inputMode="numeric" type="tel" pattern="09[0-9]{9}" placeholder="09123456789" value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} minLength={11} maxLength={11} required /><Button className="w-full rounded-xl border-fuchsia-200/30 text-fuchsia-100 hover:bg-fuchsia-300/15" variant="outline" type="submit" disabled={accessBusy}>ورود به‌عنوان مهمان</Button></form>}</div> : <p className="rounded-xl border border-white/15 bg-white/[0.06] p-4 text-center text-sm text-slate-300">دسترسی این کلاس فقط از لینک اختصاصی یا API امکان‌پذیر است.</p>}</div></div></div>;
+  if (accessAllowed === false) return <div className="spatial-shell flex flex-1 items-center justify-center overflow-hidden px-4 py-10" data-appearance={appearance?.preset || "aurora"} style={{ "--background-darkness": `${(appearance?.backgroundDarkness ?? 52) / 100}`, "--glass-blur": `${appearance?.glassBlur ?? 22}px`, "--glass-opacity": `${(appearance?.glassOpacity ?? 62) / 100}`, "--glow-alpha": `${(appearance?.glowIntensity ?? 55) / 260}` }}><div className="relative w-full max-w-2xl"><div className="pointer-events-none absolute -inset-12 rounded-2xl bg-cyan-400/10 blur-3xl" /><div className="glass-float relative rounded-2xl p-6 sm:p-8"><div className="mb-7 text-center"><div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl border border-cyan-200/25 bg-cyan-300/10 text-[var(--accent-ink)] shadow-[0_0_40px_rgb(34_211_238_/_0.18)]"><Radio className="size-7" /></div><Badge className="mb-3 border-cyan-200/20 bg-cyan-300/10 text-[var(--accent-ink)] hover:bg-cyan-300/10">ورود به کلاس</Badge><h1 className="text-2xl font-bold text-white sm:text-3xl">آماده‌ای وارد کلاس بشی؟</h1><p className="mt-2 text-sm text-slate-300">یکی از روش‌های ورود فعال این کلاس را انتخاب کن.</p></div>{accessError && <p className="mb-4 rounded-lg border border-rose-300/30 bg-rose-400/10 p-3 text-sm text-rose-100">{accessError}</p>}{accessOptions.loginAllowed || accessOptions.guestAllowed ? <div className={`grid gap-4 ${accessOptions.loginAllowed && accessOptions.guestAllowed ? "md:grid-cols-2" : "max-w-md mx-auto"}`}>{accessOptions.loginAllowed && <form onSubmit={handleStudentLogin} className="space-y-3 rounded-2xl border border-[var(--line-strong)] bg-white/[0.07] p-4 shadow-inner shadow-white/5"><div><h2 className="font-semibold text-white">ورود دانش‌آموز</h2><p className="mt-1 text-xs text-slate-300">برای اعضای ثبت‌شده کلاس</p></div><input className="h-10 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--pop)] px-3 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20" dir="ltr" placeholder="نام کاربری" value={loginForm.username} onChange={(event) => setLoginForm({ ...loginForm, username: event.target.value })} required /><input className="h-10 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--pop)] px-3 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20" dir="ltr" type="password" placeholder="رمز عبور" value={loginForm.password} onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })} required /><Button className="w-full rounded-lg bg-cyan-300 text-slate-950 hover:bg-cyan-200" type="submit" disabled={accessBusy}>ورود دانش‌آموز</Button></form>}{accessOptions.guestAllowed && <form onSubmit={handleGuestJoin} className="space-y-3 rounded-2xl border border-fuchsia-200/20 bg-fuchsia-300/[0.08] p-4 shadow-inner shadow-fuchsia-200/5"><div><h2 className="font-semibold text-white">ورود مهمان</h2><p className="mt-1 text-xs text-slate-300">شماره موبایل ۱۱ رقمی الزامی است</p></div><input className="h-10 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--pop)] px-3 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-fuchsia-300/60 focus:ring-2 focus:ring-fuchsia-300/20" dir="ltr" inputMode="numeric" type="tel" pattern="09[0-9]{9}" placeholder="09123456789" value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} minLength={11} maxLength={11} required /><Button className="w-full rounded-lg border-fuchsia-200/30 text-fuchsia-100 hover:bg-fuchsia-300/15" variant="outline" type="submit" disabled={accessBusy}>ورود به‌عنوان مهمان</Button></form>}</div> : <p className="rounded-lg border border-[var(--line-strong)] bg-white/[0.06] p-4 text-center text-sm text-slate-300">دسترسی این کلاس فقط از لینک اختصاصی یا API امکان‌پذیر است.</p>}</div></div></div>;
 
   if (notFound) {
     return (
@@ -205,8 +205,8 @@ export default function ChannelPage({ params }) {
       <div className={`relative mx-auto grid w-full max-w-[1540px] grid-cols-1 gap-5 px-4 py-5 lg:px-8 ${previewOnly ? "max-w-5xl" : "xl:grid-cols-[minmax(0,1fr)_390px]"}`}>
       <div className="flex min-h-0 flex-col gap-5">
         {canManageClass && !previewOnly && channel.mode && <div className="flex justify-end"><ModeSwitch channel={username} mode={channel.mode} onChange={(mode) => setChannel((current) => ({ ...current, mode }))} /></div>}
-        <div className="glass-float relative aspect-video overflow-hidden rounded-[2rem] border-white/20 p-1 shadow-[0_30px_100px_rgb(0_0_0_/_0.38)]">
-          <div className="pointer-events-none absolute inset-0 z-10 rounded-[1.8rem] ring-1 ring-inset ring-white/10" />
+        <div className="glass-float relative aspect-video overflow-hidden rounded-2xl border-[var(--line-strong)] p-1 shadow-[0_30px_100px_rgb(0_0_0_/_0.38)]">
+          <div className="pointer-events-none absolute inset-0 z-10 rounded-2xl ring-1 ring-inset ring-white/10" />
           {!previewOnly && !canManageClass && studioRoom && <StudentCallOverlay room={studioRoom} mayRaiseHand={channel.meeting?.studentsMayRaiseHand !== false} />}
           {channel.isLive && useLiveKit ? (
             <LiveKitPlayer
@@ -225,12 +225,12 @@ export default function ChannelPage({ params }) {
                 alt=""
                 className="w-full h-full object-cover opacity-40"
               />
-              <div className="absolute inset-0 flex items-center justify-center text-white/90">
+              <div className="absolute inset-0 flex items-center justify-center text-[var(--ink)]">
                 {channel.isLive ? "پخش در دسترس نیست" : "کلاس هنوز شروع نشده"}
               </div>
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-white/70">
+            <div className="w-full h-full flex items-center justify-center text-[var(--ink-2)]">
               {channel.isLive ? "پخش در دسترس نیست" : "کلاس هنوز شروع نشده"}
             </div>
           )}
@@ -239,17 +239,17 @@ export default function ChannelPage({ params }) {
         <div className="flex flex-wrap items-center justify-between gap-4 px-2">
           <div>
             {channel.organization?.logoUrl && <img src={channel.organization.logoUrl} alt={channel.organization.name || "سازمان"} className="mb-3 h-10 w-auto object-contain" />}
-            <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-cyan-200/70"><Sparkles className="size-3.5" /> Ultra Live classroom</div>
+            <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-[var(--accent-ink)]"><Sparkles className="size-3.5" /> Ultra Live classroom</div>
             <h1 className="text-2xl font-bold tracking-tight text-white">
               {channel.streamTitle || channel.displayName || "کلاس زنده"}
             </h1>
-            <p className="mt-1 text-sm text-white/55">
+            <p className="mt-1 text-sm text-[var(--ink-3)]">
               {channel.displayName || "کلاس"}{channel.showViewerCount && ` · ${channel.viewerCount || 0} بیننده`}
             </p>
           </div>
           <div className="flex items-center gap-2">
             {channel.isLive && <Badge className="live-pulse rounded-full border-rose-300/30 bg-rose-500/15 text-rose-100"><Radio className="size-3" /> LIVE</Badge>}
-            {channel.showViewerCount && <div className="glass-float flex items-center gap-2 rounded-full px-3 py-2 text-xs text-white/70"><Users className="size-3.5 text-cyan-200" /> {channel.viewerCount || 0}</div>}
+            {channel.showViewerCount && <div className="glass-float flex items-center gap-2 rounded-full px-3 py-2 text-xs text-[var(--ink-2)]"><Users className="size-3.5 text-[var(--accent-ink)]" /> {channel.viewerCount || 0}</div>}
           </div>
         </div>
 
@@ -266,7 +266,7 @@ export default function ChannelPage({ params }) {
             aria-expanded={networkOpen}
             aria-label="کیفیت اتصال"
             title="کیفیت اتصال"
-            className="absolute left-3 top-3 z-30 grid size-8 place-items-center rounded-full border border-white/15 bg-slate-950/75 shadow-lg backdrop-blur-xl transition hover:border-cyan-300/45"
+            className="absolute left-3 top-3 z-30 grid size-8 place-items-center rounded-full border border-[var(--line-strong)] bg-[var(--pop)] transition hover:border-cyan-300/45"
           >
             <Quality value={networkStats?.reconnecting ? "poor" : networkStats?.connectionQuality} />
           </button>
@@ -276,7 +276,7 @@ export default function ChannelPage({ params }) {
               <div id="network-monitor-panel" className="absolute left-3 top-12 z-30"><NetworkMonitor stats={networkStats} /></div>
             </>
           )}
-          <div className="glass-float flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2rem]">
+          <div className="glass-float flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
           <LiveChat key={username} channel={username} initialEnabled={channel.chatEnabled} />
           </div>
         </div>
