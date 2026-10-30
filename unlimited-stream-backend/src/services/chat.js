@@ -115,8 +115,9 @@ function initChat(httpServer) {
             socket.emit('chat:error', { message: 'برای چت باید از طریق سایت اصلی وارد شوید.' });
             return;
           }
-          socket.data.studentId = `public:${socket.data.cookies[`public_class_${room}`]}`;
-          socket.data.displayName = 'مهمان';
+          const guest = require('../utils/publicGuest').readGuest(socket.data.cookies, room);
+          socket.data.studentId = `public:${guest?.id || socket.id}`;
+          socket.data.displayName = guest?.name || 'مهمان';
           socket.data.participantType = 'guest';
         }
       }

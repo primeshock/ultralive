@@ -10,7 +10,7 @@ import { PanelBoundary } from "./boundary";
 import { ChatMenu } from "./chat-menu";
 import { ClassPoll } from "./class-poll";
 import { FilesPanel, Quality } from "./panels";
-import { HeaderActions } from "./rail";
+import { HeaderActions, pollAnchor } from "./rail";
 import { EndCountdown, RoomHeader } from "./room-header";
 import { StudentCallOverlay } from "./student-call";
 import { StudioRail } from "./studio-tools";
@@ -21,7 +21,7 @@ import { useRecording } from "./use-recording";
  * Studio class room (OBS → LiveKit ingress). Same shell as the desktop room — header, collapsible side panel with
  * chat / files / people, host tool rail — with the broadcast itself on the stage instead of the whiteboard / PDF.
  */
-export function StudioRoom({ channel, info, isStaff, useLiveKit, livekitSettings, appearance, appearanceStyle, onModeChange, onChannelPatch, onLeave }) {
+export function StudioRoom({ channel, guest, info, isStaff, useLiveKit, livekitSettings, appearance, appearanceStyle, onModeChange, onChannelPatch, onLeave }) {
   const [settings, setSettings] = useState({ showParticipantsToStudents: info.meeting?.showParticipantsToStudents !== false, studentsMayRaiseHand: info.meeting?.studentsMayRaiseHand !== false });
   const [files, setFiles] = useState([]);
   const [recordings, setRecordings] = useState([]);
@@ -33,6 +33,7 @@ export function StudioRoom({ channel, info, isStaff, useLiveKit, livekitSettings
   const [chatOn, setChatOn] = useState(info.chatEnabled !== false);
   const [chatMode, setChatMode] = useState(info.chatMode || "public");
   const [pollOpen, setPollOpen] = useState(false);
+  const [pollPos, setPollPos] = useState(null);
   const [pollTick, setPollTick] = useState(0);
   const [studioRoom, setStudioRoom] = useState(null);
   const [stats, setStats] = useState(null);
@@ -102,7 +103,7 @@ export function StudioRoom({ channel, info, isStaff, useLiveKit, livekitSettings
 
   return (
     <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell relative flex h-dvh w-full max-w-full flex-col overflow-hidden text-white">
-      <RoomHeader title={info.streamTitle || info.displayName || "کلاس زنده"} organization={info.organization?.name} endsAt={endsAt} qualityNode={qualityNode} onLeave={() => { studioRoom?.disconnect(); onLeave?.(); }}>
+      <RoomHeader guest={guest} title={info.streamTitle || info.displayName || "کلاس زنده"} organization={info.organization?.name} endsAt={endsAt} qualityNode={qualityNode} onLeave={() => { studioRoom?.disconnect(); onLeave?.(); }}>
         {isStaff && <HeaderActions channel={channel} settings={settings} mode="studio" onMode={onModeChange} onSettings={updateSettings} flash={flash} endsAt={endsAt} rec={rec} onRec={recAction} />}
       </RoomHeader>
 
@@ -152,14 +153,14 @@ export function StudioRoom({ channel, info, isStaff, useLiveKit, livekitSettings
 
         {isStaff && (
           <div className="order-first shrink-0 md:order-last max-md:overflow-x-auto">
-            <StudioRail channel={channel} info={info} pollOpen={pollOpen} onChannelPatch={onChannelPatch} flash={flash} onPoll={() => { setPollOpen((o) => !o); setSide("normal"); setTab("chat"); }} />
+            <StudioRail channel={channel} info={info} pollOpen={pollOpen} onChannelPatch={onChannelPatch} flash={flash} onPoll={(e) => { setPollPos(pollAnchor(e)); setPollOpen((o) => !o); setSide("normal"); setTab("chat"); }} />
           </div>
         )}
       </div>
 
-      {isStaff && pollOpen && (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-30 max-md:bottom-24 md:left-[76px]">
-          <div className="pointer-events-auto"><ClassPoll variant="float" channel={channel} isStaff audience={info.viewerCount || 0} tick={pollTick} onChange={() => publish({ type: "poll" })} /></div>
+      {isStaff && pollOpen && pollPos && (
+        <div style={{ left: pollPos.left, top: pollPos.top, maxHeight: pollPos.maxHeight }} className="fixed z-30 overflow-y-auto max-md:inset-x-2 max-md:!left-2 max-md:!top-auto max-md:bottom-24">
+          <ClassPoll variant="float" channel={channel} isStaff audience={info.viewerCount || 0} tick={pollTick} onChange={() => publish({ type: "poll" })} />
         </div>
       )}
       {notice && <div className="pointer-events-none absolute inset-x-0 top-16 z-30 mx-auto w-fit max-w-[90vw] room-float rounded-2xl px-5 py-3 text-sm">{notice}</div>}

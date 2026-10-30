@@ -36,6 +36,9 @@ export default function ChannelPage({ params }) {
   const [networkOpen, setNetworkOpen] = useState(false);
   const [appearance, setAppearance] = useState(null);
   const [studioRoom, setStudioRoom] = useState(null);
+  const [guestInfo, setGuestInfo] = useState(null); // { guest: bool, name } — public-link visitors pick a name
+  const [guestName, setGuestName] = useState("");
+  const [guestError, setGuestError] = useState("");
 
   useEffect(() => {
     api.sessionAccess(username)
@@ -43,6 +46,11 @@ export default function ChannelPage({ params }) {
       // a network blip must never kick someone out of a running class
       .catch((err) => setAccessAllowed((current) => (current === true && ![401, 403, 404].includes(err.status) ? true : false)));
   }, [username, user]);
+
+  useEffect(() => {
+    if (accessAllowed !== true) return;
+    api.publicGuest(username).then(setGuestInfo).catch(() => setGuestInfo({ guest: false, name: "" }));
+  }, [accessAllowed, username, user]);
 
   useEffect(() => {
     api.site().then((site) => setAppearance((current) => current || site.appearance || null)).catch(() => {});
@@ -138,7 +146,25 @@ export default function ChannelPage({ params }) {
     );
   }
 
-  if (authLoading || accessAllowed === null || !channel) {
+  if (guestInfo?.guest && !guestInfo.name) {
+    const enter = async (event) => {
+      event.preventDefault();
+      setGuestError("");
+      try { const r = await api.setPublicGuestName(username, guestName); setGuestInfo({ guest: true, name: r.name }); } catch (error) { setGuestError(error.message || "ذخیرهٔ نام انجام نشد."); }
+    };
+    return (
+      <div dir="rtl" className="spatial-shell fixed inset-0 z-50 grid place-items-center px-4 text-white" data-appearance={appearance?.preset || "aurora"}>
+        <form onSubmit={enter} className="room-float w-full max-w-sm space-y-4 rounded-2xl p-6">
+          <div className="text-center"><span className="mx-auto mb-3 grid size-11 place-items-center rounded-xl bg-[var(--accent)]"><Radio className="size-5" /></span><h1 className="text-lg font-semibold">ورود به کلاس</h1><p className="mt-1 text-xs text-[var(--ink-2)]">نامی را که می‌خواهید در کلاس نمایش داده شود بنویسید.</p></div>
+          <input value={guestName} onChange={(e) => setGuestName(e.target.value)} maxLength={40} autoFocus placeholder="نام شما" className="h-11 w-full rounded-xl bg-[var(--s2)] px-4 text-sm text-white outline-none placeholder:text-[var(--ink-3)] focus:ring-1 focus:ring-[var(--accent)]" />
+          {guestError && <p className="text-center text-xs text-rose-300">{guestError}</p>}
+          <button disabled={guestName.trim().length < 2} className="h-11 w-full rounded-xl bg-[var(--accent)] text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:bg-[var(--s3)] disabled:text-[var(--ink-3)]">ورود</button>
+        </form>
+      </div>
+    );
+  }
+
+  if (authLoading || accessAllowed === null || !channel || guestInfo === null) {
     return (
       <div className="flex-1 flex items-center justify-center">
         در حال بارگذاری...
@@ -180,6 +206,7 @@ export default function ChannelPage({ params }) {
       <div className="fixed inset-0 z-50">
         <MeetingRoom
           channel={username}
+          guest={guestInfo?.guest ? { name: guestInfo.name, onRename: async (name) => { await api.setPublicGuestName(username, name); window.location.reload(); } } : null}
           mode={channel.mode}
           appearance={appearance?.preset}
           appearanceStyle={appearanceStyle}
@@ -202,6 +229,7 @@ export default function ChannelPage({ params }) {
       <div className="fixed inset-0 z-50">
         <StudioRoom
           channel={username}
+          guest={guestInfo?.guest ? { name: guestInfo.name, onRename: async (name) => { await api.setPublicGuestName(username, name); window.location.reload(); } } : null}
           info={channel}
           isStaff={Boolean(canManageClass)}
           useLiveKit={useLiveKit}

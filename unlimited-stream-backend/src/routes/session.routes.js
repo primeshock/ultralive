@@ -8,6 +8,7 @@ const { verifyWpToken, signRoomSession } = require('../utils/joinToken');
 const Class = require('../models/Class');
 const { findStreamTarget, streamName } = require('../utils/streamTarget');
 
+const { readGuest, writeGuest, cleanName, newGuestId } = require('../utils/publicGuest');
 const router = express.Router();
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6h — tune to your longest class length
 
@@ -76,6 +77,35 @@ router.get('/public/:token', async (req, res) => {
   const channel = streamName(target);
   res.cookie(`public_class_${channel}`, target.publicAccessToken, { httpOnly: true, sameSite: 'lax', secure: require('../config/env').cookieSecure, maxAge: SESSION_TTL_MS });
   res.redirect(`/channel/${channel}`);
+});
+
+// Public-link guests: no account, just a display name they choose (and may change later).
+async function guestStatus(req, channel) {
+  if (!(await require('../utils/classAccess').canAccessClass(channel, req.cookies || {}))) return { guest: false, allowed: false };
+  // a logged-in account or a room-session student is not a guest
+  const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
+  try { if (req.cookies?.[COOKIE_NAME] && verifyToken(req.cookies[COOKIE_NAME])) return { guest: false, allowed: true }; } catch { /* not logged in */ }
+  try { await require('../utils/checkStudentAccess').checkStudentAccess(channel, req.cookies || {}); return { guest: false, allowed: true }; } catch { /* not a room-session student */ }
+  return { guest: true, allowed: true };
+}
+
+router.get('/public-guest/:channel', async (req, res) => {
+  const channel = String(req.params.channel || '').toLowerCase();
+  const status = await guestStatus(req, channel);
+  const guest = status.guest ? readGuest(req.cookies, channel) : null;
+  res.json({ guest: status.guest, name: guest?.name || '' });
+});
+
+router.post('/public-guest/:channel', async (req, res) => {
+  const channel = String(req.params.channel || '').toLowerCase();
+  const status = await guestStatus(req, channel);
+  if (!status.allowed) return res.status(403).json({ error: 'دسترسی ندارید.' });
+  if (!status.guest) return res.status(400).json({ error: 'این بخش فقط برای ورود با لینک همگانی است.' });
+  const name = cleanName(req.body?.name);
+  if (name.length < 2) return res.status(400).json({ error: 'نام باید حداقل ۲ حرف باشد.' });
+  const current = readGuest(req.cookies, channel);
+  writeGuest(res, channel, { id: current?.id || newGuestId(), name });
+  res.json({ ok: true, name });
 });
 
 router.get('/access/:channel', async (req, res) => {

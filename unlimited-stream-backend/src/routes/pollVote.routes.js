@@ -24,11 +24,10 @@ async function getIdentity(req, res) {
   } catch { /* not a room-session student: maybe a public-link guest */ }
   if (await canAccessClass(channel, req.cookies || {})) {
     // guests have no account: give each browser its own stable id so every guest can vote once
-    let id = req.cookies?.[`public_guest_${channel}`];
-    if (!id) {
-      id = require('crypto').randomUUID();
-      res.cookie(`public_guest_${channel}`, id, { httpOnly: true, sameSite: 'lax', secure: cookieSecure, maxAge: 6 * 60 * 60 * 1000 });
-    }
+    const { readGuest, writeGuest, newGuestId } = require('../utils/publicGuest');
+    let guest = readGuest(req.cookies, channel);
+    if (!guest) { guest = { id: newGuestId(), name: '' }; writeGuest(res, channel, guest); }
+    const id = guest.id;
     return { userId: `guest:${id}`, isStaff: false };
   }
   throw new Error('no access');

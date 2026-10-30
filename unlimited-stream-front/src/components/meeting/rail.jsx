@@ -52,6 +52,15 @@ export function usePop() {
   return [open, toggle, () => setOpen(null)];
 }
 
+// Where the poll card floats: right beside the rail button that opened it (never in a far corner).
+export function pollAnchor(e) {
+  const b = e.currentTarget.getBoundingClientRect();
+  const n = e.currentTarget.closest("nav")?.getBoundingClientRect() || b;
+  const vw = window.innerWidth; const vh = window.innerHeight;
+  const left = n.right + 14 + 304 > vw - 8 ? Math.max(8, n.left - 14 - 304) : n.right + 14;
+  return { left, top: Math.max(8, Math.min(b.top, vh - 200)), maxHeight: vh - Math.max(8, Math.min(b.top, vh - 200)) - 12 };
+}
+
 export function Pop({ anchor, title, onClose, children, wide, direction = "side" }) {
   const w = wide ? 340 : 272;
   const vw = typeof window === "undefined" ? 1200 : window.innerWidth;

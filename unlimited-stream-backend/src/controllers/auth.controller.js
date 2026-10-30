@@ -26,17 +26,17 @@ async function register(req, res) {
   const { username, password } = req.body || {};
 
   if (typeof username !== 'string' || typeof password !== 'string') {
-    return res.status(400).json({ error: 'Username and password are required' });
+    return res.status(400).json({ error: 'نام کاربری و رمز عبور را وارد کنید.' });
   }
   if (!USERNAME_RE.test(username)) {
-    return res.status(400).json({ error: 'Username must be 3-24 chars: letters, numbers, underscore' });
+    return res.status(400).json({ error: 'نام کاربری باید ۳ تا ۲۴ حرف انگلیسی، عدد یا زیرخط باشد.' });
   }
   if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    return res.status(400).json({ error: 'رمز عبور باید حداقل ۸ نویسه باشد.' });
   }
 
   const existing = await User.findOne({ username: username.toLowerCase() });
-  if (existing) return res.status(409).json({ error: 'Username already taken' });
+  if (existing) return res.status(409).json({ error: 'این نام کاربری قبلاً گرفته شده است.' });
 
   const passwordHash = await hashPassword(password);
   const streamKey = generateStreamKey();
@@ -57,15 +57,15 @@ async function register(req, res) {
 async function login(req, res) {
   const { username, password } = req.body || {};
   if (typeof username !== 'string' || typeof password !== 'string') {
-    return res.status(400).json({ error: 'Username and password are required' });
+    return res.status(400).json({ error: 'نام کاربری و رمز عبور را وارد کنید.' });
   }
 
   const user = await User.findOne({ username: username.toLowerCase() });
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!user) return res.status(401).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
   if (user.status === 'DISABLED') return res.status(401).json({ error: 'حساب کاربری غیرفعال است.' });
 
   const valid = await comparePassword(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!valid) return res.status(401).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
 
   const token = signToken(user._id.toString());
   setAuthCookie(res, token);

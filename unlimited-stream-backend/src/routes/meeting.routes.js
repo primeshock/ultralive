@@ -61,8 +61,8 @@ async function resolveIdentity(req) {
   if (req.isStaff && req.user) return `staff:${req.user._id}`;
   try { const access = await checkStudentAccess(req.channel, req.cookies || {}); return `student:${access.externalUserId}`; } catch { /* not a room-session student */ }
   if (req.user) return `student:user-${req.user._id}`;
-  const guest = req.cookies?.[`public_class_${req.channel}`];
-  return guest ? `student:public:${guest}` : null;
+  const guest = require('../utils/publicGuest').readGuest(req.cookies, req.channel);
+  return guest ? `student:public:${guest.id}` : null;
 }
 
 const requireViewer = async (req, res, next) => {

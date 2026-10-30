@@ -10,7 +10,7 @@ import { AudioSink, ParticipantTile, VideoSurface, trackOf } from "./tiles";
 import { ContentViewer } from "./content-viewer";
 import { ParticipantsPanel, FilesPanel, Quality } from "./panels";
 import { ModeSwitch } from "./mode-switch";
-import { ContentRail, HeaderActions } from "./rail";
+import { ContentRail, HeaderActions, pollAnchor } from "./rail";
 import { Stage } from "./stage";
 import { AnnotatedSurface, loadPdf } from "./annotated-surface";
 import { createBoardStore } from "./board-store";
@@ -42,7 +42,7 @@ export function MeetingRoom(props) {
   return <PanelBoundary><MeetingView {...props} session={session} bus={bus} /></PanelBoundary>;
 }
 
-function MeetingView({ channel, title, organization, appearance, appearanceStyle, mode, onModeChange, isStaff, chatEnabled, chatMode: initialChatMode, initialSettings, onLeave, session, bus }) {
+function MeetingView({ channel, guest, title, organization, appearance, appearanceStyle, mode, onModeChange, isStaff, chatEnabled, chatMode: initialChatMode, initialSettings, onLeave, session, bus }) {
   const [settings, setSettings] = useState({ showParticipantsToStudents: initialSettings?.showParticipantsToStudents !== false, studentsMayRaiseHand: initialSettings?.studentsMayRaiseHand !== false });
   const [stage, setStage] = useState(EMPTY_STAGE);
   const [files, setFiles] = useState([]);
@@ -60,6 +60,7 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
   const [chatOn, setChatOn] = useState(chatEnabled !== false);
   const [chatMode, setChatMode] = useState(initialChatMode || "public");
   const [pollOpen, setPollOpen] = useState(false);
+  const [pollPos, setPollPos] = useState(null);
   const [camMax, setCamMax] = useState(false);
   const [remoteViews, setRemoteViews] = useState({});
   const [pollTick, setPollTick] = useState(0);
@@ -276,7 +277,7 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
 
   return (
     <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell relative flex h-dvh w-full max-w-full flex-col overflow-hidden text-white">
-      <RoomHeader title={title} organization={organization} endsAt={endsAt} quality={local?.connectionQuality} onLeave={() => { room?.disconnect(); onLeave?.(); }}>
+      <RoomHeader guest={guest} title={title} organization={organization} endsAt={endsAt} quality={local?.connectionQuality} onLeave={() => { room?.disconnect(); onLeave?.(); }}>
         {isStaff && <HeaderActions channel={channel} settings={settings} mode={mode} onMode={onModeChange} onSettings={updateSettings} flash={flash} endsAt={endsAt} rec={rec} onRec={recAction} />}
       </RoomHeader>
 
@@ -343,16 +344,16 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
 
         {canControl && (
           <div className="order-first shrink-0 md:order-last max-md:overflow-x-auto">
-            <ContentRail channel={channel} stage={stage} files={files} onStage={updateStage} drawable={drawable} ink={ink} onInk={(patch) => setInk((cur) => ({ ...cur, ...patch }))} onInkAction={runInk} pollOpen={pollOpen} onPoll={() => { setPollOpen((o) => !o); setSide((cur) => (cur === "hidden" ? "auto" : cur)); setTab("chat"); }} />
+            <ContentRail channel={channel} stage={stage} files={files} onStage={updateStage} drawable={drawable} ink={ink} onInk={(patch) => setInk((cur) => ({ ...cur, ...patch }))} onInkAction={runInk} pollOpen={pollOpen} onPoll={(e) => { setPollPos(pollAnchor(e)); setPollOpen((o) => !o); setSide((cur) => (cur === "hidden" ? "auto" : cur)); setTab("chat"); }} />
           </div>
         )}
       </div>
 
       <AudioSink participants={participants} />
 
-      {isStaff && pollOpen && (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-30 max-md:bottom-24 md:left-[76px]">
-          <div className="pointer-events-auto"><ClassPoll variant="float" channel={channel} isStaff audience={participants.filter((p) => !p.identity.startsWith("staff:")).length} tick={pollTick} onChange={() => publish({ type: "poll" })} /></div>
+      {isStaff && pollOpen && pollPos && (
+        <div style={{ left: pollPos.left, top: pollPos.top, maxHeight: pollPos.maxHeight }} className="fixed z-30 overflow-y-auto max-md:inset-x-2 max-md:!left-2 max-md:!top-auto max-md:bottom-24">
+          <ClassPoll variant="float" channel={channel} isStaff audience={participants.filter((p) => !p.identity.startsWith("staff:")).length} tick={pollTick} onChange={() => publish({ type: "poll" })} />
         </div>
       )}
 

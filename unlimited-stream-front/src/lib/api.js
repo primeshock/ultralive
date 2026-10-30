@@ -78,6 +78,8 @@ export const api = {
   },
   channel: (username) => apiFetch(`/api/streams/${username}`),
   sessionAccess: (channel) => apiFetch(`/api/session/access/${channel}`),
+  publicGuest: (channel) => apiFetch(`/api/session/public-guest/${channel}`),
+  setPublicGuestName: (channel, name) => apiFetch(`/api/session/public-guest/${channel}`, { method: "POST", body: JSON.stringify({ name }) }),
   guestJoin: (channel, phone) => apiFetch(`/api/session/guest/${channel}`, { method: "POST", body: JSON.stringify({ phone }) }),
 
   // --- Master panel (owner) ---
