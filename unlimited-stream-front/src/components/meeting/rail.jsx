@@ -24,7 +24,7 @@ function useDock() {
       const r = el.getBoundingClientRect();
       const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
       const k = Math.max(0, 1 - d / 56);
-      el.style.transform = k ? `scale(${1 + 0.12 * k})` : "";
+      el.style.transform = k ? `scale(${1 + 0.1 * k})` : "";
     });
     const move = (e) => apply(e.clientX, e.clientY);
     const leave = () => items().forEach((el) => { el.style.transform = ""; });
@@ -73,7 +73,7 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
 
 function RailButton({ icon: Icon, label, active, onClick }) {
   return (
-    <button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex w-12 shrink-0 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[var(--ink)] transition data-[active=true]:text-white">
+    <button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex w-10 shrink-0 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[var(--ink)] transition data-[active=true]:text-white">
       <Icon className="size-[18px]" /><span className="text-[11px] font-medium leading-4 tracking-normal">{label}</span>
     </button>
   );
@@ -81,7 +81,7 @@ function RailButton({ icon: Icon, label, active, onClick }) {
 
 function Tool({ icon: Icon, label, active, onClick, danger }) {
   return (
-    <Tip label={label} side="right"><button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className={`glass-btn grid size-8 place-items-center rounded-lg transition ${danger ? "!text-rose-300" : "text-[var(--ink)]"}`}><Icon className="size-4" /></button></Tip>
+    <Tip label={label} side="right"><button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className={`glass-btn grid size-7 place-items-center rounded-lg transition ${danger ? "!text-rose-300" : "text-[var(--ink)]"}`}><Icon className="size-4" /></button></Tip>
   );
 }
 
@@ -94,7 +94,7 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
   const hasDoc = Boolean(stage.content);
   const dock = useDock();
   return (
-    <nav ref={dock} aria-label="کنترل محتوا" className="flex flex-row flex-wrap items-center gap-1.5 rounded-2xl border border-[var(--line)] bg-[var(--s1)] p-1 md:max-h-full md:w-[64px] md:flex-col md:flex-nowrap md:overflow-y-auto md:overflow-x-hidden">
+    <nav ref={dock} aria-label="کنترل محتوا" className="flex flex-row flex-wrap items-center gap-1.5 rounded-2xl border border-[var(--line)] bg-[var(--s1)] p-0.5 md:max-h-full md:w-[52px] md:flex-col md:flex-nowrap md:overflow-y-auto md:overflow-x-hidden">
       <RailButton icon={PenTool} label="تخته" active={stage.boardOpen} onClick={() => onStage({ boardOpen: !stage.boardOpen })} />
       <RailButton icon={FileText} label="سند" active={hasDoc || open?.id === "doc"} onClick={(e) => toggle("doc", e)} />
       <RailButton icon={BarChart3} label="نظرسنجی" active={pollOpen} onClick={onPoll} />
@@ -104,7 +104,7 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
           <span className="my-1 h-px w-8 shrink-0 bg-[var(--s2)] max-md:hidden" />
           <div className="flex flex-wrap gap-1.5 md:flex-col md:flex-nowrap">
             {PRIMARY.map((id) => { const [, Icon, label] = INK_TOOLS.find((t) => t[0] === id); return <Tool key={id} icon={Icon} label={label} active={ink.tool === id} onClick={() => onInk({ tool: id })} />; })}
-            <Tip label="شکل‌ها" side="right"><button data-dock onClick={(e) => toggle("shapes", e)} data-active={SHAPES.includes(ink.tool)} aria-label="شکل‌ها" className="glass-btn grid size-8 place-items-center rounded-lg text-[var(--ink)] transition data-[active=true]:text-white"><Shapes className="size-4" /></button></Tip>
+            <Tip label="شکل‌ها" side="right"><button data-dock onClick={(e) => toggle("shapes", e)} data-active={SHAPES.includes(ink.tool)} aria-label="شکل‌ها" className="glass-btn grid size-7 place-items-center rounded-lg text-[var(--ink)] transition data-[active=true]:text-white"><Shapes className="size-4" /></button></Tip>
             <Tip label="رنگ و ضخامت" side="right"><button data-dock onClick={(e) => toggle("style", e)} aria-label="رنگ و ضخامت" className="glass-btn relative grid size-8 place-items-center rounded-lg transition"><span className="rounded-full border border-white/50" style={{ background: ink.color, width: 10 + ink.width, height: 10 + ink.width }} /><Palette className="absolute -bottom-1 -right-1 size-3 text-[var(--ink-2)]" /></button></Tip>
           </div>
           <span className="my-1 h-px w-8 shrink-0 bg-[var(--s2)] max-md:hidden" />

@@ -36,7 +36,7 @@ export function ChatMenu({ channel, chatEnabled, chatMode, onEnabled, onMode, fl
           <div className="mx-1 mt-2 h-px bg-[var(--s2)]" />
           <p className="mt-2 flex items-center gap-1.5 px-2 text-xs text-[var(--ink-2)]"><Timer className="size-3.5" />فاصلهٔ بین پیام‌های هر کاربر (ضد اسپم)</p>
           <div className="mt-1.5 flex gap-1 px-1">
-            {[0, 5, 15, 30, 60].map((n) => <button key={n} onClick={() => { setSlow(n); getSocket().emit("chat:slow", { channel, seconds: n }); }} className={`flex-1 rounded-lg border px-1 py-1.5 text-center text-[11px] transition ${slow === n ? "border-[var(--accent)] bg-[var(--accent-soft)] text-white" : "border-[var(--line)] text-[var(--ink-2)] hover:bg-[var(--s2)]"}`}>{n === 0 ? "خاموش" : `${n} ث`}</button>)}
+            {[0, 5, 15, 30, 60].map((n) => <button key={n} onClick={() => { setSlow(n); getSocket().emit("chat:slow", { channel, seconds: n }); }} className={`flex-1 rounded-md border px-1 py-0.5 text-center text-[11px] leading-5 transition ${slow === n ? "border-[var(--accent)] bg-[var(--accent-soft)] text-white" : "border-[var(--line)] text-[var(--ink-2)] hover:bg-[var(--s2)]"}`}>{n === 0 ? "خاموش" : `${n}s`}</button>)}
           </div>
           <button onClick={() => { if (window.confirm("همهٔ پیام‌های چت پاک شود؟")) { run(() => api.clearChat(channel), "چت پاک شد."); close(); } }} className="mt-2 flex w-full items-center gap-2 rounded-lg border border-rose-400/25 px-2 py-2 text-xs text-rose-200 hover:bg-rose-500/15"><Trash2 className="size-3.5" />پاک کردن همهٔ پیام‌ها</button>
         </Pop>

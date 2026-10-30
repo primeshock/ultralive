@@ -237,7 +237,7 @@ textarea::placeholder {
   --s2: oklch(0.245 0.028 258);   /* controls, hover */
   --s3: oklch(0.30 0.03 258);     /* pressed, selected row, switch track off */
   --pop: oklch(0.235 0.026 258);
-  --glass: rgb(8 11 21 / 0.86);   /* floating surfaces: dark scrim so they stay legible over white pages */
+  --glass: rgb(8 11 21 / 0.97);   /* floating surfaces: dark scrim so they stay legible over white pages */
   --line: rgb(255 255 255 / 0.085);
   --line-strong: rgb(255 255 255 / 0.17);
   --hl: inset 0 1px 0 rgb(255 255 255 / 0.055);
