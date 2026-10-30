@@ -277,7 +277,7 @@ export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publi
   });
 
   const btn = "grid size-8 shrink-0 place-items-center rounded-lg transition";
-  const gbtn = "grid size-7 place-items-center rounded-lg border border-white/12 bg-white/10 text-white/85 backdrop-blur-md transition hover:bg-white/20 disabled:opacity-35";
+  const gbtn = "grid size-7 place-items-center rounded-lg border border-white/20 bg-slate-950/80 text-white shadow-lg shadow-black/40 backdrop-blur-md transition hover:bg-slate-800/90 disabled:opacity-40";
   const panCursor = !canDraw || tool === "pan" ? (z > 1 ? "cursor-grab" : "") : "cursor-crosshair";
   return (
     <div className="relative flex h-full w-full flex-col">
@@ -290,12 +290,12 @@ export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publi
         )}
         <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1" dir="ltr">
           <button aria-label="کوچک‌نمایی" title="کوچک‌نمایی" onClick={() => zoomAt(1 / 1.25)} disabled={z <= 1} className={gbtn}><ZoomOut className="size-3.5" /></button>
-          <span className="min-w-[38px] rounded-lg border border-white/12 bg-white/10 px-1.5 py-1 text-center text-[10px] tabular-nums text-white/85 backdrop-blur-md">{Math.round(z * 100)}%</span>
+          <span className="min-w-[38px] rounded-lg border border-white/20 bg-slate-950/80 px-1.5 py-1 text-center text-[10px] tabular-nums text-white shadow-lg shadow-black/40 backdrop-blur-md">{Math.round(z * 100)}%</span>
           <button aria-label="بزرگ‌نمایی" title="بزرگ‌نمایی" onClick={() => zoomAt(1.25)} disabled={z >= MAX_Z} className={gbtn}><ZoomIn className="size-3.5" /></button>
           <button aria-label="اندازهٔ اصلی" title="اندازهٔ اصلی" onClick={() => commitView({ z: 1, cx: 0.5, cy: 0.5 })} disabled={z === 1} className={gbtn}><RotateCcw className="size-3.5" /></button>
         </div>
         {!canDraw && remoteView && remoteView.key === boardKey && !following && (
-          <button onClick={() => setFollowing(true)} className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-lg border border-sky-300/30 bg-sky-500/25 px-2.5 py-1 text-[11px] text-sky-50 backdrop-blur-md hover:bg-sky-500/40"><Link2 className="size-3" />همگام با ارائه‌دهنده</button>
+          <button onClick={() => setFollowing(true)} className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-lg border border-sky-300/40 bg-slate-950/85 px-2.5 py-1 text-[11px] text-sky-100 shadow-lg shadow-black/40 backdrop-blur-md hover:bg-slate-800/90"><Link2 className="size-3" />همگام با ارائه‌دهنده</button>
         )}
       </div>
       {pager && <div className="flex shrink-0 items-center justify-center gap-2 border-t border-white/10 bg-slate-950/60 px-2 py-1 text-xs text-white/80">{pager.canChange ? (<>
