@@ -10,7 +10,7 @@ const User = require('../src/models/User');
 const USERNAME = process.env.SEED_OWNER_USERNAME || 'shadowstrix';
 const PASSWORD = process.env.SEED_OWNER_PASSWORD;
 if (!PASSWORD || PASSWORD.length < 8) {
-  console.error('❌ SEED_OWNER_PASSWORD (حداقل ۸ کاراکتر) را تنظیم کن.');
+  console.error('❌ Set SEED_OWNER_PASSWORD (at least 8 characters).');
   process.exit(1);
 }
 
@@ -23,7 +23,7 @@ async function main() {
     existing.passwordHash = passwordHash;
     existing.role = 'SUPER_OWNER';
     await existing.save();
-    console.log(`✅ اکانت owner موجود بود، رمز/نقش‌اش تنظیم شد: ${USERNAME}`);
+    console.log(`✅ Owner account already existed; password/role updated: ${USERNAME}`);
   } else {
     await User.create({
       username: USERNAME,
@@ -32,13 +32,13 @@ async function main() {
       streamKey: crypto.randomBytes(20).toString('hex'),
       displayName: USERNAME,
     });
-    console.log(`✅ اکانت owner ساخته شد: ${USERNAME}`);
+    console.log(`✅ Owner account created: ${USERNAME}`);
   }
 
   await mongoose.disconnect();
 }
 
 main().catch((err) => {
-  console.error('❌ خطا در ساخت اکانت owner:', err.message);
+  console.error('❌ Failed to create the owner account:', err.message);
   process.exit(1);
 });
