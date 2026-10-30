@@ -229,34 +229,55 @@ textarea::placeholder {
 
 .dark .border, .dark [class*="border-"] { border-color: color-mix(in oklab, var(--border) 85%, white 15%); }
 
+/* Classroom design tokens. On :root (not only .spatial-shell) because menus and popovers render in a portal under <body>.
+   Navy-grey: blue-tinted greys in even lightness steps; depth comes from a light top edge, not from shadows or glow. */
+:root {
+  --ground: oklch(0.145 0.026 258);
+  --s1: oklch(0.195 0.026 258);   /* resting panels */
+  --s2: oklch(0.245 0.028 258);   /* controls, hover */
+  --s3: oklch(0.30 0.03 258);     /* pressed, selected row, switch track off */
+  --pop: oklch(0.235 0.026 258);
+  --glass: rgb(8 11 21 / 0.86);   /* floating surfaces: dark scrim so they stay legible over white pages */
+  --line: rgb(255 255 255 / 0.085);
+  --line-strong: rgb(255 255 255 / 0.17);
+  --hl: inset 0 1px 0 rgb(255 255 255 / 0.055);
+  --ink: #ffffff;
+  --ink-2: #b9bfcc;
+  --ink-3: #8f97a8;
+  --accent: #0a7bc4;
+  --accent-hover: #1b8fd8;
+  --accent-ink: #8dd0f5;
+  --accent-soft: color-mix(in oklab, #0a7bc4 26%, transparent);
+  --danger: oklch(0.704 0.191 22.216);
+}
+
+/* Floating surface (menu, popover, poll card, tooltip): the only place glass is used. */
+.room-float {
+  background: var(--glass);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.5), var(--hl);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  font-family: "Kalameh", Tahoma, "Segoe UI", sans-serif;
+}
+
 .spatial-shell {
   position: relative;
   isolation: isolate;
-  /* Design tokens for the classroom (studio + desktop). Navy-grey: low-chroma blue-grey, stepped surfaces. */
-  --ground: oklch(0.155 0.016 255);
-  --s1: oklch(0.205 0.016 255);   /* resting panels */
-  --s2: oklch(0.255 0.016 255);   /* controls, hover */
-  --s3: oklch(0.31 0.018 255);    /* pressed, selected row */
-  --pop: oklch(0.235 0.014 255);  /* floating: menus, popovers, poll card (opaque) */
-  --line: rgb(255 255 255 / 0.09);
-  --line-strong: rgb(255 255 255 / 0.17);
-  --ink: #ffffff;
-  --ink-2: #b4b8c2;               /* secondary text */
-  --ink-3: #8f95a3;               /* meta text */
-  --accent: #0a7bc4;              /* brand blue (fill, white label = 4.7:1) */
-  --accent-hover: #1b8fd8;
-  --accent-ink: #8dd0f5;          /* brand blue as text/icon on dark */
-  --accent-soft: color-mix(in oklab, #0a7bc4 24%, transparent);
-  --danger: oklch(0.704 0.191 22.216);
   /* shadcn components inside the classroom use the same single blue */
   --primary: #0a7bc4;
   --primary-foreground: #ffffff;
   --ring: #8dd0f5;
   font-family: "Kalameh", Tahoma, "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at 12% 6%, rgb(80 170 220 / calc(var(--glow-alpha, 0.22) * 0.32)), transparent 34%),
-    linear-gradient(160deg, #0d1118, #141923 52%, #0c1017);
+    radial-gradient(circle at 14% 4%, rgb(60 140 220 / calc(var(--glow-alpha, 0.22) * 0.55)), transparent 38%),
+    radial-gradient(circle at 92% 96%, rgb(40 90 170 / calc(var(--glow-alpha, 0.22) * 0.4)), transparent 40%),
+    linear-gradient(160deg, #0b1020, #121827 52%, #0a0e19);
 }
+
+/* resting panels get a light top edge: depth without shadow or glow */
+.spatial-shell :where(aside, section, header, nav) { box-shadow: var(--hl); }
 
 .spatial-shell :where(button, input, select, textarea) { font-family: inherit; }
 .spatial-shell :where(button, a, input, select, textarea, [role="switch"], summary):focus-visible {
@@ -329,6 +350,6 @@ textarea::placeholder {
 .poll-in { animation: poll-in .38s cubic-bezier(.2, .8, .2, 1) both; }
 
 /* control surface used across the class room (name kept for compatibility; no glass, no gradient) */
-.glass-btn { background: var(--s2); border: 1px solid var(--line-strong); color: var(--ink); }
+.glass-btn { background: var(--s2); border: 1px solid var(--line-strong); color: var(--ink); box-shadow: var(--hl); }
 .glass-btn:hover { background: var(--s3); }
 .glass-btn[data-active="true"] { background: var(--accent); border-color: var(--accent-hover); color: #fff; }

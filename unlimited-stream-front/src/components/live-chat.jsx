@@ -141,26 +141,26 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden text-white">
       <div className={`flex items-center justify-between border-b border-[var(--line)] ${compact ? "px-3 py-2" : "px-4 py-3"}`}>
-        <div><p className={`${compact ? "text-xs font-medium text-[var(--ink)]" : "text-sm font-semibold"}`}>گفت‌وگوی کلاس</p>{!compact && <p className="text-[11px] text-[var(--ink-3)]">هم‌زمان با اتاق زنده</p>}</div>
+        <div><p className={`${compact ? "text-[13px] font-medium text-[var(--ink)]" : "text-sm font-semibold"}`}>گفت‌وگوی کلاس</p>{!compact && <p className="text-[11px] text-[var(--ink-3)]">هم‌زمان با اتاق زنده</p>}</div>
         <span className="flex items-center gap-2"><span className={`size-2 rounded-full ${connected ? "bg-emerald-400" : "bg-[var(--s3)]"}`} aria-label={connected ? "متصل" : "در حال اتصال"} />{headerExtra}</span>
       </div>
       <ScrollArea className={`flex-1 min-h-0 ${compact ? "p-2" : "p-4"}`}>
         <div className={`flex flex-col ${compact ? "gap-1.5" : "gap-2.5"}`}>
           {messages.map((m, i) =>
             m.kind === "system" ? (
-              <p key={i} className="text-sm text-muted-foreground italic wrap-break-word">
+              <p key={i} className="px-2 py-1 text-center text-[12px] text-[var(--ink-3)] wrap-break-word">
                 <MessageText text={m.text} />
               </p>
             ) : (
-              <div key={i} className={`group flex items-start justify-between gap-1 border border-[var(--line)] bg-white/[0.055] transition-colors hover:bg-white/[0.09] ${compact ? "rounded-md px-2 py-1" : "rounded-2xl px-3 py-2"}`}>
+              <div key={i} className={`group flex items-start justify-between gap-2 rounded-lg transition-colors hover:bg-[var(--s2)] ${compact ? "px-2.5 py-1.5" : "px-3 py-2"}`}>
                 <div className="min-w-0">
                   {m.replyTo && findMessage(m.replyTo) && (
-                    <p className="text-xs text-muted-foreground border-r-2 pr-1.5 mb-0.5 truncate">
+                    <p className="mb-0.5 truncate border-r-2 border-[var(--accent)] pr-1.5 text-[12px] text-[var(--ink-3)]">
                       پاسخ به {findMessage(m.replyTo).username}: {findMessage(m.replyTo).text}
                     </p>
                   )}
-                  <p className={`wrap-break-word ${compact ? "text-[13px] leading-5" : "text-sm leading-6"}`}>
-                    <span className={compact ? "text-[11px] font-medium text-[var(--accent-ink)]" : "font-semibold text-[var(--accent-ink)]"}>{m.username}: </span>
+                  <p className={`wrap-break-word text-[var(--ink)] ${compact ? "text-[13px] leading-6" : "text-sm leading-6"}`}>
+                    <span className={`${compact ? "text-[12px]" : "text-[13px]"} font-medium ${m.externalUserId ? "text-[var(--ink-2)]" : "text-[var(--accent-ink)]"}`}>{m.username}<span className="text-[var(--ink-3)]">: </span></span>
                     <MessageText text={m.text} />
                   </p>
                 </div>
@@ -168,7 +168,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
                   <button
                     type="button"
                     onClick={() => setReplyTarget({ id: m.id, username: m.username, text: m.text })}
-                    className="text-muted-foreground hover:text-foreground"
+                    className="text-[var(--ink-3)] hover:text-[var(--ink)]"
                     aria-label="پاسخ"
                   >
                     <Reply className="size-4" />
@@ -176,15 +176,15 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
                   {canModerate && m.username && m.externalUserId && (
                     <DropdownMenu>
                       <DropdownMenuTrigger
-                        render={<button type="button" className="text-muted-foreground hover:text-foreground" aria-label="گزینه‌های پیام" />}
+                        render={<button type="button" className="text-[var(--ink-3)] hover:text-[var(--ink)]" aria-label="گزینه‌های پیام" />}
                       >
                         <MoreVertical className="size-4" />
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-32 space-y-1 rounded-2xl border border-[var(--line-strong)] bg-slate-900/55 p-1.5 text-center shadow-slate-950/40 supports-[backdrop-filter]:bg-white/[0.08]">
+                      <DropdownMenuContent align="end" className="room-float min-w-32 space-y-1 rounded-2xl p-1.5 text-center supports-[backdrop-filter]:bg-[var(--s2)]">
                         {["mute", "ban"].map((type) => {
                           const active = moderation.restrictionFor(m.externalUserId, type);
                           const label = type === "ban" ? "بن" : "سکوت";
-                          return <div key={type} className="rounded-lg border border-[var(--line)] bg-white/[0.03] p-0.5">
+                          return <div key={type} className="rounded-lg border border-[var(--line)] bg-[var(--s1)] p-0.5">
                             <DropdownMenuItem disabled={moderation.busy || !moderation.ready} className="justify-center text-xs text-white" onClick={() => handleModeration(m, type, "permanent")}>
                               {active ? (type === "ban" ? "رفع بن (Unban)" : "رفع سکوت (Unmute)") : label}
                             </DropdownMenuItem>
@@ -202,14 +202,11 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
         </div>
       </ScrollArea>
 
-      {!chatEnabled && (
-        <p className="border-t border-[var(--line)] bg-[var(--ground)] py-2 text-center text-xs text-[var(--ink-3)]">چت توسط استریمر بسته شده</p>
-      )}
       {moderation.error && <p role="alert" className="text-xs text-center text-destructive py-1">{moderation.error}</p>}
       {sendError && <p className="text-xs text-center text-destructive py-1">{sendError}</p>}
 
       {replyTarget && (
-        <div className="flex items-center justify-between gap-2 px-2 py-1 border-t bg-muted/40 text-xs">
+        <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] bg-[var(--s2)] px-3 py-1.5 text-[12px] text-[var(--ink-2)]">
           <span className="truncate">
             پاسخ به <b>{replyTarget.username}</b>: {replyTarget.text}
           </span>
@@ -220,7 +217,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
       )}
 
       {showEmoji && (
-        <div className="flex flex-wrap gap-1 p-2 border-t">
+        <div className="flex flex-wrap gap-1 border-t border-[var(--line)] p-2">
           {EMOJIS.map((e) => (
             <button key={e} type="button" onClick={() => addEmoji(e)} className="text-lg hover:scale-110 transition-transform">
               {e}
@@ -231,19 +228,19 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
 
       {footerSlot}
 
-      <form onSubmit={sendMessage} className={compact ? "flex shrink-0 items-center gap-2 border-t border-[var(--line)] bg-[var(--s1)] px-2.5 py-2.5" : "m-3 flex gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--ground)] p-1.5 focus-within:border-cyan-300/45"}>
-        <button type="button" onClick={() => setShowEmoji((s) => !s)} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="ایموجی">
+      <form onSubmit={sendMessage} className={compact ? "flex shrink-0 items-center gap-2 border-t border-[var(--line)] px-3 py-2.5" : "m-3 flex gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--ground)] p-1.5 focus-within:border-[var(--accent)]"}>
+        <button type="button" onClick={() => setShowEmoji((s) => !s)} className="grid size-9 shrink-0 place-items-center rounded-lg text-[var(--ink-3)] transition-colors hover:bg-[var(--s2)] hover:text-[var(--ink)]" aria-label="ایموجی">
           <Smile className="size-5" />
         </button>
         <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className={`border-0 text-white shadow-none focus-visible:ring-0 ${compact ? "h-10 flex-1 rounded-lg bg-[var(--s1)] text-[13px]" : "bg-transparent"}`}
+          className={`text-white shadow-none focus-visible:ring-0 ${compact ? "h-10 flex-1 rounded-lg border border-[var(--line)] bg-[var(--s2)] px-3 text-[13px] placeholder:text-[var(--ink-3)] focus-visible:border-[var(--accent)]" : "border-0 bg-transparent"}`}
           placeholder={!chatEnabled ? "چت بسته است" : connected ? "پیام بنویس..." : "در حال اتصال..."}
           disabled={!canSend}
           maxLength={300}
         />
-        <Button type="submit" disabled={!canSend} className={compact ? "h-10 rounded-lg px-4" : ""}>
+        <Button type="submit" disabled={!canSend} className={compact ? "h-10 rounded-lg px-4 text-[13px] font-medium" : ""}>
           ارسال
         </Button>
       </form>

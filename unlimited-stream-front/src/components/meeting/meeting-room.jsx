@@ -392,10 +392,10 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
       )}
 
       {state === "reconnecting" && <div className="pointer-events-none absolute inset-x-0 top-14 z-40 mx-auto flex w-fit items-center gap-2 rounded-full bg-amber-500/90 px-4 py-1.5 text-xs font-medium text-slate-900"><Loader2 className="size-3.5 animate-spin" />اتصال قطع شد؛ در حال اتصال دوباره...</div>}
-      {notice && <div className="pointer-events-none absolute inset-x-0 top-16 z-30 mx-auto w-fit max-w-[90vw] rounded-2xl border border-[var(--line-strong)] bg-slate-900/90 px-5 py-3 text-sm">{notice}</div>}
+      {notice && <div className="pointer-events-none absolute inset-x-0 top-16 z-30 mx-auto w-fit max-w-[90vw] room-float rounded-2xl px-5 py-3 text-sm">{notice}</div>}
       {endsAt && !isStaff && <EndCountdown endsAt={endsAt} floating />}
       {request && (
-        <div className="absolute inset-x-0 bottom-24 z-30 mx-auto flex w-fit max-w-[92vw] items-center gap-4 rounded-2xl border border-[var(--accent)] bg-slate-900/95 px-5 py-3.5">
+        <div className="absolute inset-x-0 bottom-24 z-30 mx-auto flex w-fit max-w-[92vw] items-center gap-4 room-float rounded-2xl !border-[var(--accent)] px-5 py-3.5">
           <p className="text-sm">مدیر کلاس از شما {request === "screen" ? "اشتراک صفحه" : request === "camera" ? "روشن کردن دوربین" : "روشن کردن میکروفون"} را درخواست کرده است.</p>
           <button onClick={answerRequest} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium hover:bg-[var(--accent-hover)]">قبول</button>
           <button onClick={() => setRequest(null)} className="rounded-lg bg-[var(--s2)] px-4 py-2 text-sm hover:bg-[var(--s3)]">رد</button>

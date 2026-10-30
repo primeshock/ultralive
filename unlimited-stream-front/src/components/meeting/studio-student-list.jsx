@@ -16,7 +16,7 @@ export function StudioStudentList({ channel }) {
   }, [load]);
   const students = rows.filter((r) => !r.isStaff).sort((a, b) => Number(b.handRaised) - Number(a.handRaised));
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-slate-900/80 p-4 text-white">
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--s1)] p-4 text-white">
       <header className="mb-3 flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-semibold"><Users className="size-4 text-[var(--accent-ink)]" />دانش‌آموزان آنلاین</h3>
         <span className="rounded-full bg-[var(--s2)] px-2.5 py-0.5 text-xs">{students.length}</span>

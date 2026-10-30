@@ -152,7 +152,7 @@ function initChat(httpServer) {
       if (!channel || !text || !socket.rooms.has(channel)) return;
 
       if (!isChatEnabled(channel)) {
-        socket.emit('chat:error', { message: 'چت توسط استریمر بسته شده' });
+        socket.emit('chat:error', { message: 'چت بسته است' });
         return;
       }
 
@@ -162,7 +162,7 @@ function initChat(httpServer) {
       if (!username) return; // never joined this channel's chat — ignore
 
       if (isMuted(channel, socket.data.username || '')) {
-        socket.emit('chat:error', { message: 'توسط استریمر میوت شدی' });
+        socket.emit('chat:error', { message: 'شما توسط مدیر سکوت شده‌اید' });
         return;
       }
       if (socket.data.studentId) {

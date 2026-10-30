@@ -55,7 +55,7 @@ export function ParticipantTile({ participant, onClick, active, compact = false,
     <button
       type="button"
       onClick={onClick}
-      className={`group relative isolate aspect-video w-full overflow-hidden rounded-2xl border bg-slate-900/80 text-right transition ${participant.isSpeaking ? "border-cyan-300/80 ring-2 ring-cyan-300/40" : "border-[var(--line)] hover:border-white/30"} ${active ? "ring-2 ring-[var(--accent-ink)]" : ""}`}
+      className={`group relative isolate aspect-video w-full overflow-hidden rounded-2xl border bg-[var(--s1)] text-right transition ${participant.isSpeaking ? "border-cyan-300/80 ring-2 ring-cyan-300/40" : "border-[var(--line)] hover:border-white/30"} ${active ? "ring-2 ring-[var(--accent-ink)]" : ""}`}
     >
       {camera ? (
         <VideoSurface track={camera} mirror={participant.isLocal} className={zoom ? "scale-[1.1]" : ""} />

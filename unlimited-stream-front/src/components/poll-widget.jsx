@@ -90,9 +90,9 @@ export function PollWidget({ channel }) {
             variant="outline"
             disabled={!isOpen || Boolean(poll.votedOptionId)}
             onClick={() => setSelectedOption(o.id)}
-            className={`relative h-12 w-full justify-start overflow-hidden border-[var(--line-strong)] bg-white/[0.055] text-white hover:bg-[var(--s2)] ${selectedOption === o.id ? "border-cyan-300/70 bg-cyan-300/12 shadow-[0_0_24px_rgb(34_211_238_/_0.14)]" : ""}`}
+            className={`relative h-12 w-full justify-start overflow-hidden border-[var(--line-strong)] bg-[var(--s1)] text-white hover:bg-[var(--s2)] ${selectedOption === o.id ? "border-cyan-300/70 bg-cyan-300/12 shadow-[0_0_24px_rgb(34_211_238_/_0.14)]" : ""}`}
           >
-            <span className="me-2 flex size-6 items-center justify-center rounded-full bg-black/10 text-xs font-bold">{index + 1}</span>
+            <span className="me-2 flex size-6 items-center justify-center rounded-full bg-[var(--ground)] text-xs font-bold">{index + 1}</span>
             <span className="flex-1 text-start">{o.text}</span>
             {poll.mode === "quiz" && poll.revealed && o.isCorrect !== undefined && <span className="taste-skill-ignore">{o.isCorrect ? "✓ صحیح" : "✕ غلط"}</span>}
           </Button>

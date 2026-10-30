@@ -277,11 +277,11 @@ export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publi
   });
 
   const btn = "grid size-8 shrink-0 place-items-center rounded-lg transition";
-  const gbtn = "grid size-7 place-items-center rounded-lg border border-[var(--line-strong)] bg-[var(--pop)] text-white transition hover:bg-slate-800/90 disabled:opacity-40";
+  const gbtn = "grid size-7 place-items-center rounded-lg border border-[var(--line-strong)] bg-[var(--pop)] text-white transition hover:bg-[var(--s3)] disabled:opacity-40";
   const panCursor = !canDraw || tool === "pan" ? (z > 1 ? "cursor-grab" : "") : "cursor-crosshair";
   return (
     <div className="relative flex h-full w-full flex-col">
-      <div ref={box} className="relative min-h-0 flex-1 overflow-hidden bg-slate-900/60">
+      <div ref={box} className="relative min-h-0 flex-1 overflow-hidden bg-[var(--ground)]">
         {fit.w > 0 && (
           <div className="absolute left-0 top-0 will-change-transform" style={{ width: W, height: H, transform: `translate(${tx}px, ${ty}px)` }}>
             <canvas ref={baseRef} className="absolute inset-0 h-full w-full" />
@@ -295,7 +295,7 @@ export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publi
           <button aria-label="اندازهٔ اصلی" title="اندازهٔ اصلی" onClick={() => commitView({ z: 1, cx: 0.5, cy: 0.5 })} disabled={z === 1} className={gbtn}><RotateCcw className="size-3.5" /></button>
         </div>
         {!canDraw && remoteView && remoteView.key === boardKey && !following && (
-          <button onClick={() => setFollowing(true)} className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--pop)] px-2.5 py-1 text-[11px] text-[var(--accent-ink)] hover:bg-slate-800/90"><Link2 className="size-3" />همگام با ارائه‌دهنده</button>
+          <button onClick={() => setFollowing(true)} className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--pop)] px-2.5 py-1 text-[11px] text-[var(--accent-ink)] hover:bg-[var(--s3)]"><Link2 className="size-3" />همگام با ارائه‌دهنده</button>
         )}
       </div>
       {pager && <div className="flex shrink-0 items-center justify-center gap-2 border-t border-[var(--line)] bg-[var(--pop)] px-2 py-1 text-xs text-[var(--ink)]">{pager.canChange ? (<>

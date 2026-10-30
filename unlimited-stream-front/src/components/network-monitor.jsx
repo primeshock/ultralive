@@ -5,7 +5,7 @@ const dash = (v, unit) => (v === null || v === undefined ? "—" : `${v}${unit}`
 
 // Minimal connection panel: only what helps someone decide whether their connection is the problem.
 export function NetworkMonitor({ stats }) {
-  const [text, tone] = LABEL[stats?.connectionQuality] || ["در حال اتصال", "text-white/60"];
+  const [text, tone] = LABEL[stats?.connectionQuality] || ["در حال اتصال", "text-[var(--ink-2)]"];
   const rows = [
     ["وضعیت اتصال", <span key="q" className={tone}>{text}</span>],
     ["تأخیر", dash(stats?.rttMs, " ms")],
@@ -14,12 +14,12 @@ export function NetworkMonitor({ stats }) {
     ["کیفیت تصویر", stats?.resolution ? `${stats.resolution.height}p` : "—"],
   ];
   return (
-    <div dir="rtl" className="w-60 rounded-2xl border border-[var(--line-strong)] bg-[var(--pop)]/95 p-3 text-white shadow-2xl backdrop-blur-xl">
-      <p className="mb-2 text-xs font-semibold text-white/85">کیفیت اتصال</p>
+    <div dir="rtl" className="room-float w-60 rounded-2xl p-3">
+      <p className="mb-2 text-xs font-semibold text-[var(--ink)]">کیفیت اتصال</p>
       <dl className="space-y-1.5">
         {rows.map(([label, value]) => (
-          <div key={label} className="flex items-center justify-between gap-3 border-b border-white/6 pb-1.5 text-[12px] last:border-0 last:pb-0">
-            <dt className="text-white/55">{label}</dt>
+          <div key={label} className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-1.5 text-[12px] last:border-0 last:pb-0">
+            <dt className="text-[var(--ink-2)]">{label}</dt>
             <dd className="tabular-nums" dir="ltr">{value}</dd>
           </div>
         ))}

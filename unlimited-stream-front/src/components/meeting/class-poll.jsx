@@ -25,7 +25,7 @@ function normalize(raw, results) {
 function Switch({ checked, onChange, label }) {
   return (
     <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="flex items-center gap-1.5 text-[11px] text-[var(--ink-2)]">
-      <span className={`relative h-[18px] w-8 shrink-0 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-[2px] size-[14px] rounded-full bg-white shadow transition-[right] ${checked ? "right-[2px]" : "right-[16px]"}`} /></span>
+      <span className={`relative h-[18px] w-8 shrink-0 rounded-full transition ring-1 ring-inset ring-[var(--line-strong)] ${checked ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-[2px] size-[14px] rounded-full bg-white shadow transition-[right] ${checked ? "right-[2px]" : "right-[16px]"}`} /></span>
       {label}
     </button>
   );
@@ -140,7 +140,7 @@ export function ClassPoll({ channel, isStaff, audience = 0, tick = 0, onChange, 
 
   const shell = variant === "dock"
     ? "poll-in mx-2 mb-1.5 rounded-lg border border-[var(--line)] bg-[var(--s1)] p-2.5 text-white"
-    : "poll-in w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[var(--line-strong)] bg-[var(--pop)]/95 p-3 text-white shadow-2xl backdrop-blur-xl";
+    : "room-float poll-in w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl p-3";
   if (isStaff && creating) return <div className={shell}><Creator channel={channel} onCancel={() => setCreating(false)} onDone={() => { setCreating(false); load(); onChange?.(); }} /></div>;
 
   if (!poll) {

@@ -135,7 +135,7 @@ export function FilesPanel({ channel, files, sharedId, isStaff, onChanged, onSha
             <div className="mt-1.5 flex items-center gap-1">
               {isStaff && (
                 <button type="button" role="switch" aria-checked={file.studentVisible} onClick={() => setVisible(file, !file.studentVisible)} className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-[var(--ink-2)]">
-                  <span className={`relative h-[18px] w-8 shrink-0 rounded-full transition ${file.studentVisible ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-[2px] size-[14px] rounded-full bg-white shadow transition-[right] ${file.studentVisible ? "right-[2px]" : "right-[16px]"}`} /></span>
+                  <span className={`relative h-[18px] w-8 shrink-0 rounded-full transition ring-1 ring-inset ring-[var(--line-strong)] ${file.studentVisible ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-[2px] size-[14px] rounded-full bg-white shadow transition-[right] ${file.studentVisible ? "right-[2px]" : "right-[16px]"}`} /></span>
                   <span className="truncate">برای دانش‌آموزان</span>
                 </button>
               )}

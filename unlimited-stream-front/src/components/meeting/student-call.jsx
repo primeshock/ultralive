@@ -37,7 +37,7 @@ export function StudentCallOverlay({ room, mayRaiseHand = true }) {
   const raise = () => { const next = !hand; setHand(next); local.setAttributes({ hand: next ? "1" : "0" }).catch(() => {}); };
   const btn = "grid size-11 place-items-center rounded-full transition";
   return (
-    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-full border border-[var(--line-strong)] bg-slate-900/85 p-1.5 text-white">
+    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 room-float rounded-full p-1.5">
       {canPublish ? (
         <>
           <span className="flex items-center gap-1.5 pl-2 pr-3 text-xs text-emerald-200"><PhoneCall className="size-4" />تماس فعال</span>

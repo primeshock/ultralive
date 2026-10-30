@@ -16,7 +16,7 @@ function Toggle({ checked, onChange, label }) {
   return (
     <button type="button" onClick={() => onChange(!checked)} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-right text-xs text-[var(--ink)] transition hover:bg-[var(--s2)]">
       <span>{label}</span>
-      <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-0.5 size-4 rounded-full bg-white transition-[right] ${checked ? "right-0.5" : "right-[18px]"}`} /></span>
+      <span className={`relative h-5 w-9 shrink-0 rounded-full transition ring-1 ring-inset ring-[var(--line-strong)] ${checked ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-0.5 size-4 rounded-full bg-white transition-[right] ${checked ? "right-0.5" : "right-[18px]"}`} /></span>
     </button>
   );
 }
@@ -39,7 +39,7 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
   return createPortal(
     <>
       <div className="fixed inset-0 z-[70]" onClick={onClose} aria-hidden />
-      <div dir="rtl" style={{ left, top, width: Math.min(w, vw - 16), maxHeight: vh - top - 12 }} className="fixed z-[80] overflow-y-auto rounded-2xl border border-[var(--line-strong)] bg-[var(--pop)]/95 p-2 text-white shadow-2xl backdrop-blur-xl">
+      <div dir="rtl" style={{ left, top, width: Math.min(w, vw - 16), maxHeight: vh - top - 12 }} className="room-float fixed z-[80] overflow-y-auto rounded-2xl p-2">
         <div className="mb-1 flex items-center justify-between px-2 pt-1 text-xs font-semibold"><span>{title}</span><button onClick={onClose} aria-label="بستن" className="grid size-6 place-items-center rounded-md hover:bg-[var(--s2)]"><X className="size-3.5" /></button></div>
         {children}
       </div>
@@ -50,8 +50,8 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
 
 function RailButton({ icon: Icon, label, active, onClick }) {
   return (
-    <button onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex w-11 shrink-0 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[var(--ink)] transition data-[active=true]:text-white">
-      <Icon className="size-[18px]" /><span className="text-[11px] leading-3">{label}</span>
+    <button onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex w-[52px] shrink-0 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[var(--ink)] transition data-[active=true]:text-white">
+      <Icon className="size-[18px]" /><span className="text-[11px] font-medium leading-4 tracking-normal">{label}</span>
     </button>
   );
 }
@@ -70,7 +70,7 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
   const [open, toggle, close] = usePop();
   const hasDoc = Boolean(stage.content);
   return (
-    <nav aria-label="کنترل محتوا" className="flex flex-row flex-wrap items-center gap-1 rounded-2xl border border-[var(--line)] bg-[var(--s1)] p-1 md:max-h-full md:w-[56px] md:flex-col md:flex-nowrap md:overflow-y-auto md:overflow-x-hidden">
+    <nav aria-label="کنترل محتوا" className="flex flex-row flex-wrap items-center gap-1 rounded-2xl border border-[var(--line)] bg-[var(--s1)] p-1 md:max-h-full md:w-[64px] md:flex-col md:flex-nowrap md:overflow-y-auto md:overflow-x-hidden">
       <RailButton icon={PenTool} label="تخته" active={stage.boardOpen} onClick={() => onStage({ boardOpen: !stage.boardOpen })} />
       <RailButton icon={FileText} label="سند" active={hasDoc || open?.id === "doc"} onClick={(e) => toggle("doc", e)} />
       <RailButton icon={BarChart3} label="نظرسنجی" active={pollOpen} onClick={onPoll} />

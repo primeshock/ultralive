@@ -16,7 +16,7 @@ export function ChatMenu({ channel, chatEnabled, chatMode, onEnabled, onMode, fl
         <Pop anchor={open.rect} direction="down" title="تنظیمات چت" onClose={close}>
           <button onClick={() => run(async () => { await api.setChatEnabled(channel, !chatEnabled); onEnabled(!chatEnabled); }, chatEnabled ? "چت غیرفعال شد." : "چت فعال شد.")} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-right text-xs text-[var(--ink)] hover:bg-[var(--s2)]">
             <span>چت برای دانش‌آموزان فعال باشد</span>
-            <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${chatEnabled ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-0.5 size-4 rounded-full bg-white transition-[right] ${chatEnabled ? "right-0.5" : "right-[18px]"}`} /></span>
+            <span className={`relative h-5 w-9 shrink-0 rounded-full transition ring-1 ring-inset ring-[var(--line-strong)] ${chatEnabled ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-0.5 size-4 rounded-full bg-white transition-[right] ${chatEnabled ? "right-0.5" : "right-[18px]"}`} /></span>
           </button>
           <div className="mx-1 mt-2 h-px bg-[var(--s2)]" />
           <div className="h-2" />
