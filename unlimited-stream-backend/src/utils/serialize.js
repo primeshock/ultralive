@@ -15,6 +15,7 @@ function publicUser(user, ctx) {
     username: user.username || user.slug,
     displayName: user.displayName || user.title,
     streamTitle: user.streamTitle || user.title,
+    mode: user.mode || 'studio',
     isLive: Boolean(user.isLive),
     chatEnabled: user.chatEnabled !== false,
     chatMode: user.chatMode || 'public',

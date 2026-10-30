@@ -11,6 +11,9 @@ import { LiveChat } from "@/components/live-chat";
 import { PollWidget } from "@/components/poll-widget";
 import { ClassAdminPanel } from "@/components/class-admin-panel";
 import { NetworkMonitor } from "@/components/network-monitor";
+import { MeetingRoom } from "@/components/meeting/meeting-room";
+import { StudentCallOverlay } from "@/components/meeting/student-call";
+import { StudioStudentList } from "@/components/meeting/studio-student-list";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -33,6 +36,7 @@ export default function ChannelPage({ params }) {
   const [networkStats, setNetworkStats] = useState(null);
   const [networkOpen, setNetworkOpen] = useState(false);
   const [appearance, setAppearance] = useState(null);
+  const [studioRoom, setStudioRoom] = useState(null);
 
   useEffect(() => {
     api.sessionAccess(username).then((result) => { setAccessOptions(result); setAccessAllowed(result.allowed); }).catch(() => setAccessAllowed(false));
@@ -142,6 +146,23 @@ export default function ChannelPage({ params }) {
     "ADMIN_L2",
   ].includes(user.role);
 
+  if (channel.mode === "desktop" && useLiveKit && !previewOnly) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#070d1c]">
+        <MeetingRoom
+          channel={username}
+          title={channel.streamTitle || channel.displayName}
+          organization={channel.organization?.name}
+          isStaff={Boolean(canManageClass)}
+          chatEnabled={channel.chatEnabled}
+          livekitSettings={livekitStatus?.livekit}
+          initialSettings={channel.meeting}
+          onLeave={() => { window.location.href = canManageClass ? "/admin" : "/"; }}
+        />
+      </div>
+    );
+  }
+
   async function handleChatMode(mode) {
     await api.setChatMode(username, mode);
     setChatMode(mode);
@@ -167,12 +188,14 @@ export default function ChannelPage({ params }) {
       <div className="flex min-h-0 flex-col gap-5">
         <div className="glass-float relative aspect-video overflow-hidden rounded-[2rem] border-white/20 p-1 shadow-[0_30px_100px_rgb(0_0_0_/_0.38)]">
           <div className="pointer-events-none absolute inset-0 z-10 rounded-[1.8rem] ring-1 ring-inset ring-white/10" />
+          {!previewOnly && !canManageClass && studioRoom && <StudentCallOverlay room={studioRoom} mayRaiseHand={channel.meeting?.studentsMayRaiseHand !== false} />}
           {channel.isLive && useLiveKit ? (
             <LiveKitPlayer
               channel={username}
               poster={channel.thumbnailUrl}
               livekitSettings={livekitStatus?.livekit}
               onTelemetry={setNetworkStats}
+              onRoomReady={setStudioRoom}
               className="w-full h-full"
             />
           ) : channel.thumbnailUrl ? (
@@ -212,6 +235,7 @@ export default function ChannelPage({ params }) {
         </div>
 
         {!previewOnly && <PollWidget channel={username} />}
+        {!previewOnly && canManageClass && useLiveKit && <StudioStudentList channel={username} />}
         {!previewOnly && canManageClass && <ClassAdminPanel channel={username} thumbnailUrl={channel.thumbnailUrl} chatMode={chatMode} showViewerCount={channel.showViewerCount} viewerCount={channel.viewerCount || 0} onChatMode={handleChatMode} onViewerCount={handleViewerCount} onThumbnail={(thumbnailUrl) => setChannel((current) => ({ ...current, thumbnailUrl }))} />}
       </div>
 

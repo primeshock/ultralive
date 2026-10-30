@@ -5,6 +5,8 @@ const classSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true, maxlength: 140 },
     slug: { type: String, required: true, trim: true, lowercase: true, unique: true, index: true },
     description: { type: String, default: '', maxlength: 2000 },
+    // studio: OBS -> LiveKit ingress, viewers only. desktop: interactive WebRTC meeting room.
+    mode: { type: String, enum: ['studio', 'desktop'], default: 'studio', index: true },
     visibility: { type: String, enum: ['public', 'private'], default: 'private', index: true },
     accessModes: { type: [String], enum: ['login', 'api', 'public', 'guest'], default: ['login'] },
     guestAccess: { type: Boolean, default: false },

@@ -85,6 +85,7 @@ app.use('/api', monitorRoutes); // -> /api/monitor/:token, /api/monitor/:token/l
 // required Nginx change — it must point here now, not straight at :8000).
 app.use(liveRoutes); // -> /live/:channel
 app.use('/api/livekit', livekitRoutes);
+app.use('/api/meeting', require('./routes/meeting.routes'));
 app.use('/api', phase2Routes);
 app.use(mediaRoutes);
 

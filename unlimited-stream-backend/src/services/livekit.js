@@ -80,14 +80,16 @@ function roomName(channel) {
   return `class_${String(channel).toLowerCase()}`;
 }
 
-async function createStudentToken({ channel, identity, name }) {
+async function createStudentToken({ channel, identity, name, interactive = false }) {
   assertEnabled();
   const token = new AccessToken(livekitApiKey, livekitApiSecret, {
     identity: `student:${identity}`,
     name: name || identity,
     ttl: '6h', // match the room-session TTL used for HLS/chat access
   });
-  token.addGrant({ roomJoin: true, room: roomName(channel), canSubscribe: true, canPublish: false });
+  // Students start subscribe-only; a host can later grant publish rights per participant
+  // (updateParticipant). Data + own-attributes let them raise a hand without publishing.
+  token.addGrant({ roomJoin: true, room: roomName(channel), canSubscribe: true, canPublish: false, canPublishData: interactive, canUpdateOwnMetadata: interactive });
   return token.toJwt(); // returns a Promise in SDK v2 — callers already await this function
 }
 
@@ -98,7 +100,7 @@ async function createStaffToken({ channel, identity, name, publish = false }) {
     name: name || identity,
     ttl: '6h',
   });
-  token.addGrant({ roomJoin: true, room: roomName(channel), canSubscribe: true, canPublish: Boolean(publish) });
+  token.addGrant({ roomJoin: true, room: roomName(channel), canSubscribe: true, canPublish: Boolean(publish), canPublishData: true, canUpdateOwnMetadata: true });
   return token.toJwt();
 }
 
@@ -436,6 +438,7 @@ async function handleWebhook(event) {
 module.exports = {
   createStudentToken,
   createStaffToken,
+  roomService,
   ingressAudioOptions,
   ingressVideoOptions,
   ensureIngress,

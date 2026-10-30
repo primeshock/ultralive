@@ -46,6 +46,7 @@ router.get('/token', async (req, res) => {
           channel,
           identity: user._id.toString(),
           name: user.displayName || user.username,
+          publish: target.mode === 'desktop',
         });
         return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: user.role });
       }
@@ -57,10 +58,10 @@ router.get('/token', async (req, res) => {
   if (await canAccessClass(channel, req.cookies || {})) {
     try {
     const access = await checkStudentAccess(channel, req.cookies || {});
-    const participantToken = await createStudentToken({ channel, identity: access.externalUserId, name: access.displayName });
+    const participantToken = await createStudentToken({ channel, identity: access.externalUserId, name: access.displayName, interactive: true });
     return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: 'student' });
     } catch {
-      const participantToken = await createStudentToken({ channel, identity: `public:${req.cookies[`public_class_${channel}`]}`, name: 'مهمان' });
+      const participantToken = await createStudentToken({ channel, identity: `public:${req.cookies[`public_class_${channel}`]}`, name: 'مهمان', interactive: true });
       return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: 'student' });
     }
   }

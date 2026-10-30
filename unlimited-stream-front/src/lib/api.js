@@ -216,6 +216,22 @@ export const api = {
     apiFetch(`/api/rooms/${channel}/polls/${pollId}/vote`, { method: "POST", body: JSON.stringify({ optionId }) }),
 
   // --- LiveKit (Phase 6, alongside HLS) ---
+  meetingState: (channel) => apiFetch(`/api/meeting/${channel}/state`),
+  meetingSettings: (channel, payload) => apiFetch(`/api/meeting/${channel}/settings`, { method: "POST", body: JSON.stringify(payload) }),
+  meetingContent: (channel, fileId) => apiFetch(`/api/meeting/${channel}/content`, { method: "POST", body: JSON.stringify({ fileId }) }),
+  meetingParticipants: (channel) => apiFetch(`/api/meeting/${channel}/participants`),
+  meetingParticipantAction: (channel, identity, payload) => apiFetch(`/api/meeting/${channel}/participants/${encodeURIComponent(identity)}`, { method: "POST", body: JSON.stringify(payload) }),
+  meetingRequest: (channel, payload) => apiFetch(`/api/meeting/${channel}/request`, { method: "POST", body: JSON.stringify(payload) }),
+  meetingMuteAll: (channel) => apiFetch(`/api/meeting/${channel}/mute-all`, { method: "POST" }),
+  meetingDeleteFile: (channel, fileId) => apiFetch(`/api/meeting/${channel}/files/${fileId}`, { method: "DELETE" }),
+  meetingUpload: async (channel, file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API_URL}/api/meeting/${channel}/files`, { method: "POST", credentials: "include", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "آپلود فایل انجام نشد.");
+    return data;
+  },
   livekitStatus: () => apiFetch("/api/livekit/status"),
   livekitToken: (channel) => apiFetch(`/api/livekit/token?channel=${encodeURIComponent(channel)}`),
   livekitMonitorToken: (token) => apiFetch(`/api/livekit/monitor-token/${encodeURIComponent(token)}`),

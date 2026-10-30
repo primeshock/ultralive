@@ -18,7 +18,7 @@ function describeLivekitError(error, context = {}) {
   };
 }
 
-export function LiveKitPlayer({ channel, className, poster, connection, livekitSettings, onTelemetry }) {
+export function LiveKitPlayer({ channel, className, poster, connection, livekitSettings, onTelemetry, onRoomReady }) {
   const mediaRef = useRef(null);
   const roomRef = useRef(null);
   const currentTrackRef = useRef(null);
@@ -175,6 +175,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
         room = new lk.Room(roomOptionsFromLivekit(normalizedSettings));
 
         roomRef.current = room;
+        onRoomReady?.(room);
 
         room.on(lk.RoomEvent.ConnectionStateChanged, (nextState) => {
           console.info("[LiveKit] ConnectionStateChanged", {
@@ -340,6 +341,7 @@ export function LiveKitPlayer({ channel, className, poster, connection, livekitS
       detachTrack(currentAudioTrack);
 
       room?.disconnect();
+      onRoomReady?.(null);
       roomRef.current = null;
 
       if (media) {

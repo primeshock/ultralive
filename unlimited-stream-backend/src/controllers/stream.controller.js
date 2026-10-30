@@ -31,6 +31,7 @@ async function getChannel(req, res) {
     const organization = await Organization.findById(target.organizationId).select('name logoVersion classAppearance');
     channel.accessModes = target.accessModes?.length ? target.accessModes : [target.visibility === 'public' ? 'public' : 'login'];
     channel.guestAccess = Boolean(target.guestAccess);
+    channel.meeting = { showParticipantsToStudents: target.settings?.showParticipantsToStudents !== false, studentsMayRaiseHand: target.settings?.studentsMayRaiseHand !== false };
     channel.appearance = target.settings?.appearance || organization?.classAppearance || {};
     channel.organization = organization ? { id: organization._id, name: organization.name, logoUrl: organization.logoVersion ? `/api/organization-logos/${organization._id}.png?v=${organization.logoVersion}` : null } : null;
   }
