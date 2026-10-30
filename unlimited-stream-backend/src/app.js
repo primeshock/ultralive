@@ -40,7 +40,7 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 // explicit and right after cors/helmet so nothing else can ever intercept the
 // stream first.
 app.use('/api/livekit/webhook', express.raw({ type: () => true, limit: '1mb' }), livekitWebhookRoutes);
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 app.use(cookieParser());
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/organization', organizationManagementRoutes);

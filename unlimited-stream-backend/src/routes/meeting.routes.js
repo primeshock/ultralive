@@ -8,6 +8,9 @@ const { TrackSource, DataPacket_Kind } = require('livekit-server-sdk');
 const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
 const ClassFile = require('../models/ClassFile');
+const ClassBoard = require('../models/ClassBoard');
+const Class = require('../models/Class');
+const LiveSession = require('../models/LiveSession');
 const { canAccessClass } = require('../utils/classAccess');
 const { loadOrganizationContext } = require('../utils/organizationScope');
 const { findStreamTarget, canManageStreamTarget, isClassTarget } = require('../utils/streamTarget');
@@ -73,14 +76,14 @@ function meetingSettings(target) {
   return {
     showParticipantsToStudents: s.showParticipantsToStudents !== false,
     studentsMayRaiseHand: s.studentsMayRaiseHand !== false,
-    sharedContent: s.sharedContent || null,
+    stage: { content: s.stage?.content || null, boardOpen: Boolean(s.stage?.boardOpen), page: s.stage?.page || 1, boardPage: s.stage?.boardPage || 1 },
   };
 }
 
 // ---- state & settings ----------------------------------------------------
 router.get('/:channel/state', loadTarget, requireViewer, async (req, res) => {
   const files = isClassTarget(req.target) ? await ClassFile.find({ classSlug: req.channel }).sort({ createdAt: -1 }).limit(200) : [];
-  res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, settings: meetingSettings(req.target), files: files.map((f) => fileView(req.channel, f)) });
+  res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, settings: meetingSettings(req.target), endsAt: endTimers.get(req.channel)?.endsAt || null, files: files.map((f) => fileView(req.channel, f)) });
 });
 
 router.post('/:channel/settings', loadTarget, requireStaff, requireClass, async (req, res) => {
@@ -107,19 +110,77 @@ router.post('/:channel/mode', loadTarget, requireStaff, requireClass, async (req
   res.json({ mode });
 });
 
-router.post('/:channel/content', loadTarget, requireStaff, requireClass, async (req, res) => {
-  let shared = null;
-  if (req.body?.fileId) {
-    if (!mongoose.isValidObjectId(req.body.fileId)) return res.status(400).json({ error: 'فایل نامعتبر است.' });
-    const file = await ClassFile.findOne({ _id: req.body.fileId, classSlug: req.channel });
-    if (!file) return res.status(404).json({ error: 'فایل پیدا نشد.' });
-    shared = { ...fileView(req.channel, file), sharedAt: new Date() };
+router.post('/:channel/stage', loadTarget, requireStaff, requireClass, async (req, res) => {
+  const body = req.body || {};
+  const current = req.target.settings?.stage || {};
+  const stage = { content: current.content || null, boardOpen: Boolean(current.boardOpen), page: current.page || 1, boardPage: current.boardPage || 1 };
+  if ('fileId' in body) {
+    if (body.fileId) {
+      if (!mongoose.isValidObjectId(body.fileId)) return res.status(400).json({ error: 'فایل نامعتبر است.' });
+      const file = await ClassFile.findOne({ _id: body.fileId, classSlug: req.channel });
+      if (!file) return res.status(404).json({ error: 'فایل پیدا نشد.' });
+      stage.content = fileView(req.channel, file);
+      stage.page = 1;
+    } else {
+      stage.content = null;
+    }
   }
-  req.target.settings = { ...(req.target.settings || {}), sharedContent: shared };
+  if (typeof body.boardOpen === 'boolean') stage.boardOpen = body.boardOpen;
+  if (Number.isInteger(body.page) && body.page >= 1 && body.page <= 5000) stage.page = body.page;
+  if (Number.isInteger(body.boardPage) && body.boardPage >= 1 && body.boardPage <= 200) stage.boardPage = body.boardPage;
+  req.target.settings = { ...(req.target.settings || {}), stage };
   req.target.markModified('settings');
   await req.target.save();
-  await broadcast(req.channel, { type: 'content', content: shared });
-  res.json({ sharedContent: shared });
+  await broadcast(req.channel, { type: 'stage', stage });
+  res.json({ stage });
+});
+
+// ---- whiteboard / PDF annotation storage ----
+const boardKeyOk = (key) => typeof key === 'string' && /^(board:\d{1,3}|file:[a-f0-9]{24}:\d{1,4})$/.test(key);
+
+router.get('/:channel/board', loadTarget, requireViewer, async (req, res) => {
+  if (!boardKeyOk(req.query.key)) return res.status(400).json({ error: 'کلید نامعتبر است.' });
+  const doc = await ClassBoard.findOne({ classSlug: req.channel, key: req.query.key }).lean();
+  res.json({ strokes: doc?.strokes || [] });
+});
+
+router.put('/:channel/board', loadTarget, requireStaff, requireClass, async (req, res) => {
+  const { key, strokes } = req.body || {};
+  if (!boardKeyOk(key) || !Array.isArray(strokes) || strokes.length > 4000) return res.status(400).json({ error: 'داده نامعتبر است.' });
+  await ClassBoard.updateOne({ classSlug: req.channel, key }, { $set: { strokes } }, { upsert: true });
+  res.json({ ok: true });
+});
+
+// ---- ending the class (immediately or after a countdown) ----
+const endTimers = new Map();
+async function finishClass(channel, target) {
+  endTimers.delete(channel);
+  await broadcast(channel, { type: 'ended' });
+  await roomService().deleteRoom(roomName(channel)).catch(() => {});
+  try {
+    const classDoc = await Class.findOne({ slug: channel });
+    if (classDoc) await LiveSession.updateMany({ classId: classDoc._id, status: 'live' }, { status: 'ended', endedAt: new Date() });
+    if (target?.isLive) { target.isLive = false; await target.save(); }
+  } catch (err) { console.warn('[meeting] end bookkeeping failed:', err.message); }
+}
+
+router.post('/:channel/end', loadTarget, requireStaff, requireClass, async (req, res) => {
+  const minutes = Number(req.body?.afterMinutes || 0);
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) return res.status(400).json({ error: 'زمان نامعتبر است.' });
+  clearTimeout(endTimers.get(req.channel)?.timer);
+  if (minutes === 0) { await finishClass(req.channel, req.target); return res.json({ ended: true }); }
+  const endsAt = Date.now() + minutes * 60_000;
+  const channel = req.channel;
+  endTimers.set(channel, { endsAt, timer: setTimeout(() => finishClass(channel, null), minutes * 60_000) });
+  await broadcast(channel, { type: 'ending', endsAt });
+  res.json({ ended: false, endsAt });
+});
+
+router.delete('/:channel/end', loadTarget, requireStaff, async (req, res) => {
+  clearTimeout(endTimers.get(req.channel)?.timer);
+  endTimers.delete(req.channel);
+  await broadcast(req.channel, { type: 'ending', endsAt: null });
+  res.status(204).end();
 });
 
 // ---- files ---------------------------------------------------------------
@@ -167,11 +228,13 @@ router.delete('/:channel/files/:fileId', loadTarget, requireStaff, requireClass,
   const file = await ClassFile.findOneAndDelete({ _id: req.params.fileId, classSlug: req.channel });
   if (file) {
     fs.promises.unlink(path.join(FILES_ROOT, req.channel, file.storedName)).catch(() => {});
-    if (String(req.target.settings?.sharedContent?.id) === String(file._id)) {
-      req.target.settings = { ...req.target.settings, sharedContent: null };
+    ClassBoard.deleteMany({ classSlug: req.channel, key: new RegExp(`^file:${file._id}:`) }).catch(() => {});
+    if (String(req.target.settings?.stage?.content?.id) === String(file._id)) {
+      const stage = { ...req.target.settings.stage, content: null };
+      req.target.settings = { ...req.target.settings, stage };
       req.target.markModified('settings');
       await req.target.save();
-      await broadcast(req.channel, { type: 'content', content: null });
+      await broadcast(req.channel, { type: 'stage', stage });
     }
   }
   res.status(204).end();
