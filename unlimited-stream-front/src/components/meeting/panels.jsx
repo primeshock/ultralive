@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Hand, Mic, MonitorUp, UserX, MicOff, Lock, Upload, FileText, Trash2, Presentation, Eye, X, Download } from "lucide-react";
+import { Hand, Mic, Video, MonitorUp, UserX, Upload, FileText, Trash2, Presentation, Eye, X, Download } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 import { initials } from "./tiles";
 
@@ -40,34 +40,20 @@ export function ParticipantRow({ channel, data, isStaff, onChanged }) {
         <span className="flex shrink-0 items-center gap-1">
           {data.isStaff && <Tag tone="sky">مدیر</Tag>}
           {data.handRaised && <Hand className="size-3.5 text-amber-300" />}
-          {data.canPublish && !data.isStaff && <Mic className="size-3 text-emerald-300" />}
+          {data.presenter && <Presentation className="size-3.5 text-amber-300" />}
+          {data.canPublish && !data.isStaff && !data.presenter && <Mic className="size-3 text-emerald-300" />}
           {isStaff && <Quality value={data.quality} />}
         </span>
       </div>
       {controls && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          {!data.canPublish ? (
-            <button disabled={busy} onClick={() => act({ action: "allow", sources: ["microphone", "camera"] })} className="flex items-center gap-1 rounded-md bg-sky-500/90 px-2 py-1 text-[11px] font-medium text-white hover:bg-sky-400 disabled:opacity-50"><Mic className="size-3" /> فعال‌سازی</button>
-          ) : (
-            <>
-              <button disabled={busy} title="قطع میکروفون و دوربین" onClick={() => act({ action: "mute" })} className={mini}><MicOff className="size-3.5" /></button>
-              <button disabled={busy} title="اجازهٔ اشتراک صفحه" onClick={() => act({ action: "allow", sources: ["microphone", "camera", "screen", "screen_audio"] })} className={mini}><MonitorUp className="size-3.5" /></button>
-              <button disabled={busy} title="لغو دسترسی" onClick={() => act({ action: "revoke" })} className={mini}><Lock className="size-3.5" /></button>
-            </>
-          )}
+          {[["microphone", Mic, "میکروفون"], ["camera", Video, "دوربین"], ["screen", MonitorUp, "اشتراک صفحه"]].map(([src, Icon, label]) => {
+            const on = (data.sources || []).includes(src);
+            return <button key={src} disabled={busy} title={on ? `لغو دسترسی ${label}` : `درخواست ${label}`} aria-label={label} onClick={() => act({ action: on ? "revoke-source" : "grant", source: src })} className={`grid size-6 place-items-center rounded-md transition disabled:opacity-40 ${on ? "bg-emerald-500/80 text-white" : "bg-white/8 text-white/70 hover:bg-white/16"}`}><Icon className="size-3.5" /></button>;
+          })}
+          <button disabled={busy} title={data.presenter ? "لغو ارائه‌دهنده" : "ارائه‌دهنده کردن (همهٔ دسترسی‌ها + کنترل محتوا)"} aria-label="ارائه‌دهنده" onClick={() => act({ action: "presenter", value: !data.presenter })} className={`grid size-6 place-items-center rounded-md transition disabled:opacity-40 ${data.presenter ? "bg-amber-400 text-slate-900" : "bg-white/8 text-white/70 hover:bg-white/16"}`}><Presentation className="size-3.5" /></button>
           {data.handRaised && <button disabled={busy} title="پایین آوردن دست" onClick={() => act({ action: "lower-hand" })} className={mini}><Hand className="size-3.5" /></button>}
           <button disabled={busy} title="حذف از کلاس" onClick={() => act({ action: "kick" })} className="grid size-6 place-items-center rounded-md bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 disabled:opacity-40"><UserX className="size-3.5" /></button>
-        </div>
-      )}
-      {isStaff && recordings.length > 0 && (
-        <div className="space-y-1.5 border-t border-white/10 pt-3">
-          <p className="px-1 text-[11px] text-white/50">ضبط‌های کلاس</p>
-          {recordings.map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-white/[.03] px-2 py-1.5 text-[11px] text-white/80">
-              <span>{new Date(r.startedAt).toLocaleString("fa-IR")} {r.durationSeconds ? `· ${Math.round(r.durationSeconds / 60)} دقیقه` : ""}</span>
-              {r.url ? <a href={r.url.startsWith("/") ? `${API_URL}${r.url}` : r.url} className="rounded-md bg-sky-500/90 px-2 py-1 text-white">دانلود</a> : <span className="text-white/45">{r.status === "failed" ? "ناموفق" : "در حال پردازش"}</span>}
-            </div>
-          ))}
         </div>
       )}
     </div>

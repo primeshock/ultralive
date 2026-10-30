@@ -61,7 +61,9 @@ router.get('/token', async (req, res) => {
     const participantToken = await createStudentToken({ channel, identity: access.externalUserId, name: access.displayName, interactive: true });
     return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: 'student' });
     } catch {
-      const participantToken = await createStudentToken({ channel, identity: `public:${req.cookies[`public_class_${channel}`]}`, name: 'مهمان', interactive: true });
+      let who = `public:${req.cookies[`public_class_${channel}`]}`; let whoName = 'مهمان';
+      try { const u = await User.findById(verifyToken(rawToken).sub); if (u) { who = `user-${u._id}`; whoName = u.displayName || u.username; } } catch { /* anonymous guest */ }
+      const participantToken = await createStudentToken({ channel, identity: who, name: whoName, interactive: true });
       return res.json({ serverUrl: livekitWsUrl, participantToken, roomName: roomName(channel), role: 'student' });
     }
   }

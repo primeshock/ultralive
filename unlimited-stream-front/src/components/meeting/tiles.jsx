@@ -20,7 +20,7 @@ export function VideoSurface({ track, className = "", mirror = false, fit = "cov
     track.attach(el);
     return () => { track.detach(el); };
   }, [track]);
-  return <video ref={ref} autoPlay playsInline muted className={`h-full w-full ${fit === "contain" ? "object-contain" : "object-cover"} ${mirror ? "-scale-x-100" : ""} ${className}`} />;
+  return <video ref={ref} autoPlay playsInline muted className={`absolute inset-0 h-full w-full ${fit === "contain" ? "object-contain" : "object-cover"} ${mirror ? "-scale-x-100" : ""} ${className}`} />;
 }
 
 function AudioEl({ track }) {

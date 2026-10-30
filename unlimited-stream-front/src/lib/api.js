@@ -229,6 +229,7 @@ export const api = {
   systemVersion: () => apiFetch("/api/system/version"),
   systemUpdate: () => apiFetch("/api/system/update", { method: "POST" }),
   systemUpdateStatus: () => apiFetch("/api/system/update/status"),
+  meetingRelease: (channel, source) => apiFetch(`/api/meeting/${channel}/release`, { method: "POST", body: JSON.stringify({ source }) }),
   meetingStage: (channel, payload) => apiFetch(`/api/meeting/${channel}/stage`, { method: "POST", body: JSON.stringify(payload) }),
   meetingBoardGet: (channel, key) => apiFetch(`/api/meeting/${channel}/board?key=${encodeURIComponent(key)}`),
   meetingBoardSave: (channel, key, strokes) => apiFetch(`/api/meeting/${channel}/board`, { method: "PUT", body: JSON.stringify({ key, strokes }) }),

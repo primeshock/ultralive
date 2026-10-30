@@ -28,12 +28,12 @@ export function Stage({ panels }) {
           ); })}
         </div>
       )}
-      <div className={`grid min-h-0 flex-1 gap-2 ${sideCount ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,36%)]" : ""} ${sideCount > 1 ? "lg:grid-rows-2" : ""}`}>
+      <div className={`grid min-h-0 flex-1 gap-2 ${sideCount ? "md:grid-cols-[minmax(0,1fr)_minmax(0,36%)]" : ""} ${sideCount > 1 ? "md:grid-rows-2" : ""}`}>
         {shown.map((p) => {
           const isMain = p === main;
           const Icon = ICONS[p.id] || FileText;
           return (
-            <section key={p.id} className={`flex min-h-[220px] min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/30 shadow-xl lg:min-h-0 ${isMain ? `order-first ${sideCount > 1 ? "lg:col-start-1 lg:row-span-2" : ""}` : "lg:col-start-2"}`}>
+            <section key={p.id} className={`flex min-h-[220px] min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/30 shadow-xl md:min-h-0 ${isMain ? `order-first ${sideCount > 1 ? "md:col-start-1 md:row-span-2" : ""}` : "md:col-start-2"}`}>
               <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/8 bg-white/[.04] px-3 py-1.5">
                 <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-white/90"><Icon className="size-3.5 shrink-0 text-sky-300" /><span className="truncate">{p.title}</span></span>
                 <span className="flex shrink-0 gap-1">

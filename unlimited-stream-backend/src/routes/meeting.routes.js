@@ -13,6 +13,7 @@ const ClassBoard = require('../models/ClassBoard');
 const Class = require('../models/Class');
 const LiveSession = require('../models/LiveSession');
 const { canAccessClass } = require('../utils/classAccess');
+const { checkStudentAccess } = require('../utils/checkStudentAccess');
 const { loadOrganizationContext } = require('../utils/organizationScope');
 const { findStreamTarget, canManageStreamTarget, isClassTarget } = require('../utils/streamTarget');
 const { roomService, roomName } = require('../services/livekit');
@@ -50,13 +51,25 @@ async function loadTarget(req, res, next) {
       }
     }
   } catch { /* not a staff login */ }
+  req.identity = await resolveIdentity(req);
+  req.isPresenter = Boolean(req.identity && (target.settings?.presenters || []).includes(req.identity));
   next();
+}
+
+// Must match the identities issued in routes/livekit.routes.js (token endpoint).
+async function resolveIdentity(req) {
+  if (req.isStaff && req.user) return `staff:${req.user._id}`;
+  try { const access = await checkStudentAccess(req.channel, req.cookies || {}); return `student:${access.externalUserId}`; } catch { /* not a room-session student */ }
+  if (req.user) return `student:user-${req.user._id}`;
+  const guest = req.cookies?.[`public_class_${req.channel}`];
+  return guest ? `student:public:${guest}` : null;
 }
 
 const requireViewer = async (req, res, next) => {
   if (req.isStaff || (await canAccessClass(req.channel, req.cookies || {}))) return next();
   res.status(401).json({ error: 'دسترسی ندارید.' });
 };
+const requireManager = (req, res, next) => (req.isStaff || req.isPresenter ? next() : res.status(403).json({ error: 'دسترسی ندارید.' }));
 const requireStaff = (req, res, next) => (req.isStaff ? next() : res.status(403).json({ error: 'فقط مدیر کلاس مجاز است.' }));
 const requireClass = (req, res, next) => (isClassTarget(req.target) ? next() : res.status(400).json({ error: 'این قابلیت فقط برای کلاس‌ها فعال است.' }));
 
@@ -85,7 +98,7 @@ function meetingSettings(target) {
 router.get('/:channel/state', loadTarget, requireViewer, async (req, res) => {
   const files = isClassTarget(req.target) ? await ClassFile.find({ classSlug: req.channel }).sort({ createdAt: -1 }).limit(200) : [];
   const recording = req.isStaff ? Boolean(await Recording.exists({ classSlug: req.channel, status: 'recording' })) : false;
-  res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, recording, settings: meetingSettings(req.target), endsAt: endTimers.get(req.channel)?.endsAt || null, files: files.map((f) => fileView(req.channel, f)) });
+  res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, presenters: req.target.settings?.presenters || [], identity: req.identity, recording, settings: meetingSettings(req.target), endsAt: endTimers.get(req.channel)?.endsAt || null, files: files.map((f) => fileView(req.channel, f)) });
 });
 
 router.post('/:channel/settings', loadTarget, requireStaff, requireClass, async (req, res) => {
@@ -112,7 +125,7 @@ router.post('/:channel/mode', loadTarget, requireStaff, requireClass, async (req
   res.json({ mode });
 });
 
-router.post('/:channel/stage', loadTarget, requireStaff, requireClass, async (req, res) => {
+router.post('/:channel/stage', loadTarget, requireManager, requireClass, async (req, res) => {
   const body = req.body || {};
   const current = req.target.settings?.stage || {};
   const stage = { content: current.content || null, boardOpen: Boolean(current.boardOpen), page: current.page || 1, boardPage: current.boardPage || 1 };
@@ -146,7 +159,7 @@ router.get('/:channel/board', loadTarget, requireViewer, async (req, res) => {
   res.json({ strokes: doc?.strokes || [] });
 });
 
-router.put('/:channel/board', loadTarget, requireStaff, requireClass, async (req, res) => {
+router.put('/:channel/board', loadTarget, requireManager, requireClass, async (req, res) => {
   const { key, strokes } = req.body || {};
   if (!boardKeyOk(key) || !Array.isArray(strokes) || strokes.length > 4000) return res.status(400).json({ error: 'داده نامعتبر است.' });
   await ClassBoard.updateOne({ classSlug: req.channel, key }, { $set: { strokes } }, { upsert: true });
@@ -198,12 +211,12 @@ const upload = multer({
   fileFilter: (_req, file, cb) => (ALLOWED_MIME.test(file.mimetype) ? cb(null, true) : cb(Object.assign(new Error('نوع فایل مجاز نیست.'), { status: 400 }))),
 });
 
-router.post('/:channel/files', loadTarget, requireStaff, requireClass, upload.single('file'), async (req, res) => {
+router.post('/:channel/files', loadTarget, requireManager, requireClass, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'فایل ارسال نشده است.' });
   const name = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 200);
   const doc = await ClassFile.create({
     classSlug: req.channel, organizationId: req.target.organizationId || null, name,
-    mime: req.file.mimetype, size: req.file.size, storedName: req.file.filename, uploadedBy: String(req.user._id),
+    mime: req.file.mimetype, size: req.file.size, storedName: req.file.filename, uploadedBy: String(req.identity || ''),
   });
   res.status(201).json(fileView(req.channel, doc));
 });
@@ -250,6 +263,7 @@ router.get('/:channel/participants', loadTarget, requireStaff, async (req, res) 
     identity: p.identity,
     name: p.name,
     isStaff: p.identity.startsWith('staff:'),
+    presenter: (req.target.settings?.presenters || []).includes(p.identity),
     handRaised: p.attributes?.hand === '1',
     canPublish: Boolean(p.permission?.canPublish),
     sources: (p.permission?.canPublishSources || []).map((s) => Object.keys(SOURCE).find((k) => SOURCE[k] === s)).filter(Boolean),
@@ -258,27 +272,59 @@ router.get('/:channel/participants', loadTarget, requireStaff, async (req, res) 
   })));
 });
 
+const SOURCE_NAMES = Object.fromEntries(Object.entries(SOURCE).map(([name, value]) => [value, name]));
+async function currentSources(room, identity) {
+  const p = (await roomService().listParticipants(room).catch(() => [])).find((x) => x.identity === identity);
+  return new Set((p?.permission?.canPublish ? p.permission.canPublishSources || [] : []).map((v) => SOURCE_NAMES[v]).filter(Boolean));
+}
+async function setSources(room, identity, names) {
+  const sources = [...names].map((n) => SOURCE[n]).filter(Boolean);
+  await roomService().updateParticipant(room, identity, undefined, { canPublish: sources.length > 0, canSubscribe: true, canPublishData: true, canUpdateMetadata: true, canPublishSources: sources });
+}
+const ALL_SOURCES = ['microphone', 'camera', 'screen', 'screen_audio'];
+const REQUEST_KIND = { microphone: 'microphone', camera: 'camera', screen: 'screen' };
+
 router.post('/:channel/participants/:identity', loadTarget, requireStaff, async (req, res) => {
   const { identity } = req.params;
   if (identity.startsWith('staff:')) return res.status(400).json({ error: 'روی مدیر کلاس قابل اجرا نیست.' });
   const room = roomName(req.channel);
-  const svc = roomService();
-  const { action } = req.body || {};
-  if (action === 'allow') {
-    const sources = (Array.isArray(req.body.sources) && req.body.sources.length ? req.body.sources : ['microphone', 'camera']).map((s) => SOURCE[s]).filter(Boolean);
-    await svc.updateParticipant(room, identity, undefined, { canPublish: true, canSubscribe: true, canPublishData: true, canUpdateMetadata: true, canPublishSources: sources });
+  const { action, source } = req.body || {};
+  if (action === 'grant' || action === 'revoke-source') {
+    if (!REQUEST_KIND[source]) return res.status(400).json({ error: 'منبع نامعتبر است.' });
+    const names = await currentSources(room, identity);
+    for (const n of (source === 'screen' ? ['screen', 'screen_audio'] : [source])) { if (action === 'grant') names.add(n); else names.delete(n); }
+    await setSources(room, identity, names);
+    // the student gets a prompt and the source opens as soon as they accept
+    if (action === 'grant') await broadcast(req.channel, { type: 'request', kind: REQUEST_KIND[source] }, [identity]);
+  } else if (action === 'presenter') {
+    const on = Boolean(req.body.value);
+    const list = new Set(req.target.settings?.presenters || []);
+    if (on) list.add(identity); else list.delete(identity);
+    req.target.settings = { ...(req.target.settings || {}), presenters: [...list] };
+    req.target.markModified('settings');
+    await req.target.save();
+    await setSources(room, identity, on ? ALL_SOURCES : []);
+    await broadcast(req.channel, { type: 'presenters', list: [...list] });
   } else if (action === 'revoke') {
-    await svc.updateParticipant(room, identity, undefined, { canPublish: false, canSubscribe: true, canPublishData: true, canUpdateMetadata: true, canPublishSources: [] });
-  } else if (action === 'mute') {
-    const info = (await svc.listParticipants(room)).find((p) => p.identity === identity);
-    for (const track of info?.tracks || []) if (!track.muted) await svc.mutePublishedTrack(room, identity, track.sid, true).catch(() => {});
+    await setSources(room, identity, []);
   } else if (action === 'kick') {
-    await svc.removeParticipant(room, identity);
+    await roomService().removeParticipant(room, identity);
   } else if (action === 'lower-hand') {
     await broadcast(req.channel, { type: 'lower-hand' }, [identity]);
   } else {
     return res.status(400).json({ error: 'عملیات نامعتبر است.' });
   }
+  res.json({ ok: true });
+});
+
+// A student closes a source they were given -> the permission goes away until the host grants it again.
+router.post('/:channel/release', loadTarget, requireViewer, async (req, res) => {
+  if (req.isStaff || req.isPresenter || !req.identity) return res.json({ ok: true, kept: true });
+  const source = req.body?.source;
+  if (!REQUEST_KIND[source]) return res.status(400).json({ error: 'منبع نامعتبر است.' });
+  const names = await currentSources(roomName(req.channel), req.identity);
+  for (const n of (source === 'screen' ? ['screen', 'screen_audio'] : [source])) names.delete(n);
+  await setSources(roomName(req.channel), req.identity, names).catch(() => {});
   res.json({ ok: true });
 });
 
