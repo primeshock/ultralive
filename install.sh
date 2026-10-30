@@ -24,7 +24,7 @@ c_ok=$'\e[32m'; c_warn=$'\e[33m'; c_err=$'\e[31m'; c_dim=$'\e[2m'; c_off=$'\e[0m
 log()  { echo; echo "${c_ok}▶ $*${c_off}"; }
 warn() { echo "${c_warn}⚠ $*${c_off}"; }
 die()  { echo "${c_err}✖ $*${c_off}" >&2; exit 1; }
-trap 'die "نصب در خط $LINENO متوقف شد. لاگ: /var/log/ultralive-install.log"' ERR
+trap 'die "Install stopped at line $LINENO. Log: /var/log/ultralive-install.log"' ERR
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,11 +34,11 @@ while [[ $# -gt 0 ]]; do
     --owner-pass) OWNER_PASS="${2:-}"; shift 2 ;;
     --branch) BRANCH="${2:-}"; shift 2 ;;
     --yes|-y) ASSUME_YES="true"; shift ;;
-    *) die "گزینهٔ ناشناخته: $1" ;;
+    *) die "Unknown option: $1" ;;
   esac
 done
 
-[[ $EUID -eq 0 ]] || die "این اسکریپت را با root اجرا کنید (sudo)."
+[[ $EUID -eq 0 ]] || die "Run this script as root (sudo)."
 exec > >(tee -a /var/log/ultralive-install.log) 2>&1
 
 TTY=/dev/tty
@@ -60,36 +60,36 @@ apt_retry() { for i in 1 2 3; do DEBIAN_FRONTEND=noninteractive apt-get "$@" && 
 echo "${c_ok}"
 cat <<'BANNER'
   ╔══════════════════════════════════════════════╗
-  ║        Ultra Live — نصب‌کنندهٔ خودکار        ║
+  ║          Ultra Live — Auto Installer          ║
   ╚══════════════════════════════════════════════╝
 BANNER
 echo "${c_off}"
 
 PUBLIC_IP="$(curl -fsS --max-time 6 https://api.ipify.org 2>/dev/null || curl -fsS --max-time 6 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
-[[ -n "$PUBLIC_IP" ]] || die "آی‌پی عمومی سرور پیدا نشد."
-echo "آی‌پی سرور: ${PUBLIC_IP}"
+[[ -n "$PUBLIC_IP" ]] || die "Could not detect the server's public IP."
+echo "Server IP: ${PUBLIC_IP}"
 
-if [[ -z "$OWNER_USER" ]]; then OWNER_USER="$(ask 'یوزرنیم مدیر کل (owner) [admin]: ' admin)"; fi
+if [[ -z "$OWNER_USER" ]]; then OWNER_USER="$(ask 'Owner username [admin]: ' admin)"; fi
 if [[ -z "$OWNER_PASS" ]]; then
-  OWNER_PASS="$(ask_secret 'رمز مدیر کل (حداقل ۸ کاراکتر؛ خالی = تولید خودکار): ')"
+  OWNER_PASS="$(ask_secret 'Owner password (min 8 chars; empty = generate one): ')"
   if [[ -n "$OWNER_PASS" ]]; then
-    CONFIRM="$(ask_secret 'تکرار رمز: ')"
-    [[ "$OWNER_PASS" == "$CONFIRM" ]] || die "رمزها یکسان نیستند."
+    CONFIRM="$(ask_secret 'Repeat password: ')"
+    [[ "$OWNER_PASS" == "$CONFIRM" ]] || die "Passwords do not match."
   fi
 fi
 GENERATED_PASS="false"
 if [[ -z "$OWNER_PASS" ]]; then OWNER_PASS="$(openssl rand -base64 18 | tr -d '/+=' | head -c 16)"; GENERATED_PASS="true"; fi
-[[ ${#OWNER_PASS} -ge 8 ]] || die "رمز باید حداقل ۸ کاراکتر باشد."
-[[ "$OWNER_USER" =~ ^[A-Za-z0-9_]{3,24}$ ]] || die "یوزرنیم باید ۳ تا ۲۴ کاراکتر (حرف انگلیسی، عدد یا _) باشد."
+[[ ${#OWNER_PASS} -ge 8 ]] || die "Password must be at least 8 characters."
+[[ "$OWNER_USER" =~ ^[A-Za-z0-9_]{3,24}$ ]] || die "Username must be 3-24 characters (letters, digits or _)."
 
-if [[ -z "$DOMAIN" ]]; then DOMAIN="$(ask 'دامنه (اختیاری؛ خالی = فقط با آی‌پی): ' '')"; fi
+if [[ -z "$DOMAIN" ]]; then DOMAIN="$(ask 'Domain (optional; empty = IP only): ' '')"; fi
 DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN%%/*}"
-if [[ -n "$DOMAIN" && -z "$EMAIL" ]]; then EMAIL="$(ask 'ایمیل برای Let'"'"'s Encrypt (اختیاری): ' '')"; fi
+if [[ -n "$DOMAIN" && -z "$EMAIL" ]]; then EMAIL="$(ask 'E-mail for Let'"'"'s Encrypt (optional): ' '')"; fi
 HOST="${DOMAIN:-$PUBLIC_IP}"
-[[ -n "$DOMAIN" ]] && echo "حالت: دامنه ($DOMAIN) + SSL خودکار" || echo "حالت: فقط آی‌پی ($PUBLIC_IP) + SSL آی‌پی (Let's Encrypt)"
+[[ -n "$DOMAIN" ]] && echo "Mode: domain ($DOMAIN) + automatic SSL" || echo "Mode: IP only ($PUBLIC_IP) + IP SSL (Let's Encrypt)"
 
 # ---------------------------------------------------------------------------
-log "1/9 پکیج‌های پایه"
+log "1/9 Base packages"
 apt_retry update -qq
 apt_retry install -y -qq curl git ca-certificates gnupg ufw openssl nginx ffmpeg snapd tar >/dev/null
 
@@ -97,7 +97,7 @@ log "2/9 Docker"
 if ! command -v docker >/dev/null 2>&1; then curl -fsSL https://get.docker.com | sh; fi
 systemctl enable --now docker >/dev/null 2>&1 || true
 
-log "3/9 Node.js ${NODE_MAJOR} و pm2"
+log "3/9 Node.js ${NODE_MAJOR} and pm2"
 if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | tr -dc '0-9.' | cut -d. -f1)" -lt 20 ]]; then
   curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null
   apt_retry install -y -qq nodejs >/dev/null
@@ -105,10 +105,10 @@ fi
 command -v pm2 >/dev/null 2>&1 || npm install -g pm2 >/dev/null
 
 # ---------------------------------------------------------------------------
-log "4/9 سورس برنامه (${BRANCH})"
+log "4/9 Application source (${BRANCH})"
 if [[ -d "$APP_DIR/.git" ]]; then
   STAMP="$(date +%Y%m%d-%H%M%S)"
-  warn "نصب قبلی پیدا شد؛ نسخهٔ قبلی به ${APP_DIR}.old-${STAMP} منتقل می‌شود (دیتابیس قبلی دست‌نخورده می‌ماند و استفاده نمی‌شود)."
+  warn "Existing install found; it is moved to ${APP_DIR}.old-${STAMP} (the old database is left untouched and NOT used)."
   pm2 delete all >/dev/null 2>&1 || true
   mv "$APP_DIR" "${APP_DIR}.old-${STAMP}"
   for old in ultralive-mongo unlimited-stream-mongo; do
@@ -119,19 +119,19 @@ git clone --depth 50 -b "$BRANCH" "$REPO_URL" "$APP_DIR"
 BACKEND_DIR="$APP_DIR/unlimited-stream-backend"; FRONT_DIR="$APP_DIR/unlimited-stream-front"
 
 # ---------------------------------------------------------------------------
-log "5/9 دیتابیس جدید MongoDB"
+log "5/9 New MongoDB database"
 MONGO_USER="ul_$(openssl rand -hex 4)"; MONGO_PASS="$(openssl rand -hex 16)"; MONGO_DB="ultralive"
 docker volume create "ultralive-mongo-$(date +%s)" >/dev/null
 MONGO_VOLUME="$(docker volume ls -q | grep '^ultralive-mongo-' | tail -1)"
 docker run -d --name ultralive-mongo --restart unless-stopped -p 127.0.0.1:27017:27017 \
   -e MONGO_INITDB_ROOT_USERNAME="$MONGO_USER" -e MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASS" \
   -v "${MONGO_VOLUME}:/data/db" mongo:7 --bind_ip_all >/dev/null
-echo -n "منتظر Mongo"; for i in $(seq 1 40); do
+echo -n "Waiting for Mongo"; for i in $(seq 1 40); do
   docker exec ultralive-mongo mongosh --quiet -u "$MONGO_USER" -p "$MONGO_PASS" --authenticationDatabase admin --eval 'db.runCommand({ping:1}).ok' >/dev/null 2>&1 && break; echo -n "."; sleep 2
 done; echo
 
 # ---------------------------------------------------------------------------
-log "6/9 LiveKit (اتاق‌های تعاملی + ورودی OBS)"
+log "6/9 LiveKit (interactive rooms + OBS ingest + recording)"
 mkdir -p "$LIVEKIT_DIR"
 LK_KEY="lk$(openssl rand -hex 8)"; LK_SECRET="$(openssl rand -hex 32)"
 cat > "$LIVEKIT_DIR/livekit.yaml" <<EOF
@@ -214,7 +214,7 @@ EOF
 (cd "$LIVEKIT_DIR" && docker compose down >/dev/null 2>&1 || true; docker compose up -d)
 
 # ---------------------------------------------------------------------------
-log "7/9 تنظیمات و build"
+log "7/9 Configuration and build"
 SCHEME="https"
 JWT_SECRET="$(openssl rand -hex 32)"; WP_SECRET="$(openssl rand -hex 32)"; ROOM_SECRET="$(openssl rand -hex 32)"
 cat > "$BACKEND_DIR/.env" <<EOF
@@ -254,7 +254,7 @@ pm2 startOrReload "$APP_DIR/ecosystem.config.js" && pm2 save >/dev/null
 env PATH="$PATH" pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
-log "8/9 Nginx و SSL"
+log "8/9 Nginx and SSL"
 mkdir -p /var/www/letsencrypt /etc/ultralive-ssl
 SSL_CERT=""; SSL_KEY=""; SSL_MODE=""
 
@@ -363,13 +363,13 @@ ufw --force reset >/dev/null; ufw default deny incoming >/dev/null; ufw default 
 for r in OpenSSH 80/tcp 443/tcp 1935/tcp 1936/tcp 7881/tcp 7882/udp; do ufw allow "$r" >/dev/null; done
 ufw --force enable >/dev/null
 
-if ! snap list certbot >/dev/null 2>&1; then snap install --classic certbot >/dev/null 2>&1 || warn "نصب certbot با snap ناموفق بود."; fi
+if ! snap list certbot >/dev/null 2>&1; then snap install --classic certbot >/dev/null 2>&1 || warn "Installing certbot via snap failed."; fi
 ln -sf /snap/bin/certbot /usr/local/bin/certbot 2>/dev/null || true
 CB_EMAIL_ARGS=(--register-unsafely-without-email); [[ -n "$EMAIL" ]] && CB_EMAIL_ARGS=(-m "$EMAIL")
 if command -v certbot >/dev/null 2>&1; then
   if [[ -n "$DOMAIN" ]]; then
     RESOLVED="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
-    [[ "$RESOLVED" == "$PUBLIC_IP" ]] || warn "رکورد DNS دامنه (${RESOLVED:-نامشخص}) با آی‌پی سرور (${PUBLIC_IP}) یکی نیست؛ ممکن است گرفتن SSL ناموفق باشد."
+    [[ "$RESOLVED" == "$PUBLIC_IP" ]] || warn "DNS for the domain (${RESOLVED:-unknown}) does not match this server (${PUBLIC_IP}); getting a certificate may fail."
     if certbot certonly --webroot -w /var/www/letsencrypt -d "$DOMAIN" --non-interactive --agree-tos "${CB_EMAIL_ARGS[@]}" --deploy-hook "systemctl reload nginx"; then
       SSL_MODE="letsencrypt-domain"; SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"; SSL_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
     fi
@@ -381,26 +381,26 @@ if command -v certbot >/dev/null 2>&1; then
   fi
 fi
 if [[ "$SSL_MODE" == letsencrypt-* ]]; then write_nginx "$SSL_CERT" "$SSL_KEY"
-else warn "گواهی Let's Encrypt گرفته نشد؛ با گواهی self-signed ادامه می‌دهیم (مرورگر هشدار نشان می‌دهد). بعداً می‌توانید دوباره certbot را اجرا کنید."; SSL_MODE="self-signed"; fi
+else warn "Could not get a Let's Encrypt certificate; continuing with a self-signed one (browsers will warn). Re-run certbot later to fix."; SSL_MODE="self-signed"; fi
 
 # ---------------------------------------------------------------------------
-log "9/9 بررسی نهایی"
+log "9/9 Final checks"
 sleep 4
-curl -ksf "https://127.0.0.1/api/health" -H "Host: ${HOST}" >/dev/null && HEALTH="OK" || HEALTH="FAILED (pm2 logs را ببینید)"
+curl -ksf "https://127.0.0.1/api/health" -H "Host: ${HOST}" >/dev/null && HEALTH="OK" || HEALTH="FAILED (check: pm2 logs)"
 echo "${c_ok}"
 cat <<EOF
 ╔════════════════════════════════════════════════════════════╗
-  ✅ نصب انجام شد
+  ✅ Installation complete
 ╚════════════════════════════════════════════════════════════╝
 EOF
 echo "${c_off}"
-echo "آدرس سایت:          ${SCHEME}://${HOST}"
-echo "ورود مدیر:          ${SCHEME}://${HOST}/adminlogin"
-echo "یوزرنیم مدیر کل:    ${OWNER_USER}"
-[[ "$GENERATED_PASS" == "true" ]] && echo "رمز مدیر کل:        ${OWNER_PASS}   ${c_warn}(همین حالا ذخیره کنید)${c_off}" || echo "رمز مدیر کل:        (همانی که وارد کردید)"
+echo "Site:               ${SCHEME}://${HOST}"
+echo "Admin login:        ${SCHEME}://${HOST}/adminlogin"
+echo "Owner username:     ${OWNER_USER}"
+[[ "$GENERATED_PASS" == "true" ]] && echo "Owner password:     ${OWNER_PASS}   ${c_warn}(save it now)${c_off}" || echo "Owner password:     (the one you entered)"
 echo "SSL:                ${SSL_MODE}"
-echo "وضعیت API:          ${HEALTH}"
-echo "RTMP (OBS):         rtmp://${PUBLIC_IP}:1935/live   — یا کلید LiveKit از پنل کلاس"
-echo "کلید مشترک وردپرس:  ${BACKEND_DIR}/.env  (WP_JOIN_SECRET)"
-echo "بکاپ و به‌روزرسانی: پنل مدیر کل ← تنظیمات ← سیستم"
-echo "لاگ نصب:            /var/log/ultralive-install.log"
+echo "API status:         ${HEALTH}"
+echo "RTMP (OBS):         rtmp://${PUBLIC_IP}:1935/live   — or the LiveKit key from the class panel"
+echo "WordPress secret:   ${BACKEND_DIR}/.env  (WP_JOIN_SECRET)"
+echo "Backup / update:    owner panel → System & backup"
+echo "Install log:        /var/log/ultralive-install.log"
