@@ -33,7 +33,8 @@ app.set('trust proxy', 1);
 app.disable('etag');
 
 app.use(helmet());
-app.use(cors({ origin: corsOrigin, credentials: true }));
+// Content-Range/Accept-Ranges let pdf.js stream a PDF page by page across origins
+app.use(cors({ origin: corsOrigin, credentials: true, exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length'] }));
 // LiveKit signs its webhook over the RAW request body (application/webhook+json,
 // not application/json) — express.json() below only ever touches
 // application/json bodies and leaves this one alone, but this route is kept

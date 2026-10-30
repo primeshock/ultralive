@@ -244,6 +244,7 @@ export const api = {
   meetingParticipantAction: (channel, identity, payload) => apiFetch(`/api/meeting/${channel}/participants/${encodeURIComponent(identity)}`, { method: "POST", body: JSON.stringify(payload) }),
   meetingRequest: (channel, payload) => apiFetch(`/api/meeting/${channel}/request`, { method: "POST", body: JSON.stringify(payload) }),
   meetingMuteAll: (channel) => apiFetch(`/api/meeting/${channel}/mute-all`, { method: "POST" }),
+  meetingFileVisibility: (channel, fileId, studentVisible) => apiFetch(`/api/meeting/${channel}/files/${fileId}`, { method: "PATCH", body: JSON.stringify({ studentVisible }) }),
   meetingDeleteFile: (channel, fileId) => apiFetch(`/api/meeting/${channel}/files/${fileId}`, { method: "DELETE" }),
   meetingUpload: async (channel, file) => {
     const form = new FormData();

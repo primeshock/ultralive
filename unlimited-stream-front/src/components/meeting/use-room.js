@@ -11,6 +11,9 @@ export function buildRoomOptions(lk, livekitSettings) {
   const base = roomOptionsFromLivekit(livekitSettings);
   return {
     ...base,
+    // two peer connections (publisher/subscriber) are the most robust choice for interactive publishing:
+    // camera/board changes never renegotiate the connection everybody is receiving on
+    singlePeerConnection: false,
     adaptiveStream: true,
     dynacast: true,
     stopLocalTrackOnUnpublish: true,

@@ -9,6 +9,8 @@ const classFileSchema = new mongoose.Schema(
     size: { type: Number, required: true },
     storedName: { type: String, required: true },
     uploadedBy: { type: String, default: '' },
+    // students only see (and may download) files the host explicitly sent to them
+    studentVisible: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

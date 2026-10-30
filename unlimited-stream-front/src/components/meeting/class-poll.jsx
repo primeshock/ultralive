@@ -106,7 +106,7 @@ function Creator({ channel, onDone, onCancel }) {
  * Compact poll / quiz dock shown right above the chat input.
  * Students: vote, then see minimal results once voting ends. Host: create, watch live stats, close, reveal, reset.
  */
-export function ClassPoll({ channel, isStaff, audience = 0, tick = 0, onChange }) {
+export function ClassPoll({ channel, isStaff, audience = 0, tick = 0, onChange, variant = "float" }) {
   const [poll, setPoll] = useState(null);
   const [creating, setCreating] = useState(false);
   const [dismissed, setDismissed] = useState(null);
@@ -138,7 +138,9 @@ export function ClassPoll({ channel, isStaff, audience = 0, tick = 0, onChange }
   const act = async (fn) => { setError(""); try { await fn(); await load(); onChange?.(); } catch (e) { setError(e.message); } };
   const vote = () => act(() => api.votePoll(channel, poll.id, pick));
 
-  const shell = "poll-in w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-white/14 bg-[#0b1226]/80 p-3 text-white shadow-2xl shadow-black/40 backdrop-blur-xl";
+  const shell = variant === "dock"
+    ? "poll-in mx-2 mb-1.5 rounded-xl border border-white/10 bg-white/[.05] p-2.5 text-white"
+    : "poll-in w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-white/14 bg-[#0b1226]/80 p-3 text-white shadow-2xl shadow-black/40 backdrop-blur-xl";
   if (isStaff && creating) return <div className={shell}><Creator channel={channel} onCancel={() => setCreating(false)} onDone={() => { setCreating(false); load(); onChange?.(); }} /></div>;
 
   if (!poll) {

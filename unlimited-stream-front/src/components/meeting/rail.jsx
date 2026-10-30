@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { PenTool, FileText, BarChart3, Settings2, Presentation, X, Timer, Pause, Play, Square, Undo2, Trash2, Ban } from "lucide-react";
+import { PenTool, FileText, BarChart3, Settings2, Presentation, X, Timer, Pause, Play, Square, Undo2, Trash2, Ban, Shapes, Palette } from "lucide-react";
 import { api } from "@/lib/api";
 import { ModeSwitch } from "./mode-switch";
 import { Tip } from "./tip";
 import { INK_TOOLS, INK_COLORS, INK_WIDTHS } from "./annotated-surface";
 
+const PRIMARY = ["pan", "pen", "hl", "eraser", "text"];
+const SHAPES = ["line", "rect", "ellipse", "arrow"];
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
 function Toggle({ checked, onChange, label }) {
@@ -48,7 +50,7 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
 
 function RailButton({ icon: Icon, label, active, onClick }) {
   return (
-    <button onClick={onClick} aria-label={label} className={`flex w-11 shrink-0 flex-col items-center gap-0.5 rounded-xl py-1.5 transition ${active ? "bg-sky-500 text-white" : "text-white/75 hover:bg-white/12"}`}>
+    <button onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex w-11 shrink-0 flex-col items-center gap-0.5 rounded-xl py-1.5 text-white/85 transition data-[active=true]:text-white">
       <Icon className="size-[18px]" /><span className="text-[9px] leading-3">{label}</span>
     </button>
   );
@@ -56,7 +58,7 @@ function RailButton({ icon: Icon, label, active, onClick }) {
 
 function Tool({ icon: Icon, label, active, onClick, danger }) {
   return (
-    <Tip label={label} side="right"><button onClick={onClick} aria-label={label} className={`grid size-8 place-items-center rounded-lg transition ${active ? "bg-sky-500 text-white" : danger ? "text-rose-300 hover:bg-rose-500/20" : "text-white/75 hover:bg-white/12"}`}><Icon className="size-4" /></button></Tip>
+    <Tip label={label} side="right"><button onClick={onClick} aria-label={label} data-active={Boolean(active)} className={`glass-btn grid size-8 place-items-center rounded-lg transition ${danger ? "!text-rose-300" : "text-white/85"}`}><Icon className="size-4" /></button></Tip>
   );
 }
 
@@ -76,20 +78,27 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
       {drawable && (
         <>
           <span className="my-1 h-px w-8 shrink-0 bg-white/10 max-md:hidden" />
-          <div className="flex flex-wrap gap-0.5 md:flex-col md:flex-nowrap">
-            {INK_TOOLS.map(([id, Icon, label]) => <Tool key={id} icon={Icon} label={label} active={ink.tool === id} onClick={() => onInk({ tool: id })} />)}
-          </div>
-          <span className="my-1 h-px w-8 shrink-0 bg-white/10 max-md:hidden" />
-          <div className="grid shrink-0 grid-cols-2 gap-1.5 p-1">
-            {INK_COLORS.map((c) => <button key={c} aria-label={c} onClick={() => onInk({ color: c })} style={{ background: c }} className={`size-4 rounded-full border ${ink.color === c ? "scale-125 border-white ring-2 ring-sky-400" : "border-white/30"}`} />)}
-          </div>
-          <div className="flex shrink-0 gap-1 md:flex-col">
-            {INK_WIDTHS.map((w) => <button key={w} aria-label="ضخامت" onClick={() => onInk({ width: w })} className={`grid size-7 place-items-center rounded-md ${ink.width === w ? "bg-white/20" : "hover:bg-white/10"}`}><span className="rounded-full bg-white" style={{ width: w + 3, height: w + 3 }} /></button>)}
+          <div className="flex flex-wrap gap-1 md:flex-col md:flex-nowrap">
+            {PRIMARY.map((id) => { const [, Icon, label] = INK_TOOLS.find((t) => t[0] === id); return <Tool key={id} icon={Icon} label={label} active={ink.tool === id} onClick={() => onInk({ tool: id })} />; })}
+            <Tip label="شکل‌ها" side="right"><button onClick={(e) => toggle("shapes", e)} data-active={SHAPES.includes(ink.tool)} aria-label="شکل‌ها" className="glass-btn grid size-8 place-items-center rounded-lg text-white/85 transition data-[active=true]:text-white"><Shapes className="size-4" /></button></Tip>
+            <Tip label="رنگ و ضخامت" side="right"><button onClick={(e) => toggle("style", e)} aria-label="رنگ و ضخامت" className="glass-btn relative grid size-8 place-items-center rounded-lg transition"><span className="rounded-full border border-white/50" style={{ background: ink.color, width: 10 + ink.width, height: 10 + ink.width }} /><Palette className="absolute -bottom-1 -right-1 size-3 text-white/70" /></button></Tip>
           </div>
           <span className="my-1 h-px w-8 shrink-0 bg-white/10 max-md:hidden" />
           <Tool icon={Undo2} label="برگشت" onClick={() => onInkAction("undo")} />
           <Tool icon={Trash2} label="پاک کردن صفحه" danger onClick={() => onInkAction("clear")} />
         </>
+      )}
+
+      {open?.id === "shapes" && (
+        <Pop anchor={open.rect} title="شکل‌ها" onClose={close}>
+          <div className="grid grid-cols-4 gap-1.5 p-1">{SHAPES.map((id) => { const [, Icon, label] = INK_TOOLS.find((t) => t[0] === id); return <Tip key={id} label={label}><button onClick={() => { onInk({ tool: id }); close(); }} data-active={ink.tool === id} aria-label={label} className="glass-btn grid size-10 place-items-center rounded-xl text-white/85 data-[active=true]:text-white"><Icon className="size-4" /></button></Tip>; })}</div>
+        </Pop>
+      )}
+      {open?.id === "style" && (
+        <Pop anchor={open.rect} title="رنگ و ضخامت" onClose={close}>
+          <div className="grid grid-cols-7 gap-1.5 p-1.5">{INK_COLORS.map((c) => <button key={c} aria-label={c} onClick={() => onInk({ color: c })} style={{ background: c }} className={`size-7 rounded-full border transition ${ink.color === c ? "scale-110 border-white ring-2 ring-sky-400" : "border-white/30"}`} />)}</div>
+          <div className="flex items-center justify-around px-1 pb-1.5 pt-1">{INK_WIDTHS.map((w) => <button key={w} aria-label="ضخامت" onClick={() => onInk({ width: w })} data-active={ink.width === w} className="glass-btn grid size-10 place-items-center rounded-xl"><span className="rounded-full bg-white" style={{ width: w + 4, height: w + 4 }} /></button>)}</div>
+        </Pop>
       )}
 
       {open?.id === "doc" && (
@@ -109,10 +118,10 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
 }
 
 function HeadButton({ icon: Icon, label, active, onClick, tone = "neutral", children }) {
-  const cls = tone === "danger" ? "bg-rose-500/85 text-white hover:bg-rose-400" : active ? "bg-sky-500 text-white" : "bg-white/8 text-white hover:bg-white/16";
+  const cls = tone === "danger" ? "bg-rose-500/85 text-white hover:bg-rose-400" : "glass-btn text-white";
   return (
     <Tip label={label}>
-      <button onClick={onClick} aria-label={label} className={`grid size-8 place-items-center rounded-xl transition ${cls}`}>{children || <Icon className="size-4" />}</button>
+      <button onClick={onClick} data-active={Boolean(active)} aria-label={label} className={`grid size-8 place-items-center rounded-xl transition ${cls}`}>{children || <Icon className="size-4" />}</button>
     </Tip>
   );
 }

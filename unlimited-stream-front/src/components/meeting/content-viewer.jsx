@@ -19,7 +19,7 @@ export function ContentViewer({ content }) {
       )}
       {mime.startsWith("video/") && (
         <div className="absolute inset-0 flex items-center justify-center p-3">
-          <video src={src} controls playsInline className="max-h-full max-w-full rounded-md bg-black object-contain shadow-2xl" />
+          <video src={src} controls controlsList="nofullscreen noremoteplayback" playsInline className="max-h-full max-w-full rounded-md bg-black object-contain shadow-2xl" />
         </div>
       )}
       {mime.startsWith("audio/") && <div className="absolute inset-0 grid place-items-center p-6"><div className="w-full max-w-md space-y-3 text-center"><p className="text-sm text-white/80">{content.name}</p><audio src={src} controls className="w-full" /></div></div>}

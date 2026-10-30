@@ -224,19 +224,19 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
 
       {footerSlot}
 
-      <form onSubmit={sendMessage} className={`flex gap-2 border border-white/12 bg-black/20 focus-within:border-cyan-300/45 ${compact ? "m-2 rounded-xl p-1.5" : "m-3 rounded-full p-1.5"}`}>
+      <form onSubmit={sendMessage} className={compact ? "flex shrink-0 items-center gap-2 border-t border-white/10 bg-white/[.02] px-2.5 py-2.5" : "m-3 flex gap-2 rounded-full border border-white/12 bg-black/20 p-1.5 focus-within:border-cyan-300/45"}>
         <button type="button" onClick={() => setShowEmoji((s) => !s)} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="ایموجی">
           <Smile className="size-5" />
         </button>
         <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className={`border-0 bg-transparent text-white shadow-none focus-visible:ring-0 ${compact ? "h-9 text-[13px]" : ""}`}
+          className={`border-0 text-white shadow-none focus-visible:ring-0 ${compact ? "h-10 flex-1 rounded-lg bg-white/[.06] text-[13px]" : "bg-transparent"}`}
           placeholder={!chatEnabled ? "چت بسته است" : connected ? "پیام بنویس..." : "در حال اتصال..."}
           disabled={!canSend}
           maxLength={300}
         />
-        <Button type="submit" disabled={!canSend}>
+        <Button type="submit" disabled={!canSend} className={compact ? "h-10 rounded-lg px-4" : ""}>
           ارسال
         </Button>
       </form>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Hand, Mic, Video, MonitorUp, UserX, Upload, FileText, Trash2, Presentation, Eye, X, Download } from "lucide-react";
+import { Hand, Mic, Video, MonitorUp, UserX, Upload, FileText, Trash2, Presentation, Eye, X, Download, Image as ImageIcon, Film, Music } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 import { initials } from "./tiles";
 import { Tip } from "./tip";
@@ -92,6 +92,18 @@ function fmtSize(bytes) {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+function FileIcon({ mime }) {
+  const cls = "size-4 shrink-0 text-sky-200";
+  if (mime?.startsWith("image/")) return <ImageIcon className={cls} />;
+  if (mime?.startsWith("video/")) return <Film className={cls} />;
+  if (mime?.startsWith("audio/")) return <Music className={cls} />;
+  return <FileText className={cls} />;
+}
+
+const act = "glass-btn grid size-7 shrink-0 place-items-center rounded-lg text-white/85 transition";
+
+// Compact file list. The host decides per file whether students can see/download it (slider);
+// whatever the host puts on stage is shown to everybody regardless.
 export function FilesPanel({ channel, files, sharedId, isStaff, onChanged, onShare, recordings = [] }) {
   const input = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -100,33 +112,52 @@ export function FilesPanel({ channel, files, sharedId, isStaff, onChanged, onSha
     setBusy(true); setError("");
     try { for (const file of list) await api.meetingUpload(channel, file); onChanged?.(); } catch (err) { setError(err.message); } finally { setBusy(false); if (input.current) input.current.value = ""; }
   };
+  const setVisible = async (file, value) => { try { await api.meetingFileVisibility(channel, file.id, value); onChanged?.(); } catch (err) { setError(err.message); } };
   return (
-    <div className="space-y-2 p-2">
+    <div className="space-y-1.5 p-2">
       {isStaff && (
         <>
           <input ref={input} type="file" hidden multiple accept="application/pdf,image/*,video/*,audio/*,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.txt,.zip" onChange={(e) => upload([...e.target.files])} />
-          <button onClick={() => input.current?.click()} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-sky-300/40 bg-sky-400/10 px-3 py-3 text-xs font-medium text-sky-100 transition hover:bg-sky-400/20 disabled:opacity-50">
-            <Upload className="size-4" /> {busy ? "در حال بارگذاری..." : "بارگذاری PDF، تصویر، ویدیو یا صوت"}
-          </button>
+          <button onClick={() => input.current?.click()} disabled={busy} className="glass-btn flex h-8 w-full items-center justify-center gap-1.5 rounded-lg text-[11px] text-white/90 disabled:opacity-50"><Upload className="size-3.5" />{busy ? "در حال بارگذاری..." : "بارگذاری فایل"}</button>
         </>
       )}
-      {error && <p className="rounded-lg bg-rose-500/15 p-2 text-xs text-rose-200">{error}</p>}
-      {sharedId && isStaff && <button onClick={() => onShare(null)} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-rose-500/20 px-3 py-1.5 text-xs text-rose-100 hover:bg-rose-500/30"><X className="size-3.5" /> توقف نمایش سند</button>}
-      {files.length === 0 && <p className="py-6 text-center text-xs text-white/45">فایلی بارگذاری نشده است.</p>}
-      {files.map((file) => (
-        <div key={file.id} className={`rounded-lg border p-2 ${sharedId === file.id ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/8 bg-white/[.03]"}`}>
-          <div className="flex items-center gap-2">
-            <FileText className="size-4 shrink-0 text-sky-200" />
-            <p className="min-w-0 flex-1 truncate text-xs font-medium text-white/90" title={file.name}>{file.name}</p>
-            <span className="shrink-0 text-[10px] text-white/40" dir="ltr">{fmtSize(file.size)}</span>
+      {error && <p className="rounded-lg bg-rose-500/15 p-2 text-[11px] text-rose-200">{error}</p>}
+      {files.length === 0 && <p className="py-6 text-center text-xs text-white/45">{isStaff ? "فایلی بارگذاری نشده است." : "هنوز فایلی برای شما ارسال نشده است."}</p>}
+      {files.map((file) => {
+        const live = sharedId === file.id;
+        return (
+          <div key={file.id} className={`rounded-lg border px-2 py-1.5 ${live ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/8 bg-white/[.03]"}`}>
+            <div className="flex items-center gap-2">
+              <FileIcon mime={file.mime} />
+              <p className="min-w-0 flex-1 truncate text-xs text-white/90" title={file.name}>{file.name}</p>
+              <span className="shrink-0 text-[10px] text-white/40" dir="ltr">{fmtSize(file.size)}</span>
+            </div>
+            <div className="mt-1.5 flex items-center gap-1">
+              {isStaff && (
+                <button type="button" role="switch" aria-checked={file.studentVisible} onClick={() => setVisible(file, !file.studentVisible)} className="flex min-w-0 flex-1 items-center gap-1.5 text-[10.5px] text-white/65">
+                  <span className={`relative h-[18px] w-8 shrink-0 rounded-full transition ${file.studentVisible ? "bg-sky-500" : "bg-white/20"}`}><span className={`absolute top-[2px] size-[14px] rounded-full bg-white shadow transition-all ${file.studentVisible ? "right-[2px]" : "right-[16px]"}`} /></span>
+                  <span className="truncate">برای دانش‌آموزان</span>
+                </button>
+              )}
+              {!isStaff && <span className="flex-1" />}
+              {isStaff && file.inline && <Tip label={live ? "توقف نمایش" : "نمایش برای همه"}><button onClick={() => onShare(live ? null : file.id)} aria-label="نمایش برای همه" data-active={live} className={`${act} data-[active=true]:!bg-emerald-500/70`}>{live ? <X className="size-3.5" /> : <Presentation className="size-3.5" />}</button></Tip>}
+              <Tip label="دریافت"><a href={`${API_URL}${file.url}`} target="_blank" rel="noopener noreferrer" aria-label="دریافت" className={act}><Download className="size-3.5" /></a></Tip>
+              {isStaff && <Tip label="حذف"><button aria-label="حذف" onClick={async () => { await api.meetingDeleteFile(channel, file.id); onChanged?.(); }} className={`${act} !text-rose-300`}><Trash2 className="size-3.5" /></button></Tip>}
+            </div>
           </div>
-          <div className="mt-1.5 flex gap-1">
-            {isStaff && file.inline && <button onClick={() => onShare(file.id)} disabled={sharedId === file.id} className="flex flex-1 items-center justify-center gap-1 rounded-md bg-sky-500/90 px-2 py-1 text-[11px] font-medium text-white hover:bg-sky-400 disabled:bg-emerald-500/60"><Presentation className="size-3" />{sharedId === file.id ? "در حال نمایش" : "نمایش برای همه"}</button>}
-            <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex flex-1 items-center justify-center gap-1 rounded-md bg-white/8 px-2 py-1 text-[11px] text-white/85 hover:bg-white/15"><Download className="size-3" />دریافت</a>
-            {isStaff && <button title="حذف" onClick={async () => { await api.meetingDeleteFile(channel, file.id); onChanged?.(); }} className="grid size-6 place-items-center rounded-md bg-rose-500/15 text-rose-300 hover:bg-rose-500/25"><Trash2 className="size-3.5" /></button>}
-          </div>
+        );
+      })}
+      {isStaff && recordings.length > 0 && (
+        <div className="space-y-1.5 border-t border-white/10 pt-2.5">
+          <p className="px-1 text-[11px] text-white/50">ضبط‌های کلاس</p>
+          {recordings.map((r) => (
+            <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-white/[.03] px-2 py-1.5 text-[11px] text-white/80">
+              <span>{new Date(r.startedAt).toLocaleString("fa-IR")} {r.durationSeconds ? `· ${Math.round(r.durationSeconds / 60)} دقیقه` : ""}</span>
+              {r.url ? <a href={r.url.startsWith("/") ? `${API_URL}${r.url}` : r.url} className="glass-btn rounded-md px-2 py-0.5 text-white">دانلود</a> : <span className="text-white/45">{r.status === "failed" ? "ناموفق" : "در حال پردازش"}</span>}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

@@ -82,7 +82,7 @@ async function broadcast(channel, message, identities) {
 }
 
 function fileView(channel, file) {
-  return { id: file._id, name: file.name, mime: file.mime, size: file.size, url: `/api/meeting/${channel}/files/${file._id}`, inline: INLINE_MIME.test(file.mime), createdAt: file.createdAt };
+  return { id: file._id, studentVisible: Boolean(file.studentVisible), name: file.name, mime: file.mime, size: file.size, url: `/api/meeting/${channel}/files/${file._id}`, inline: INLINE_MIME.test(file.mime), createdAt: file.createdAt };
 }
 
 function meetingSettings(target) {
@@ -96,7 +96,8 @@ function meetingSettings(target) {
 
 // ---- state & settings ----------------------------------------------------
 router.get('/:channel/state', loadTarget, requireViewer, async (req, res) => {
-  const files = isClassTarget(req.target) ? await ClassFile.find({ classSlug: req.channel }).sort({ createdAt: -1 }).limit(200) : [];
+  const manager = req.isStaff || req.isPresenter;
+  const files = isClassTarget(req.target) ? await ClassFile.find({ classSlug: req.channel, ...(manager ? {} : { studentVisible: true }) }).sort({ createdAt: -1 }).limit(200) : [];
   const activeRecording = req.isStaff ? await Recording.findOne({ classSlug: req.channel, status: 'recording' }).select('startedAt') : null;
   const recording = Boolean(activeRecording);
   res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, presenters: req.target.settings?.presenters || [], identity: req.identity, recording, recordingSince: activeRecording?.startedAt || null, settings: meetingSettings(req.target), endsAt: endTimers.get(req.channel)?.endsAt || null, files: files.map((f) => fileView(req.channel, f)) });
@@ -227,6 +228,8 @@ router.get('/:channel/files/:fileId', loadTarget, requireViewer, async (req, res
   if (!mongoose.isValidObjectId(req.params.fileId)) return res.status(404).end();
   const file = await ClassFile.findOne({ _id: req.params.fileId, classSlug: req.channel });
   if (!file) return res.status(404).end();
+  const onStage = String(req.target.settings?.stage?.content?.id || '') === String(file._id);
+  if (!(req.isStaff || req.isPresenter || file.studentVisible || onStage)) return res.status(403).json({ error: 'این فایل برای شما ارسال نشده است.' });
   const full = path.join(FILES_ROOT, req.channel, file.storedName);
   const inline = INLINE_MIME.test(file.mime);
   res.set({
@@ -238,6 +241,14 @@ router.get('/:channel/files/:fileId', loadTarget, requireViewer, async (req, res
   });
   res.removeHeader('X-Frame-Options');
   res.sendFile(full, (err) => { if (err && !res.headersSent) res.status(404).end(); });
+});
+
+router.patch('/:channel/files/:fileId', loadTarget, requireManager, requireClass, async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.fileId) || typeof req.body?.studentVisible !== 'boolean') return res.status(400).json({ error: 'درخواست نامعتبر است.' });
+  const file = await ClassFile.findOneAndUpdate({ _id: req.params.fileId, classSlug: req.channel }, { studentVisible: req.body.studentVisible }, { new: true });
+  if (!file) return res.status(404).json({ error: 'فایل پیدا نشد.' });
+  await broadcast(req.channel, { type: 'files' });
+  res.json(fileView(req.channel, file));
 });
 
 router.delete('/:channel/files/:fileId', loadTarget, requireStaff, requireClass, async (req, res) => {
