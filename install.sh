@@ -3,14 +3,16 @@
 #
 #   bash <(curl -fsSL https://raw.githubusercontent.com/primeshock/ultralive/koosha-live-v2/install.sh)
 #
-# Every run creates a NEW empty database; data of an older install is never reused
-# (move it between servers with the owner panel's Backup / Restore instead).
+# First run: creates a NEW empty database. Re-run: keeps your data and updates in place
+# (use --fresh to start over; move data between servers with the owner panel's Backup / Restore).
 # Options (all optional, otherwise you are asked):
 #   --domain example.com    serve over this domain (Let's Encrypt certificate)
 #   --email you@mail.com    contact e-mail for Let's Encrypt
 #   --owner-user NAME  --owner-pass PASS
 #   --branch NAME           git branch to install (default: koosha-live-v2)
+#   --fresh                 wipe the existing install (a backup is taken first) and start clean
 #   --yes                   never ask; use defaults / generate passwords
+# Re-running on a server that already has Ultra Live KEEPS all data and just updates it.
 set -Eeuo pipefail
 
 REPO_URL="${ULTRALIVE_REPO:-https://github.com/primeshock/ultralive.git}"
@@ -18,7 +20,7 @@ BRANCH="koosha-live-v2"
 APP_DIR="/opt/unlimited-stream"
 LIVEKIT_DIR="/opt/livekit"
 NODE_MAJOR=22
-DOMAIN=""; EMAIL=""; OWNER_USER=""; OWNER_PASS=""; ASSUME_YES="false"
+DOMAIN=""; EMAIL=""; OWNER_USER=""; OWNER_PASS=""; ASSUME_YES="false"; FORCE_FRESH="false"
 
 c_ok=$'\e[32m'; c_warn=$'\e[33m'; c_err=$'\e[31m'; c_dim=$'\e[2m'; c_off=$'\e[0m'
 log()  { echo; echo "${c_ok}▶ $*${c_off}"; }
@@ -34,6 +36,7 @@ while [[ $# -gt 0 ]]; do
     --owner-pass) OWNER_PASS="${2:-}"; shift 2 ;;
     --branch) BRANCH="${2:-}"; shift 2 ;;
     --yes|-y) ASSUME_YES="true"; shift ;;
+    --fresh) FORCE_FRESH="true"; shift ;;
     *) die "Unknown option: $1" ;;
   esac
 done
@@ -85,6 +88,28 @@ PUBLIC_IP="$(curl -fsS --max-time 6 https://api.ipify.org 2>/dev/null || curl -f
 [[ -n "$PUBLIC_IP" ]] || die "Could not detect the server's public IP."
 echo "Server IP: ${PUBLIC_IP}"
 
+BACKEND_DIR="$APP_DIR/unlimited-stream-backend"; FRONT_DIR="$APP_DIR/unlimited-stream-front"; ENV_FILE="$BACKEND_DIR/.env"
+env_get() { grep -m1 "^$1=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true; }
+env_set_if_missing() { grep -q "^$1=" "$ENV_FILE" || echo "$1=$2" >> "$ENV_FILE"; }
+
+MODE="fresh"
+if [[ -f "$ENV_FILE" && -d "$APP_DIR/.git" && "$FORCE_FRESH" != "true" ]]; then
+  MODE="keep"
+  if [[ "$ASSUME_YES" != "true" && -r $TTY ]]; then
+    echo "An existing Ultra Live install was found in ${APP_DIR}."
+    case "$(ask '[K]eep data and update (default)  /  [F]resh install (backup, then wipe): ' K)" in f|F) MODE="fresh" ;; esac
+  fi
+fi
+echo "Install mode: ${MODE}"
+
+if [[ "$MODE" == "keep" ]]; then
+  HOST="$(env_get PUBLIC_BASE_URL)"; HOST="${HOST#https://}"; HOST="${HOST#http://}"; HOST="${HOST%%/*}"
+  [[ -n "$HOST" ]] || HOST="$PUBLIC_IP"
+  if [[ "$HOST" =~ ^[0-9.]+$ ]]; then DOMAIN=""; else DOMAIN="$HOST"; fi
+  LK_KEY="$(env_get LIVEKIT_API_KEY)"; LK_SECRET="$(env_get LIVEKIT_API_SECRET)"
+  [[ -n "$LK_KEY" && -n "$LK_SECRET" ]] || die "The existing .env is incomplete; re-run with --fresh."
+  OWNER_USER="(unchanged)"; GENERATED_PASS="false"
+else
 if [[ -z "$OWNER_USER" ]]; then OWNER_USER="$(ask 'Owner username [admin]: ' admin)"; fi
 if [[ -z "$OWNER_PASS" ]]; then
   OWNER_PASS="$(ask_secret 'Owner password (min 8 chars; empty = generate one): ')"
@@ -103,6 +128,7 @@ DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN%%/*}"
 if [[ -n "$DOMAIN" && -z "$EMAIL" ]]; then EMAIL="$(ask 'E-mail for Let'"'"'s Encrypt (optional): ' '')"; fi
 HOST="${DOMAIN:-$PUBLIC_IP}"
 [[ -n "$DOMAIN" ]] && echo "Mode: domain ($DOMAIN) + automatic SSL" || echo "Mode: IP only ($PUBLIC_IP) + IP SSL (Let's Encrypt)"
+fi
 
 # ---------------------------------------------------------------------------
 ensure_swap
@@ -123,34 +149,51 @@ command -v pm2 >/dev/null 2>&1 || npm install -g pm2 >/dev/null
 
 # ---------------------------------------------------------------------------
 log "4/9 Application source (${BRANCH})"
-if [[ -d "$APP_DIR/.git" ]]; then
-  STAMP="$(date +%Y%m%d-%H%M%S)"
-  warn "Existing install found; it is moved to ${APP_DIR}.old-${STAMP} (the old database is left untouched and NOT used)."
+fresh_cleanup() {
+  local stamp; stamp="$(date +%Y%m%d-%H%M%S)"
+  if [[ -f "$ENV_FILE" ]]; then
+    mkdir -p /root/ultralive-backups
+    echo "Backing up the existing database to /root/ultralive-backups/before-fresh-${stamp}.tar.gz ..."
+    if ! (cd "$BACKEND_DIR" && timeout 180 node scripts/backup.js "/root/ultralive-backups/before-fresh-${stamp}.tar.gz") >/dev/null 2>&1; then
+      [[ "$ASSUME_YES" == "true" ]] || [[ "$(ask 'Backup failed. Wipe anyway? [y/N]: ' N)" =~ ^[yY] ]] || die "Aborted; nothing was deleted."
+      warn "Could not back up the old database; continuing."
+    fi
+  fi
   pm2 delete all >/dev/null 2>&1 || true
-  mv "$APP_DIR" "${APP_DIR}.old-${STAMP}"
-  for old in ultralive-mongo unlimited-stream-mongo; do
-    if docker ps -a --format '{{.Names}}' | grep -qx "$old"; then docker stop "$old" >/dev/null; docker rename "$old" "${old}-old-${STAMP}"; fi
-  done
+  rm -rf "$APP_DIR" "${APP_DIR}".old-*
+  local c v
+  for c in $(docker ps -a --format '{{.Names}}' | grep -E '^(ultralive-mongo|unlimited-stream-mongo)' || true); do docker rm -f "$c" >/dev/null 2>&1 || true; done
+  for v in $(docker volume ls -q | grep -E '^ultralive-mongo-' || true); do docker volume rm "$v" >/dev/null 2>&1 || true; done
+}
+if [[ "$MODE" == "keep" ]]; then
+  git -C "$APP_DIR" fetch --quiet origin "$BRANCH"
+  git -C "$APP_DIR" checkout -q -B "$BRANCH" "origin/$BRANCH"
+else
+  fresh_cleanup
+  git clone --depth 50 -b "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
-git clone --depth 50 -b "$BRANCH" "$REPO_URL" "$APP_DIR"
-BACKEND_DIR="$APP_DIR/unlimited-stream-backend"; FRONT_DIR="$APP_DIR/unlimited-stream-front"
 
 # ---------------------------------------------------------------------------
-log "5/9 New MongoDB database"
-MONGO_USER="ul_$(openssl rand -hex 4)"; MONGO_PASS="$(openssl rand -hex 16)"; MONGO_DB="ultralive"
-docker volume create "ultralive-mongo-$(date +%s)" >/dev/null
-MONGO_VOLUME="$(docker volume ls -q | grep '^ultralive-mongo-' | tail -1)"
-docker run -d --name ultralive-mongo --restart unless-stopped -p 127.0.0.1:27017:27017 \
-  -e MONGO_INITDB_ROOT_USERNAME="$MONGO_USER" -e MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASS" \
-  -v "${MONGO_VOLUME}:/data/db" mongo:7 --bind_ip_all >/dev/null
-echo -n "Waiting for Mongo"; for i in $(seq 1 40); do
-  docker exec ultralive-mongo mongosh --quiet -u "$MONGO_USER" -p "$MONGO_PASS" --authenticationDatabase admin --eval 'db.runCommand({ping:1}).ok' >/dev/null 2>&1 && break; echo -n "."; sleep 2
-done; echo
+log "5/9 MongoDB database"
+if [[ "$MODE" == "keep" ]]; then
+  docker start ultralive-mongo >/dev/null 2>&1 || true
+  echo "Keeping the existing database."
+else
+  MONGO_USER="ul_$(openssl rand -hex 4)"; MONGO_PASS="$(openssl rand -hex 16)"; MONGO_DB="ultralive"
+  MONGO_VOLUME="ultralive-mongo-$(date +%s)"
+  docker volume create "$MONGO_VOLUME" >/dev/null
+  docker run -d --name ultralive-mongo --restart unless-stopped -p 127.0.0.1:27017:27017 \
+    -e MONGO_INITDB_ROOT_USERNAME="$MONGO_USER" -e MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASS" \
+    -v "${MONGO_VOLUME}:/data/db" mongo:7 --bind_ip_all >/dev/null
+  echo -n "Waiting for Mongo"; for _ in $(seq 1 40); do
+    docker exec ultralive-mongo mongosh --quiet -u "$MONGO_USER" -p "$MONGO_PASS" --authenticationDatabase admin --eval 'db.runCommand({ping:1}).ok' >/dev/null 2>&1 && break; echo -n "."; sleep 2
+  done; echo
+fi
 
 # ---------------------------------------------------------------------------
 log "6/9 LiveKit (interactive rooms + OBS ingest + recording)"
 mkdir -p "$LIVEKIT_DIR"
-LK_KEY="lk$(openssl rand -hex 8)"; LK_SECRET="$(openssl rand -hex 32)"
+if [[ "$MODE" == "fresh" ]]; then LK_KEY="lk$(openssl rand -hex 8)"; LK_SECRET="$(openssl rand -hex 32)"; fi
 cat > "$LIVEKIT_DIR/livekit.yaml" <<EOF
 port: 7880
 bind_addresses: ["127.0.0.1"]
@@ -228,11 +271,13 @@ services:
       - /opt/ultralive-recordings:/out
     depends_on: [redis, livekit]
 EOF
-(cd "$LIVEKIT_DIR" && docker compose down >/dev/null 2>&1 || true; docker compose up -d)
+(cd "$LIVEKIT_DIR" && docker compose up -d --remove-orphans)
+docker image prune -f >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
 log "7/9 Configuration and build"
 SCHEME="https"
+if [[ "$MODE" == "fresh" ]]; then
 JWT_SECRET="$(openssl rand -hex 32)"; WP_SECRET="$(openssl rand -hex 32)"; ROOM_SECRET="$(openssl rand -hex 32)"
 cat > "$BACKEND_DIR/.env" <<EOF
 PORT=5050
@@ -258,16 +303,27 @@ LIVEKIT_API_SECRET=${LK_SECRET}
 RECORDINGS_DIR=/opt/ultralive-recordings
 EOF
 chmod 600 "$BACKEND_DIR/.env"
+else
+  env_set_if_missing COOKIE_SECURE true
+  env_set_if_missing ALLOW_PANEL_UPDATE true
+  env_set_if_missing RECORDINGS_DIR /opt/ultralive-recordings
+fi
 cat > "$FRONT_DIR/.env.production" <<EOF
 NEXT_PUBLIC_API_URL=${SCHEME}://${HOST}
 NEXT_PUBLIC_MEDIA_URL=${SCHEME}://${HOST}
 NEXT_PUBLIC_RTMP_URL=rtmp://${PUBLIC_IP}:1935/live
 EOF
 (cd "$BACKEND_DIR" && npm ci --omit=dev --no-audit --no-fund)
-(cd "$FRONT_DIR" && npm ci --no-audit --no-fund && NODE_OPTIONS="--max-old-space-size=2048" npm run build)
-(cd "$BACKEND_DIR" && SEED_OWNER_USERNAME="$OWNER_USER" SEED_OWNER_PASSWORD="$OWNER_PASS" node scripts/seed-owner.js)
+(cd "$FRONT_DIR" && npm ci --no-audit --no-fund)
+if [[ "$MODE" == "keep" ]]; then
+  # build beside the running site, then swap, so the live UI is never half-built
+  (cd "$FRONT_DIR" && rm -rf .next-build && NODE_OPTIONS="--max-old-space-size=2048" NEXT_DIST_DIR=.next-build npm run build && rm -rf .next && mv .next-build .next)
+else
+  (cd "$FRONT_DIR" && NODE_OPTIONS="--max-old-space-size=2048" npm run build)
+  (cd "$BACKEND_DIR" && SEED_OWNER_USERNAME="$OWNER_USER" SEED_OWNER_PASSWORD="$OWNER_PASS" node scripts/seed-owner.js)
+fi
 chmod +x "$APP_DIR/update.sh"
-pm2 startOrReload "$APP_DIR/ecosystem.config.js" && pm2 save >/dev/null
+pm2 startOrReload "$APP_DIR/ecosystem.config.js" --update-env && pm2 save >/dev/null
 env PATH="$PATH" pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
@@ -383,7 +439,10 @@ ufw --force enable >/dev/null
 if ! snap list certbot >/dev/null 2>&1; then snap install --classic certbot >/dev/null 2>&1 || warn "Installing certbot via snap failed."; fi
 ln -sf /snap/bin/certbot /usr/local/bin/certbot 2>/dev/null || true
 CB_EMAIL_ARGS=(--register-unsafely-without-email); [[ -n "$EMAIL" ]] && CB_EMAIL_ARGS=(-m "$EMAIL")
-if command -v certbot >/dev/null 2>&1; then
+EXISTING_CERT="/etc/letsencrypt/live/${HOST}/fullchain.pem"
+if [[ -f "$EXISTING_CERT" ]]; then
+  SSL_MODE="letsencrypt-existing"; SSL_CERT="$EXISTING_CERT"; SSL_KEY="/etc/letsencrypt/live/${HOST}/privkey.pem"
+elif command -v certbot >/dev/null 2>&1; then
   if [[ -n "$DOMAIN" ]]; then
     RESOLVED="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
     [[ "$RESOLVED" == "$PUBLIC_IP" ]] || warn "DNS for the domain (${RESOLVED:-unknown}) does not match this server (${PUBLIC_IP}); getting a certificate may fail."
@@ -413,8 +472,10 @@ EOF
 echo "${c_off}"
 echo "Site:               ${SCHEME}://${HOST}"
 echo "Admin login:        ${SCHEME}://${HOST}/adminlogin"
-echo "Owner username:     ${OWNER_USER}"
-[[ "$GENERATED_PASS" == "true" ]] && echo "Owner password:     ${OWNER_PASS}   ${c_warn}(save it now)${c_off}" || echo "Owner password:     (the one you entered)"
+if [[ "$MODE" == "keep" ]]; then echo "Data:               kept (owner login unchanged)"; else echo "Owner username:     ${OWNER_USER}"; fi
+if [[ "$MODE" == "fresh" ]]; then
+  [[ "$GENERATED_PASS" == "true" ]] && echo "Owner password:     ${OWNER_PASS}   ${c_warn}(save it now)${c_off}" || echo "Owner password:     (the one you entered)"
+fi
 echo "SSL:                ${SSL_MODE}"
 echo "API status:         ${HEALTH}"
 echo "RTMP (OBS):         rtmp://${PUBLIC_IP}:1935/live   — or the LiveKit key from the class panel"
