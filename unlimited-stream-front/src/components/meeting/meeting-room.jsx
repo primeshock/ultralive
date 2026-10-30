@@ -18,31 +18,7 @@ import { Tip } from "./tip";
 import { PanelBoundary } from "./boundary";
 import { ClassPoll } from "./class-poll";
 import { ChatMenu } from "./chat-menu";
-
-const pad = (n) => String(n).padStart(2, "0");
-const clock = (s) => `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
-
-function useSecondTick() {
-  const [now, setNow] = useState(0);
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
-  return now;
-}
-
-// Elapsed class time (own state, so the 300-row people list is not re-rendered every second).
-function ClassClock() {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => { const id = setInterval(() => setSeconds((x) => x + 1), 1000); return () => clearInterval(id); }, []);
-  return <span className="flex items-center gap-1.5 rounded-full bg-[var(--s2)] px-3 py-1.5 text-xs tabular-nums" dir="ltr"><Clock className="size-3.5 text-[var(--accent-ink)]" />{clock(seconds)}</span>;
-}
-
-// Countdown to a scheduled class end (header pill for the host, floating banner for everyone else).
-function EndCountdown({ endsAt, floating }) {
-  const now = useSecondTick();
-  const remaining = Math.max(0, Math.round((endsAt - (now || endsAt - 1000)) / 1000));
-  const text = `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`;
-  if (floating) return <div className="pointer-events-none absolute inset-x-0 top-14 z-30 mx-auto w-fit rounded-full bg-rose-500/90 px-4 py-1.5 text-xs">کلاس تا {text} دیگر بسته می‌شود</div>;
-  return <span className="flex items-center gap-1.5 rounded-full bg-rose-500/25 px-3 py-1.5 text-xs tabular-nums text-rose-100" dir="ltr"><Timer className="size-3.5" />{text}</span>;
-}
+import { RoomHeader, EndCountdown } from "./room-header";
 
 function ToolButton({ icon: Icon, label, onClick, active, danger, showLabel }) {
   const tone = danger ? "bg-rose-500/90 text-white hover:bg-rose-400" : active ? "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]" : "glass-btn text-white";
@@ -300,20 +276,9 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
 
   return (
     <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell relative flex h-dvh w-full max-w-full flex-col overflow-hidden text-white">
-      <header className="relative z-30 flex items-center justify-between gap-3 bg-[color-mix(in_oklab,var(--s2)_88%,#0a7bc4_12%)] shadow-[0_10px_24px_-14px_rgb(0_0_0/.7)] px-4 py-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-[var(--accent)] text-white"><Video className="size-4" /></span>
-          <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{title}</h1><p className="truncate text-[11px] text-[var(--ink-3)]">{organization || "کلاس آنلاین"}</p></div>
-        </div>
-        <div className="flex items-center gap-2">
-          {endsAt && <EndCountdown endsAt={endsAt} />}
-          <ClassClock />
-          {local && <span className="hidden items-center gap-1.5 rounded-full bg-[var(--s2)] px-2.5 py-1.5 sm:flex"><Quality value={local.connectionQuality} /></span>}
-          {isStaff && <HeaderActions channel={channel} settings={settings} mode={mode} onMode={onModeChange} onSettings={updateSettings} flash={flash} endsAt={endsAt} rec={rec} onRec={recAction} />}
-          <Tip label="تمام‌صفحه"><button onClick={() => document.documentElement.requestFullscreen?.()} className="hidden size-8 place-items-center rounded-lg bg-[var(--s2)] hover:bg-[var(--s3)] md:grid" aria-label="تمام‌صفحه"><Maximize2 className="size-4" /></button></Tip>
-          <Tip label="خروج از کلاس"><button onClick={() => { room?.disconnect(); onLeave?.(); }} aria-label="خروج از کلاس" className="grid size-8 place-items-center rounded-lg bg-[var(--s2)] text-[var(--ink)] transition hover:bg-rose-500/80 hover:text-white"><LogOut className="size-4" /></button></Tip>
-        </div>
-      </header>
+      <RoomHeader title={title} organization={organization} endsAt={endsAt} quality={local?.connectionQuality} onLeave={() => { room?.disconnect(); onLeave?.(); }}>
+        {isStaff && <HeaderActions channel={channel} settings={settings} mode={mode} onMode={onModeChange} onSettings={updateSettings} flash={flash} endsAt={endsAt} rec={rec} onRec={recAction} />}
+      </RoomHeader>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pb-24 md:flex-row md:overflow-hidden md:pb-2">
         {sideMode === "hidden" ? (

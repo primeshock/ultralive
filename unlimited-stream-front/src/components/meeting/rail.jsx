@@ -14,7 +14,7 @@ const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 
 
 // macOS-dock style magnification: icons near the pointer grow slightly, the selected one stays a bit larger.
 // Works by writing transforms straight to the DOM from one pointer listener — no React re-renders.
-function useDock() {
+export function useDock() {
   const ref = useRef(null);
   useEffect(() => {
     const nav = ref.current;
@@ -35,7 +35,7 @@ function useDock() {
   return ref;
 }
 
-function Toggle({ checked, onChange, label }) {
+export function Toggle({ checked, onChange, label }) {
   return (
     <button type="button" onClick={() => onChange(!checked)} className="mb-1 flex w-full items-center justify-between gap-3 rounded-lg bg-[color-mix(in_oklab,var(--s2)_55%,transparent)] px-2.5 py-2 text-right text-xs text-[var(--ink)] transition hover:bg-[var(--s3)]">
       <span>{label}</span>
@@ -71,7 +71,7 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
   );
 }
 
-function RailButton({ icon: Icon, label, active, onClick }) {
+export function RailButton({ icon: Icon, label, active, onClick }) {
   return (
     <button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex size-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[var(--ink)] transition data-[active=true]:text-white">
       <Icon className="size-[18px]" /><span className="text-[9px] font-medium leading-4 tracking-tighter">{label}</span>

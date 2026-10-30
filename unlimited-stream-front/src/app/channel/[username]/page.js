@@ -8,14 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Radio, Users, Sparkles, Activity } from "lucide-react";
 import { LiveKitPlayer } from "@/components/livekit-player";
 import { LiveChat } from "@/components/live-chat";
-import { PollWidget } from "@/components/poll-widget";
-import { ClassAdminPanel } from "@/components/class-admin-panel";
 import { NetworkMonitor } from "@/components/network-monitor";
 import { Quality } from "@/components/meeting/panels";
 import { MeetingRoom } from "@/components/meeting/meeting-room";
 import { StudentCallOverlay } from "@/components/meeting/student-call";
-import { ModeSwitch } from "@/components/meeting/mode-switch";
-import { StudioStudentList } from "@/components/meeting/studio-student-list";
+import { StudioRoom } from "@/components/meeting/studio-room";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -200,11 +197,29 @@ export default function ChannelPage({ params }) {
     );
   }
 
+  if (!previewOnly) {
+    return (
+      <div className="fixed inset-0 z-50">
+        <StudioRoom
+          channel={username}
+          info={channel}
+          isStaff={Boolean(canManageClass)}
+          useLiveKit={useLiveKit}
+          livekitSettings={livekitStatus?.livekit}
+          appearance={appearance?.preset}
+          appearanceStyle={appearanceStyle}
+          onModeChange={(mode) => setChannel((current) => ({ ...current, mode }))}
+          onChannelPatch={(patch) => setChannel((current) => ({ ...current, ...patch }))}
+          onLeave={() => { window.location.href = canManageClass ? "/admin" : "/"; }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="spatial-shell min-h-[calc(100dvh_-_3.5rem)]" data-appearance={appearance?.preset || "aurora"} style={appearanceStyle}>
       <div className={`relative mx-auto grid w-full max-w-[1540px] grid-cols-1 gap-5 px-4 py-5 lg:px-8 ${previewOnly ? "max-w-5xl" : "xl:grid-cols-[minmax(0,1fr)_390px]"}`}>
       <div className="flex min-h-0 flex-col gap-5">
-        {canManageClass && !previewOnly && channel.mode && <div className="flex justify-end"><ModeSwitch channel={username} mode={channel.mode} onChange={(mode) => setChannel((current) => ({ ...current, mode }))} /></div>}
         <div className="glass-float relative aspect-video overflow-hidden rounded-2xl border-[var(--line-strong)] p-1 shadow-[0_30px_100px_rgb(0_0_0_/_0.38)]">
           <div className="pointer-events-none absolute inset-0 z-10 rounded-2xl ring-1 ring-inset ring-white/10" />
           {!previewOnly && !canManageClass && studioRoom && <StudentCallOverlay room={studioRoom} mayRaiseHand={channel.meeting?.studentsMayRaiseHand !== false} />}
@@ -253,9 +268,6 @@ export default function ChannelPage({ params }) {
           </div>
         </div>
 
-        {!previewOnly && <PollWidget channel={username} />}
-        {!previewOnly && canManageClass && useLiveKit && <StudioStudentList channel={username} />}
-        {!previewOnly && canManageClass && <ClassAdminPanel channel={username} thumbnailUrl={channel.thumbnailUrl} chatMode={chatMode} showViewerCount={channel.showViewerCount} viewerCount={channel.viewerCount || 0} onChatMode={handleChatMode} onViewerCount={handleViewerCount} onThumbnail={(thumbnailUrl) => setChannel((current) => ({ ...current, thumbnailUrl }))} />}
       </div>
 
       {!previewOnly && <div className="flex min-h-0 flex-col gap-3 xl:sticky xl:top-20 xl:h-[calc(100dvh_-_6.5rem)]">

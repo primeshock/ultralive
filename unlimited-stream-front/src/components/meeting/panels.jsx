@@ -104,7 +104,7 @@ const act = "glass-btn grid size-7 shrink-0 place-items-center rounded-lg text-[
 
 // Compact file list. The host decides per file whether students can see/download it (slider);
 // whatever the host puts on stage is shown to everybody regardless.
-export function FilesPanel({ channel, files, sharedId, isStaff, onChanged, onShare, recordings = [] }) {
+export function FilesPanel({ channel, files, sharedId, isStaff, onChanged, onShare, recordings = [], canShare = true }) {
   const input = useRef(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -140,7 +140,7 @@ export function FilesPanel({ channel, files, sharedId, isStaff, onChanged, onSha
                 </button>
               )}
               {!isStaff && <span className="flex-1" />}
-              {isStaff && file.inline && <Tip label={live ? "توقف نمایش" : "نمایش برای همه"}><button onClick={() => onShare(live ? null : file.id)} aria-label="نمایش برای همه" data-active={live} className={`${act} data-[active=true]:!bg-emerald-500/70`}>{live ? <X className="size-3.5" /> : <Presentation className="size-3.5" />}</button></Tip>}
+              {isStaff && canShare && file.inline && <Tip label={live ? "توقف نمایش" : "نمایش برای همه"}><button onClick={() => onShare(live ? null : file.id)} aria-label="نمایش برای همه" data-active={live} className={`${act} data-[active=true]:!bg-emerald-500/70`}>{live ? <X className="size-3.5" /> : <Presentation className="size-3.5" />}</button></Tip>}
               <Tip label="دریافت"><a href={`${API_URL}${file.url}`} target="_blank" rel="noopener noreferrer" aria-label="دریافت" className={act}><Download className="size-3.5" /></a></Tip>
               {isStaff && <Tip label="حذف"><button aria-label="حذف" onClick={async () => { await api.meetingDeleteFile(channel, file.id); onChanged?.(); }} className={`${act} !text-rose-300`}><Trash2 className="size-3.5" /></button></Tip>}
             </div>
