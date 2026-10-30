@@ -38,7 +38,7 @@ echo "▶ npm ci"
 status running "Building the UI (the site stays available)"
 echo "▶ build (in a side directory)"
 rm -rf "$FRONT/.next-build"
-(cd "$FRONT" && NEXT_DIST_DIR=.next-build npm run build)
+(cd "$FRONT" && NODE_OPTIONS="--max-old-space-size=2048" NEXT_DIST_DIR=.next-build npm run build)
 
 status running "Swapping and reloading"
 echo "▶ swap + reload"

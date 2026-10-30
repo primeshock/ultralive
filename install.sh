@@ -54,6 +54,22 @@ ask_secret() {
   read -r -s -p "$prompt" reply < $TTY || true; echo >&2
   echo "$reply"
 }
+# Next.js needs ~2 GB to build; small VPS plans get killed (SIGKILL) without swap.
+ensure_swap() {
+  local mem_mb swap_mb size
+  mem_mb="$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)"
+  swap_mb="$(awk '/SwapTotal/{print int($2/1024)}' /proc/meminfo)"
+  if (( mem_mb + swap_mb < 4000 )); then
+    size=$(( 4096 - mem_mb - swap_mb )); (( size < 1024 )) && size=1024
+    log "Low memory (${mem_mb} MB RAM): creating ${size} MB swap"
+    if [[ ! -f /swapfile ]]; then
+      fallocate -l "${size}M" /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count="$size" status=none
+      chmod 600 /swapfile; mkswap /swapfile >/dev/null
+    fi
+    swapon /swapfile 2>/dev/null || true
+    grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
+}
 apt_retry() { for i in 1 2 3; do DEBIAN_FRONTEND=noninteractive apt-get "$@" && return 0; sleep 4; done; return 1; }
 
 # ---------------------------------------------------------------------------
@@ -89,6 +105,7 @@ HOST="${DOMAIN:-$PUBLIC_IP}"
 [[ -n "$DOMAIN" ]] && echo "Mode: domain ($DOMAIN) + automatic SSL" || echo "Mode: IP only ($PUBLIC_IP) + IP SSL (Let's Encrypt)"
 
 # ---------------------------------------------------------------------------
+ensure_swap
 log "1/9 Base packages"
 apt_retry update -qq
 apt_retry install -y -qq curl git ca-certificates gnupg ufw openssl nginx ffmpeg snapd tar >/dev/null
@@ -247,7 +264,7 @@ NEXT_PUBLIC_MEDIA_URL=${SCHEME}://${HOST}
 NEXT_PUBLIC_RTMP_URL=rtmp://${PUBLIC_IP}:1935/live
 EOF
 (cd "$BACKEND_DIR" && npm ci --omit=dev --no-audit --no-fund)
-(cd "$FRONT_DIR" && npm ci --no-audit --no-fund && npm run build)
+(cd "$FRONT_DIR" && npm ci --no-audit --no-fund && NODE_OPTIONS="--max-old-space-size=2048" npm run build)
 (cd "$BACKEND_DIR" && SEED_OWNER_USERNAME="$OWNER_USER" SEED_OWNER_PASSWORD="$OWNER_PASS" node scripts/seed-owner.js)
 chmod +x "$APP_DIR/update.sh"
 pm2 startOrReload "$APP_DIR/ecosystem.config.js" && pm2 save >/dev/null
