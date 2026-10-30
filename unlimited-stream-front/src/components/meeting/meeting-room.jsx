@@ -177,7 +177,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const updateSettings = (patch) => { setSettings((c) => ({ ...c, ...patch })); api.meetingSettings(channel, patch).catch(() => {}); };
 
   if (state === "failed") {
-    return <div className="grid h-full place-items-center p-8 text-center text-white"><div><WifiOff className="mx-auto mb-3 size-8 text-rose-300" /><p className="font-medium">اتصال به کلاس برقرار نشد</p><p className="mt-1 text-sm text-white/55">{error}</p><button onClick={() => window.location.reload()} className="mt-4 rounded-xl bg-sky-500 px-4 py-2 text-sm">تلاش دوباره</button></div></div>;
+    return <div className="grid h-full place-items-center p-8 text-center text-white"><div><WifiOff className="mx-auto mb-3 size-8 text-rose-300" /><p className="font-medium">اتصال به کلاس برقرار نشد</p><p className="mt-1 text-sm text-white/55">{error}</p><div className="mt-4 flex flex-wrap items-center justify-center gap-3"><button onClick={() => window.location.reload()} className="rounded-xl bg-sky-500 px-4 py-2 text-sm">تلاش دوباره</button>{isStaff && <ModeSwitch channel={channel} mode={mode} onChange={onModeChange} />}</div></div></div>;
   }
   if (ended) {
     return <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell grid h-dvh place-items-center text-center text-white"><div><PhoneOff className="mx-auto mb-4 size-10 text-sky-300" /><h2 className="text-lg font-semibold">کلاس به پایان رسید</h2><p className="mt-1 text-sm text-white/60">از حضور شما سپاسگزاریم.</p><button onClick={onLeave} className="mt-5 rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-medium">خروج</button></div></div>;

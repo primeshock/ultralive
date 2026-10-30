@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# ultralive — server management CLI for Ultra Live.
+#   ultralive                 interactive menu
+#   ultralive status          resources, services, SSL expiry
+#   ultralive logs [svc]      backend | frontend | livekit | ingress | egress | nginx | mongo | install
+#   ultralive update          safe update (backup → pull → build aside → swap → reload, auto-rollback)
+#   ultralive domain [host]   set domain (or IP) and get a trusted SSL certificate
+#   ultralive ssl             retry / renew the SSL certificate for the current host
+#   ultralive restart [svc]   all | backend | frontend | livekit
+#   ultralive backup          full backup to /root/ultralive-backups
+#   ultralive restore FILE    replace ALL data with a backup
+#   ultralive reset-owner     set a new owner password
+set -uo pipefail
+
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+APP_DIR="$(dirname "$(dirname "$SELF")")"
+BACKEND="$APP_DIR/unlimited-stream-backend"; FRONT="$APP_DIR/unlimited-stream-front"
+ENV_FILE="$BACKEND/.env"; LIVEKIT_DIR="/opt/livekit"
+c_ok=$'\e[32m'; c_warn=$'\e[33m'; c_err=$'\e[31m'; c_b=$'\e[1m'; c_dim=$'\e[2m'; c_off=$'\e[0m'
+ok()   { echo "${c_ok}✔ $*${c_off}"; }
+warn() { echo "${c_warn}⚠ $*${c_off}"; }
+die()  { echo "${c_err}✖ $*${c_off}" >&2; exit 1; }
+title(){ echo; echo "${c_b}$*${c_off}"; }
+[[ $EUID -eq 0 ]] || die "Run as root:  sudo ultralive"
+[[ -f "$ENV_FILE" ]] || die "No install found at $APP_DIR"
+
+env_get() { grep -m1 "^$1=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true; }
+env_set() { if grep -q "^$1=" "$ENV_FILE"; then sed -i "s#^$1=.*#$1=$2#" "$ENV_FILE"; else echo "$1=$2" >> "$ENV_FILE"; fi; }
+current_host() { local h; h="$(env_get PUBLIC_BASE_URL)"; h="${h#https://}"; h="${h#http://}"; echo "${h%%/*}"; }
+ask() { local r; read -r -p "$1" r < /dev/tty || true; echo "${r:-${2:-}}"; }
+bar() { # bar PERCENT
+  local p=$1 n=$(( $1 / 5 )) col="$c_ok"; (( p >= 70 )) && col="$c_warn"; (( p >= 90 )) && col="$c_err"
+  printf '%s[%-20s]%s %3d%%' "$col" "$(printf '#%.0s' $(seq 1 "$n"))" "$c_off" "$p"
+}
+
+cmd_status() {
+  title "Server"
+  local cores load1 memT memU swT swU diskP
+  cores="$(nproc)"; load1="$(cut -d' ' -f1 /proc/loadavg)"
+  echo "Uptime:   $(uptime -p)"
+  printf 'CPU:      %s cores, load %s   ' "$cores" "$load1"; bar "$(awk -v l="$load1" -v c="$cores" 'BEGIN{p=int(l/c*100); if(p>100)p=100; print p}')"; echo
+  memT="$(free -m | awk '/Mem:/{print $2}')"; memU="$(free -m | awk '/Mem:/{print $3}')"
+  printf 'Memory:   %s / %s MB   ' "$memU" "$memT"; bar $(( memU * 100 / memT )); echo
+  swT="$(free -m | awk '/Swap:/{print $2}')"; swU="$(free -m | awk '/Swap:/{print $3}')"
+  if (( swT > 0 )); then printf 'Swap:     %s / %s MB   ' "$swU" "$swT"; bar $(( swU * 100 / swT )); echo; fi
+  diskP="$(df / | awk 'NR==2{gsub("%","",$5); print $5}')"
+  printf 'Disk:     %s used of %s   ' "$(df -h / | awk 'NR==2{print $3}')" "$(df -h / | awk 'NR==2{print $2}')"; bar "$diskP"; echo
+  title "Services"
+  for app in unlimited-stream-backend unlimited-stream-frontend; do
+    st="$(pm2 jlist 2>/dev/null | python3 -c "import sys,json;d=[p for p in json.load(sys.stdin) if p['name']=='$app'];print(d[0]['pm2_env']['status']+'  restarts:'+str(d[0]['pm2_env']['restart_time'])+'  mem:'+str(round(d[0]['monit']['memory']/1048576))+'MB' if d else 'missing')" 2>/dev/null || echo unknown)"
+    printf '%-28s %s\n' "$app" "$st"
+  done
+  for c in ultralive-mongo; do printf '%-28s %s\n' "$c" "$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)"; done
+  (cd "$LIVEKIT_DIR" 2>/dev/null && docker compose ps --format '{{.Service}} {{.State}}' 2>/dev/null | awk '{printf "%-28s %s\n","livekit/"$1,$2}')
+  printf '%-28s %s\n' nginx "$(systemctl is-active nginx)"
+  curl -ksf "http://127.0.0.1:5050/api/health" >/dev/null && ok "API health: OK" || warn "API health: FAILED"
+  title "Site & SSL"
+  local host cert; host="$(current_host)"; echo "URL:      $(env_get PUBLIC_BASE_URL)"
+  cert="/etc/letsencrypt/live/${host}/fullchain.pem"
+  if [[ -f "$cert" ]]; then
+    local end days; end="$(openssl x509 -enddate -noout -in "$cert" | cut -d= -f2)"; days=$(( ( $(date -d "$end" +%s) - $(date +%s) ) / 86400 ))
+    echo "SSL:      Let's Encrypt, expires $end (${days} days)"
+  else warn "SSL: self-signed (run: ultralive ssl)"; fi
+  echo "Version:  $(git -C "$APP_DIR" log -1 --format='%h %s (%cr)')"
+}
+
+cmd_logs() {
+  local svc="${1:-}"
+  if [[ -z "$svc" ]]; then
+    echo "1) backend  2) frontend  3) livekit  4) ingress  5) egress  6) nginx  7) mongo  8) install log"
+    case "$(ask 'Which logs? [1]: ' 1)" in 1) svc=backend;; 2) svc=frontend;; 3) svc=livekit;; 4) svc=ingress;; 5) svc=egress;; 6) svc=nginx;; 7) svc=mongo;; 8) svc=install;; *) svc=backend;; esac
+  fi
+  echo "${c_dim}(Ctrl-C to stop)${c_off}"
+  case "$svc" in
+    backend)  pm2 logs unlimited-stream-backend --lines 120 ;;
+    frontend) pm2 logs unlimited-stream-frontend --lines 120 ;;
+    livekit|ingress|egress) (cd "$LIVEKIT_DIR" && docker compose logs -f --tail 120 "$svc") ;;
+    nginx)    tail -n 120 -f /var/log/nginx/error.log /var/log/nginx/access.log ;;
+    mongo)    docker logs -f --tail 120 ultralive-mongo ;;
+    install)  less +G /var/log/ultralive-install.log ;;
+    *) die "Unknown service: $svc" ;;
+  esac
+}
+
+cmd_update() {
+  git -C "$APP_DIR" fetch --quiet origin "$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD)" || warn "Could not reach GitHub"
+  local branch behind; branch="$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD)"
+  behind="$(git -C "$APP_DIR" rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)"
+  if [[ "$behind" == "0" ]]; then ok "Already up to date ($(git -C "$APP_DIR" rev-parse --short HEAD))."; [[ "${1:-}" == "--force" ]] || return 0; fi
+  echo "Changes to apply ($behind):"; git -C "$APP_DIR" log --pretty='  • %s' "HEAD..origin/$branch" | head -15
+  [[ "$(ask 'Update now? [Y/n]: ' Y)" =~ ^[nN] ]] && return 0
+  bash "$APP_DIR/update.sh"
+  chmod +x "$APP_DIR/deploy/ultralive"; ln -sf "$APP_DIR/deploy/ultralive" /usr/local/bin/ultralive
+}
+
+cmd_ssl() {
+  local host email; host="$(current_host)"; [[ -n "$host" ]] || die "PUBLIC_BASE_URL is not set."
+  email="$(ask 'E-mail for Let'"'"'s Encrypt (optional): ' '')"
+  # shellcheck source=ssl-lib.sh
+  source "$APP_DIR/deploy/ssl-lib.sh"
+  ul_install_certbot || die "certbot install failed"
+  ul_is_ip "$host" || { r="$(getent hosts "$host" | awk '{print $1}' | head -1)"; [[ "$r" == "$(env_get SERVER_IP)" ]] || warn "DNS for $host ($r) does not point to this server ($(env_get SERVER_IP))."; }
+  if ul_obtain_cert "$host" "$email"; then ul_write_nginx "$host" "$SSL_CERT" "$SSL_KEY"; ul_setup_renewal; ok "Trusted certificate installed for $host"; else die "Could not get a certificate (see the error above)."; fi
+}
+
+cmd_domain() {
+  local new="${1:-}" email
+  if [[ -z "$new" ]]; then new="$(ask "New domain (empty = use the server IP $(env_get SERVER_IP)): " '')"; fi
+  new="${new#http://}"; new="${new#https://}"; new="${new%%/*}"; [[ -n "$new" ]] || new="$(env_get SERVER_IP)"
+  email="$(ask 'E-mail for Let'"'"'s Encrypt (optional): ' '')"
+  # shellcheck source=ssl-lib.sh
+  source "$APP_DIR/deploy/ssl-lib.sh"
+  if ! ul_is_ip "$new"; then
+    r="$(getent hosts "$new" | awk '{print $1}' | head -1)"
+    if [[ "$r" != "$(env_get SERVER_IP)" ]]; then warn "DNS: $new → ${r:-nothing}, but this server is $(env_get SERVER_IP). Point an A record here first."; [[ "$(ask 'Continue anyway? [y/N]: ' N)" =~ ^[yY] ]] || return 1; fi
+  fi
+  ul_install_certbot || die "certbot install failed"
+  ul_self_signed "$new"; ul_write_nginx "$new" "$SSL_CERT" "$SSL_KEY"
+  if ul_obtain_cert "$new" "$email"; then ul_write_nginx "$new" "$SSL_CERT" "$SSL_KEY"; ul_setup_renewal; ok "Trusted certificate for $new"; else warn "No trusted certificate; keeping a self-signed one. Retry later: ultralive ssl"; fi
+  env_set PUBLIC_BASE_URL "https://$new"; env_set CORS_ORIGIN "https://$new"; env_set LIVEKIT_WS_URL "wss://$new/livekit"
+  cat > "$FRONT/.env.production" <<EOF
+NEXT_PUBLIC_API_URL=https://$new
+NEXT_PUBLIC_MEDIA_URL=https://$new
+NEXT_PUBLIC_RTMP_URL=rtmp://$(env_get SERVER_IP):1935/live
+EOF
+  echo "Rebuilding the UI for the new address (the site stays up) ..."
+  (cd "$FRONT" && rm -rf .next-build && NODE_OPTIONS="--max-old-space-size=2048" NEXT_DIST_DIR=.next-build npm run build && rm -rf .next && mv .next-build .next) || die "Build failed; the old UI is still running."
+  pm2 reload "$APP_DIR/ecosystem.config.js" --update-env >/dev/null
+  ok "Done → https://$new"
+}
+
+cmd_restart() {
+  case "${1:-all}" in
+    all) pm2 reload "$APP_DIR/ecosystem.config.js" --update-env; (cd "$LIVEKIT_DIR" && docker compose restart) ;;
+    backend) pm2 reload unlimited-stream-backend --update-env ;;
+    frontend) pm2 reload unlimited-stream-frontend ;;
+    livekit) (cd "$LIVEKIT_DIR" && docker compose restart) ;;
+    *) die "Unknown target" ;;
+  esac
+}
+
+cmd_backup() { mkdir -p /root/ultralive-backups; local f="/root/ultralive-backups/ultralive-$(date +%Y%m%d-%H%M%S).tar.gz"; (cd "$BACKEND" && node scripts/backup.js "$f") && ok "Backup: $f"; }
+cmd_restore() {
+  [[ -f "${1:-}" ]] || die "Usage: ultralive restore /path/to/backup.tar.gz"
+  warn "This REPLACES all current data with the backup."
+  [[ "$(ask 'Type RESTORE to continue: ' '')" == "RESTORE" ]] || die "Cancelled."
+  (cd "$BACKEND" && node scripts/restore.js "$1") && pm2 reload unlimited-stream-backend >/dev/null && ok "Restored."
+}
+cmd_reset_owner() {
+  local user pass; user="$(ask 'Owner username [admin]: ' admin)"
+  read -r -s -p "New password (min 8): " pass < /dev/tty; echo
+  [[ ${#pass} -ge 8 ]] || die "Password too short."
+  (cd "$BACKEND" && SEED_OWNER_USERNAME="$user" SEED_OWNER_PASSWORD="$pass" node scripts/seed-owner.js)
+}
+
+menu() {
+  while true; do
+    echo; echo "${c_b}Ultra Live — $(current_host)${c_off}"
+    cat <<'M'
+  1) Status & server resources
+  2) Logs
+  3) Update to the latest version
+  4) Set domain + SSL
+  5) Renew / retry SSL certificate
+  6) Restart services
+  7) Backup
+  8) Reset owner password
+  0) Exit
+M
+    case "$(ask 'Choose: ' 0)" in
+      1) cmd_status ;; 2) cmd_logs ;; 3) cmd_update ;; 4) cmd_domain ;; 5) cmd_ssl ;;
+      6) cmd_restart all ;; 7) cmd_backup ;; 8) cmd_reset_owner ;; 0|q|"") exit 0 ;; *) warn "Unknown choice" ;;
+    esac
+  done
+}
+
+case "${1:-menu}" in
+  menu) menu ;; status) cmd_status ;; logs) shift; cmd_logs "${1:-}" ;; update) shift; cmd_update "${1:-}" ;;
+  domain) shift; cmd_domain "${1:-}" ;; ssl) cmd_ssl ;; restart) shift; cmd_restart "${1:-all}" ;;
+  backup) cmd_backup ;; restore) shift; cmd_restore "${1:-}" ;; reset-owner) cmd_reset_owner ;;
+  version) git -C "$APP_DIR" log -1 --format='%h %s (%cr)' ;; -h|--help|help) sed -n 2,14p "$SELF" | sed 's/^# \{0,1\}//' ;;
+  *) die "Unknown command: $1  (try: ultralive help)" ;;
+esac

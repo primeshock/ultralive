@@ -154,7 +154,7 @@ fresh_cleanup() {
   if [[ -f "$ENV_FILE" ]]; then
     mkdir -p /root/ultralive-backups
     echo "Backing up the existing database to /root/ultralive-backups/before-fresh-${stamp}.tar.gz ..."
-    if ! (cd "$BACKEND_DIR" && timeout 180 node scripts/backup.js "/root/ultralive-backups/before-fresh-${stamp}.tar.gz") >/dev/null 2>&1; then
+    if ! (trap - ERR; cd "$BACKEND_DIR" && timeout 180 node scripts/backup.js "/root/ultralive-backups/before-fresh-${stamp}.tar.gz") >/dev/null 2>&1; then
       [[ "$ASSUME_YES" == "true" ]] || [[ "$(ask 'Backup failed. Wipe anyway? [y/N]: ' N)" =~ ^[yY] ]] || die "Aborted; nothing was deleted."
       warn "Could not back up the old database; continuing."
     fi
@@ -193,6 +193,8 @@ fi
 # ---------------------------------------------------------------------------
 log "6/9 LiveKit (interactive rooms + OBS ingest + recording)"
 mkdir -p "$LIVEKIT_DIR"
+# pipefail + missing files on first install would trip the ERR trap, hence the trailing || true
+CONFIG_HASH_BEFORE="$(cat "$LIVEKIT_DIR"/*.yaml "$LIVEKIT_DIR"/docker-compose.yml 2>/dev/null | md5sum | cut -d" " -f1)" || true
 if [[ "$MODE" == "fresh" ]]; then LK_KEY="lk$(openssl rand -hex 8)"; LK_SECRET="$(openssl rand -hex 32)"; fi
 cat > "$LIVEKIT_DIR/livekit.yaml" <<EOF
 port: 7880
@@ -271,7 +273,14 @@ services:
       - /opt/ultralive-recordings:/out
     depends_on: [redis, livekit]
 EOF
-(cd "$LIVEKIT_DIR" && docker compose up -d --remove-orphans)
+# LiveKit only reads its config at start: a changed key/config MUST recreate the containers,
+# otherwise the old server keeps running with old keys ("invalid API key").
+CONFIG_HASH_AFTER="$(cat "$LIVEKIT_DIR"/*.yaml "$LIVEKIT_DIR"/docker-compose.yml | md5sum | cut -d" " -f1)"
+if [[ "$CONFIG_HASH_BEFORE" != "$CONFIG_HASH_AFTER" ]]; then
+  (cd "$LIVEKIT_DIR" && docker compose up -d --force-recreate --remove-orphans)
+else
+  (cd "$LIVEKIT_DIR" && docker compose up -d --remove-orphans)
+fi
 docker image prune -f >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
@@ -328,136 +337,33 @@ env PATH="$PATH" pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
 log "8/9 Nginx and SSL"
-mkdir -p /var/www/letsencrypt /etc/ultralive-ssl
+# shellcheck source=deploy/ssl-lib.sh
+source "$APP_DIR/deploy/ssl-lib.sh"
+mkdir -p "$UL_WEBROOT"
 SSL_CERT=""; SSL_KEY=""; SSL_MODE=""
 
-write_nginx() {
-  local cert="$1" key="$2"
-  cat > /etc/nginx/sites-available/ultralive <<EOF
-map \$http_upgrade \$connection_upgrade { default upgrade; '' close; }
-
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
-    location / { return 301 https://${HOST}\$request_uri; }
-}
-
-server {
-    # the 'listen ... http2' form works on every nginx version
-    listen 443 ssl http2 default_server;
-    listen [::]:443 ssl http2 default_server;
-    server_name ${HOST};
-    ssl_certificate ${cert};
-    ssl_certificate_key ${key};
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_session_cache shared:SSL:10m;
-    add_header Strict-Transport-Security "max-age=31536000" always;
-    client_max_body_size 250m;
-
-    location /socket.io/ {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \$connection_upgrade;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 3600s;
-    }
-    # LiveKit signaling (wss) — media itself flows over UDP 7882 / TCP 7881.
-    location /livekit/ {
-        proxy_pass http://127.0.0.1:7880/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \$connection_upgrade;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_read_timeout 3600s;
-        proxy_buffering off;
-    }
-    location = /api/system/restore {
-        client_max_body_size 4g;
-        proxy_request_buffering off;
-        proxy_read_timeout 1800s;
-        proxy_pass http://127.0.0.1:5050;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-    location /api/ {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 600s;
-    }
-    location ~ ^/(site-logo|site-favicon|site-background|thumbnails/.*)\$ {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_set_header Host \$host;
-    }
-    location /live/ {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_buffering off;
-    }
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \$connection_upgrade;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-EOF
-  ln -sf /etc/nginx/sites-available/ultralive /etc/nginx/sites-enabled/ultralive
-  rm -f /etc/nginx/sites-enabled/default
-  nginx -t && systemctl reload nginx
-}
-
-self_signed() {
-  SSL_MODE="self-signed"
-  SSL_CERT=/etc/ultralive-ssl/selfsigned.crt; SSL_KEY=/etc/ultralive-ssl/selfsigned.key
-  local san; [[ "$HOST" =~ ^[0-9.]+$ ]] && san="IP:${HOST}" || san="DNS:${HOST}"
-  openssl req -x509 -nodes -newkey rsa:2048 -days 825 -keyout "$SSL_KEY" -out "$SSL_CERT" -subj "/CN=${HOST}" -addext "subjectAltName=${san}" 2>/dev/null
-}
-
 # temporary self-signed cert so nginx can start and answer the ACME challenge on :80
-self_signed; write_nginx "$SSL_CERT" "$SSL_KEY"
+ul_self_signed "$HOST"; ul_write_nginx "$HOST" "$SSL_CERT" "$SSL_KEY"
 
 ufw --force reset >/dev/null; ufw default deny incoming >/dev/null; ufw default allow outgoing >/dev/null
 for r in OpenSSH 80/tcp 443/tcp 1935/tcp 1936/tcp 7881/tcp 7882/udp; do ufw allow "$r" >/dev/null; done
 ufw --force enable >/dev/null
 
-if ! snap list certbot >/dev/null 2>&1; then snap install --classic certbot >/dev/null 2>&1 || warn "Installing certbot via snap failed."; fi
-ln -sf /snap/bin/certbot /usr/local/bin/certbot 2>/dev/null || true
-CB_EMAIL_ARGS=(--register-unsafely-without-email); [[ -n "$EMAIL" ]] && CB_EMAIL_ARGS=(-m "$EMAIL")
-EXISTING_CERT="/etc/letsencrypt/live/${HOST}/fullchain.pem"
-if [[ -f "$EXISTING_CERT" ]]; then
-  SSL_MODE="letsencrypt-existing"; SSL_CERT="$EXISTING_CERT"; SSL_KEY="/etc/letsencrypt/live/${HOST}/privkey.pem"
-elif command -v certbot >/dev/null 2>&1; then
-  if [[ -n "$DOMAIN" ]]; then
-    RESOLVED="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
-    [[ "$RESOLVED" == "$PUBLIC_IP" ]] || warn "DNS for the domain (${RESOLVED:-unknown}) does not match this server (${PUBLIC_IP}); getting a certificate may fail."
-    if certbot certonly --webroot -w /var/www/letsencrypt -d "$DOMAIN" --non-interactive --agree-tos "${CB_EMAIL_ARGS[@]}" --deploy-hook "systemctl reload nginx"; then
-      SSL_MODE="letsencrypt-domain"; SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"; SSL_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
-    fi
-  else
-    # Let's Encrypt IP-address certificates: 6-day lifetime, webroot challenge, needs certbot >= 5.4.
-    if certbot certonly --webroot -w /var/www/letsencrypt --preferred-profile shortlived --ip-address "$PUBLIC_IP" --non-interactive --agree-tos "${CB_EMAIL_ARGS[@]}" --deploy-hook "systemctl reload nginx"; then
-      SSL_MODE="letsencrypt-ip"; SSL_CERT="/etc/letsencrypt/live/${PUBLIC_IP}/fullchain.pem"; SSL_KEY="/etc/letsencrypt/live/${PUBLIC_IP}/privkey.pem"
-    fi
-  fi
+if [[ -n "$DOMAIN" ]]; then
+  RESOLVED="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
+  [[ "$RESOLVED" == "$PUBLIC_IP" ]] || warn "DNS for the domain (${RESOLVED:-unknown}) does not match this server (${PUBLIC_IP}); getting a certificate may fail."
 fi
-if [[ "$SSL_MODE" == letsencrypt-* ]]; then write_nginx "$SSL_CERT" "$SSL_KEY"
-else warn "Could not get a Let's Encrypt certificate; continuing with a self-signed one (browsers will warn). Re-run certbot later to fix."; SSL_MODE="self-signed"; fi
+ul_install_certbot || warn "Could not install certbot."
+if ul_obtain_cert "$HOST" "$EMAIL"; then
+  ul_write_nginx "$HOST" "$SSL_CERT" "$SSL_KEY"; ul_setup_renewal
+else
+  ul_self_signed "$HOST"
+  warn "No trusted certificate (see the certbot error above); using a self-signed one. Fix later with:  ultralive ssl"
+fi
+
+# `ultralive` command: update, logs, status, domain/SSL, backup ...
+chmod +x "$APP_DIR/deploy/ultralive"
+ln -sf "$APP_DIR/deploy/ultralive" /usr/local/bin/ultralive
 
 # ---------------------------------------------------------------------------
 log "9/9 Final checks"
@@ -481,4 +387,5 @@ echo "API status:         ${HEALTH}"
 echo "RTMP (OBS):         rtmp://${PUBLIC_IP}:1935/live   — or the LiveKit key from the class panel"
 echo "WordPress secret:   ${BACKEND_DIR}/.env  (WP_JOIN_SECRET)"
 echo "Backup / update:    owner panel → System & backup"
+echo "Manage from shell:   ultralive   (update · logs · status · domain/SSL · backup)"
 echo "Install log:        /var/log/ultralive-install.log"

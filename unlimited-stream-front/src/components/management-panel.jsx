@@ -12,6 +12,7 @@ import { api, API_URL, RTMP_URL } from "@/lib/api";
 import { OrganizationManagement } from "@/components/organization-management";
 import { OrganizationWorkspace } from "@/components/organization-workspace";
 import { SystemPanel } from "@/components/system-panel";
+import { ModeSwitch } from "@/components/meeting/mode-switch";
 import { IntegrationsPanel } from "@/components/integrations-panel";
 
 const adminItems = [["overview", "داشبورد", LayoutDashboard], ["live", "کلاس‌های زنده", Activity], ["classes", "کلاس‌ها", BookOpen], ["students", "دانش‌آموزان", Users], ["attendance", "حضور و غیاب", ClipboardList], ["reports", "گزارش‌ها", BarChart3]];
@@ -189,7 +190,8 @@ function ClassesClosed({ classes, selected, setSelected, editing, setEditing, se
 function Classes(props) { return <ClassesClosed {...props} />; }
 
 function ClassOperations({ selected, legacy, onUpdated }) {
-  return <details className="admin-disclosure" open><summary>ابزارهای کلاس</summary><div className="admin-disclosure-content space-y-4"><ClassAccessControls selected={selected} onUpdated={onUpdated} /><div className="flex flex-wrap items-center gap-2 rounded-xl border p-3 text-xs"><span className="font-medium">گزارش حضور و غیاب:</span><Button size="sm" variant="outline" onClick={() => { window.location.href = `${API_URL}/api/classes/${selected.id || selected.slug}/reports/attendance?format=csv`; }}>دانلود CSV (قابل‌باز در Excel)</Button></div><LegacyClassOperations selected={selected} legacy={legacy} /></div></details>;
+  const [mode, setMode] = useState(selected.mode || "studio");
+  return <details className="admin-disclosure" open><summary>ابزارهای کلاس</summary><div className="admin-disclosure-content space-y-4"><div className="flex flex-wrap items-center gap-3 rounded-xl border p-3 text-xs"><span className="font-medium">نوع کلاس (روی همان لینک، هر جلسه قابل تغییر):</span><span className="rounded-xl bg-slate-900 p-0.5"><ModeSwitch channel={selected.slug} mode={mode} onChange={(next) => { setMode(next); onUpdated?.({ ...selected, mode: next }); }} /></span></div><ClassAccessControls selected={selected} onUpdated={onUpdated} /><div className="flex flex-wrap items-center gap-2 rounded-xl border p-3 text-xs"><span className="font-medium">گزارش حضور و غیاب:</span><Button size="sm" variant="outline" onClick={() => { window.location.href = `${API_URL}/api/classes/${selected.id || selected.slug}/reports/attendance?format=csv`; }}>دانلود CSV (قابل‌باز در Excel)</Button></div><LegacyClassOperations selected={selected} legacy={legacy} /></div></details>;
 }
 
 function AcademicModeration({ classId, attendance }) {
