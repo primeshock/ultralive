@@ -10,7 +10,7 @@ import { AudioSink, ParticipantTile, VideoSurface, trackOf } from "./tiles";
 import { ContentViewer } from "./content-viewer";
 import { ParticipantsPanel, FilesPanel, Quality } from "./panels";
 import { ModeSwitch } from "./mode-switch";
-import { ControlRail } from "./rail";
+import { ContentRail, StaffBarActions } from "./rail";
 import { Stage } from "./stage";
 import { AnnotatedSurface, loadPdf } from "./annotated-surface";
 import { createBoardStore } from "./board-store";
@@ -51,6 +51,8 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const [boardMax, setBoardMax] = useState(1);
   const [recording, setRecording] = useState(false);
   const [recordings, setRecordings] = useState([]);
+  const [ink, setInk] = useState({ tool: "pen", color: "#ef4444", width: 3 });
+  const inkActions = useRef({ last: null, map: {} });
   const store = useMemo(() => createBoardStore(), []);
   const localRef = useRef(null);
   const roomRef = useRef(null);
@@ -96,6 +98,13 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const local = room?.localParticipant;
   useEffect(() => { localRef.current = local || null; });
 
+  const registerActions = useCallback((key, actions) => { if (actions) inkActions.current.map[key] = actions; else delete inkActions.current.map[key]; }, []);
+  const activateSurface = useCallback((key) => { inkActions.current.last = key; }, []);
+  const runInk = useCallback((name) => {
+    const { last, map } = inkActions.current;
+    (map[last] || Object.values(map)[0])?.[name]?.();
+  }, []);
+
   const publish = useCallback((message) => {
     roomRef.current?.localParticipant?.publishData(new TextEncoder().encode(JSON.stringify(message)), { reliable: true, topic: "class" }).catch(() => {});
   }, []);
@@ -126,7 +135,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
     panels.push({
       id: "content", title: stage.content.name,
       node: isPdf ? (
-        <AnnotatedSurface key={stage.content.id} store={store} channel={channel} boardKey={`file:${stage.content.id}:${stage.page}`} pdf={pdfDoc ? { doc: pdfDoc, page: stage.page } : null} canDraw={isStaff} publish={publish}
+        <AnnotatedSurface key={stage.content.id} store={store} channel={channel} boardKey={`file:${stage.content.id}:${stage.page}`} pdf={pdfDoc ? { doc: pdfDoc, page: stage.page } : null} canDraw={isStaff} publish={publish} ink={ink} registerActions={registerActions} onActivate={activateSurface}
           pager={{ page: stage.page, total: pdfDoc?.numPages || stage.page, canChange: isStaff, canAdd: false, set: (n) => { const total = pdfDoc?.numPages || n; setStage((s) => ({ ...s, page: Math.min(Math.max(1, n), total) })); api.meetingStage(channel, { page: Math.min(Math.max(1, n), total) }).catch(() => {}); } }} />
       ) : <ContentViewer content={stage.content} />,
     });
@@ -134,12 +143,13 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   if (stage.boardOpen) {
     panels.push({
       id: "board", title: "تخته", node: (
-        <AnnotatedSurface store={store} channel={channel} boardKey={`board:${stage.boardPage}`} pdf={null} canDraw={isStaff} publish={publish}
+        <AnnotatedSurface store={store} channel={channel} boardKey={`board:${stage.boardPage}`} pdf={null} canDraw={isStaff} publish={publish} ink={ink} registerActions={registerActions} onActivate={activateSurface}
           pager={{ page: stage.boardPage, total: boardMax, canChange: isStaff, canAdd: true, set: (n) => { const next = Math.max(1, Math.min(n, 200)); setBoardMax((m) => Math.max(m, next)); setStage((s) => ({ ...s, boardPage: next })); api.meetingStage(channel, { boardPage: next }).catch(() => {}); } }} />
       ),
     });
   }
   const presenting = panels.length > 0;
+  const drawable = isStaff && (stage.boardOpen || Boolean(stage.content && stage.content.mime === "application/pdf"));
 
   // While anything is presented, the lesson material gets the bandwidth: cameras drop to the low layer.
   const camSig = participants.map((p) => `${p.identity}:${trackOf(p, "camera") ? 1 : 0}`).join(",");
@@ -212,8 +222,8 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
             <div className="flex shrink-0 items-center gap-1 border-b border-white/8 p-1">
               <nav className="flex flex-1 gap-0.5">
                 {tabs.map(([id, label, Icon]) => (
-                  <button key={id} onClick={() => setTab(id)} className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] transition ${tab === id ? "bg-sky-500/20 text-sky-100" : "text-white/55 hover:bg-white/8"}`}>
-                    <Icon className="size-3.5" />{label}
+                  <button key={id} onClick={() => setTab(id)} title={label} className={`relative flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] transition ${tab === id ? "bg-sky-500/20 text-sky-100" : "text-white/55 hover:bg-white/8"}`}>
+                    <Icon className="size-3.5" /><span className={sideMode === "narrow" ? "sr-only" : ""}>{label}</span>
                     {id === "people" && isStaff && handCount > 0 && <span className="absolute left-1.5 top-1 size-2 rounded-full bg-amber-400" />}
                   </button>
                 ))}
@@ -255,14 +265,15 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
             <ToolButton icon={camOn ? Video : VideoOff} label={camOn ? "بستن دوربین" : "دوربین"} active={camOn} locked={!canPublish} onClick={() => toggle("cam")} />
             <ToolButton icon={screenOn ? MonitorOff : MonitorUp} label={screenOn ? "توقف اشتراک" : "اشتراک صفحه"} active={screenOn} locked={!canPublish} onClick={() => toggle("screen")} />
             {!isStaff && settings.studentsMayRaiseHand && <ToolButton icon={Hand} label={handRaised ? "پایین آوردن دست" : "بالا بردن دست"} active={handRaised} onClick={toggleHand} />}
+            {isStaff && <StaffBarActions channel={channel} settings={settings} mode={mode} onMode={onModeChange} onSettings={updateSettings} flash={flash} endsAt={endsAt} recording={recording} onRecording={() => api.meetingRecording(channel, recording ? "stop" : "start").then(() => { setRecording(!recording); flash(recording ? "ضبط متوقف شد و فایل آماده می‌شود." : "ضبط کلاس شروع شد."); }).catch((e) => flash(e.message))} />}
             {sideMode === "hidden" && <ToolButton icon={PanelRightOpen} label="چت و افراد" onClick={() => setSide("auto")} />}
             <ToolButton icon={PhoneOff} label="خروج" danger onClick={() => { room?.disconnect(); onLeave?.(); }} />
           </div>
         </main>
 
         {isStaff && (
-          <div className="order-last hidden shrink-0 lg:block">
-            <ControlRail channel={channel} settings={settings} stage={stage} files={files} mode={mode} onMode={onModeChange} onSettings={updateSettings} onStage={updateStage} flash={flash} endsAt={endsAt} recording={recording} onRecording={() => api.meetingRecording(channel, recording ? "stop" : "start").then(() => { setRecording(!recording); flash(recording ? "ضبط متوقف شد و فایل آماده می‌شود." : "ضبط کلاس شروع شد."); }).catch((e) => flash(e.message))} />
+          <div className="order-first shrink-0 lg:order-last">
+            <ContentRail channel={channel} stage={stage} files={files} onStage={updateStage} drawable={drawable} ink={ink} onInk={(patch) => setInk((cur) => ({ ...cur, ...patch }))} onInkAction={runInk} />
           </div>
         )}
       </div>

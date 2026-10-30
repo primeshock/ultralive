@@ -79,14 +79,12 @@ function hit(s, [px, py], r) {
  * One drawing surface: blank board or a single PDF page, with live shared annotations.
  * pdf = { doc, page }  → the page is rendered underneath; otherwise a blank board is shown.
  */
-export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publish, pager }) {
+export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publish, pager, ink, registerActions, onActivate }) {
   const box = useRef(null), baseRef = useRef(null), inkRef = useRef(null), saveTimer = useRef(null), mine = useRef([]);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [pdfRatio, setRatio] = useState(9 / 16);
   const ratio = pdf ? pdfRatio : 9 / 16;
-  const [tool, setTool] = useState("pen");
-  const [color, setColor] = useState("#ef4444");
-  const [width, setWidth] = useState(WIDTHS[0]);
+  const { tool, color, width } = ink || { tool: "pen", color: "#ef4444", width: WIDTHS[0] };
   const [draft, setDraft] = useState(null);
   const version = useBoardVersion(store);
 
@@ -163,6 +161,7 @@ export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publi
   function down(e) {
     if (!canDraw) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    onActivate?.(boardKey);
     const p = norm(e);
     if (tool === "eraser") { erase(p); setDraft({ t: "eraser-active", p: [], c: "#000", w: 1 }); return; }
     if (tool === "text") {
@@ -204,21 +203,14 @@ export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publi
   }
   function clearAll() { if (window.confirm("همهٔ نوشته‌های این صفحه پاک شود؟")) { store.clear(boardKey); fire({ type: "wb-clear" }); save(); } }
 
+  useEffect(() => {
+    registerActions?.(boardKey, { undo, clear: clearAll });
+    return () => registerActions?.(boardKey, null);
+  });
+
   const btn = "grid size-8 shrink-0 place-items-center rounded-lg transition";
   return (
     <div className="relative flex h-full w-full flex-col">
-      {canDraw && (
-        <div className="z-10 flex shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-white/10 bg-slate-950/70 px-2 py-1.5 backdrop-blur">
-          {TOOLS.map(([id, Icon, label]) => <button key={id} title={label} onClick={() => setTool(id)} className={`${btn} ${tool === id ? "bg-sky-500 text-white" : "text-white/75 hover:bg-white/10"}`}><Icon className="size-4" /></button>)}
-          <span className="mx-1 h-5 w-px bg-white/15" />
-          {COLORS.map((c) => <button key={c} aria-label={c} onClick={() => setColor(c)} style={{ background: c }} className={`size-5 rounded-full border ${color === c ? "scale-125 border-white ring-2 ring-sky-400" : "border-white/30"}`} />)}
-          <span className="mx-1 h-5 w-px bg-white/15" />
-          {WIDTHS.map((w) => <button key={w} title="ضخامت" onClick={() => setWidth(w)} className={`${btn} ${width === w ? "bg-white/20" : "hover:bg-white/10"}`}><span className="rounded-full bg-white" style={{ width: w + 3, height: w + 3 }} /></button>)}
-          <span className="mx-1 h-5 w-px bg-white/15" />
-          <button title="برگشت" onClick={undo} className={`${btn} text-white/75 hover:bg-white/10`}><Undo2 className="size-4" /></button>
-          <button title="پاک کردن صفحه" onClick={clearAll} className={`${btn} text-rose-300 hover:bg-rose-500/20`}><Trash2 className="size-4" /></button>
-        </div>
-      )}
       <div ref={box} className="relative grid min-h-0 flex-1 place-items-center overflow-hidden bg-slate-900/60 p-2">
         <div className="relative shadow-2xl" style={{ width: size.w, height: size.h }}>
           <canvas ref={baseRef} className="absolute inset-0 h-full w-full rounded-sm" />
@@ -233,3 +225,5 @@ export function AnnotatedSurface({ store, channel, boardKey, pdf, canDraw, publi
     </div>
   );
 }
+
+export { TOOLS as INK_TOOLS, COLORS as INK_COLORS, WIDTHS as INK_WIDTHS };
