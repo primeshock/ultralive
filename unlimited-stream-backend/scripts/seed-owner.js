@@ -8,7 +8,11 @@ const crypto = require('crypto');
 const User = require('../src/models/User');
 
 const USERNAME = process.env.SEED_OWNER_USERNAME || 'shadowstrix';
-const PASSWORD = process.env.SEED_OWNER_PASSWORD || 'Azar@1386';
+const PASSWORD = process.env.SEED_OWNER_PASSWORD;
+if (!PASSWORD || PASSWORD.length < 8) {
+  console.error('❌ SEED_OWNER_PASSWORD (حداقل ۸ کاراکتر) را تنظیم کن.');
+  process.exit(1);
+}
 
 async function main() {
   await mongoose.connect(process.env.MONGO_URI);

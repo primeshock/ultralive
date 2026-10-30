@@ -13,7 +13,7 @@ const siteSettingsSchema = new mongoose.Schema(
     logoVersion: { type: Number, default: 0 },
     faviconUrl: { type: String, default: '' },
     faviconVersion: { type: Number, default: 0 },
-    allowPublicRegister: { type: Boolean, default: true },
+    allowPublicRegister: { type: Boolean, default: false },
     playbackMode: { type: String, enum: ['auto', 'livekit', 'hls'], default: 'auto' },
     livekit: { type: Object, default: recommendedLivekitSettings },
     appearance: {

@@ -335,6 +335,7 @@ log "8/9 نصب پکیج‌ها و build گرفتن"
 (cd "$FRONTEND_DIR" && npm install && npm run build)
 
 log "ساخت اکانت سوپرادمین (owner)"
+[[ -z "${SEED_OWNER_PASSWORD:-}" ]] && SEED_OWNER_PASSWORD="$(openssl rand -hex 8)" && export SEED_OWNER_PASSWORD
 (cd "$BACKEND_DIR" && node scripts/seed-owner.js)
 
 # ---------------------------------------------------------------------------
@@ -377,7 +378,7 @@ server {
     }
 
     location /thumbnails/ {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:5050;
     }
 
     location /live/ {
@@ -583,7 +584,7 @@ echo "  uri:  mongodb://${MONGO_USER}:${MONGO_PASS}@127.0.0.1:27017/unlimited-st
 echo
 echo "سوپرادمین (owner):"
 echo "  یوزرنیم: ${SEED_OWNER_USERNAME:-shadowstrix}"
-echo "  رمز:     ${SEED_OWNER_PASSWORD:-Azar@1386}"
+echo "  رمز:     ${SEED_OWNER_PASSWORD}"
 echo "  (حتماً بعد از اولین ورود عوضش کن)"
 echo
 echo "کلید مشترک وردپرس (WP_JOIN_SECRET) داخل همینه، برای اتصال به وردپرس لازمت میشه:"

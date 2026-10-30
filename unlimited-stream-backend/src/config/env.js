@@ -1,4 +1,14 @@
 require('dotenv').config();
+const crypto = require('crypto');
+
+// Unset secrets get a random per-process value, never a publicly known default.
+function secretOrRandom(name) {
+  const value = process.env[name];
+  if (value && value !== 'change-this-secret') return value;
+  console.warn(`[env] ${name} is not set — using a random per-process secret (sessions reset on restart)`);
+  return crypto.randomBytes(32).toString('hex');
+}
+
 
 module.exports = {
   port: parseInt(process.env.PORT || '5000', 10),
@@ -9,7 +19,7 @@ module.exports = {
   rtmpPort: parseInt(process.env.RTMP_PORT || '1935', 10),
   httpMediaPort: parseInt(process.env.HTTP_MEDIA_PORT || '8000', 10),
   mongoUri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/unlimited-stream',
-  jwtSecret: process.env.JWT_SECRET || 'change-this-secret',
+  jwtSecret: secretOrRandom('JWT_SECRET'),
   serverIp: process.env.SERVER_IP || '127.0.0.1',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   ffmpegPath: process.env.FFMPEG_PATH || '/usr/local/bin/ffmpeg',
@@ -18,13 +28,13 @@ module.exports = {
   // Shared with the WordPress plugin/snippet that signs join links. Must match exactly.
   wpJoinSecret: process.env.WP_JOIN_SECRET || '',
   // Internal only — signs the session cookie issued after a join link is verified.
-  roomSessionSecret: process.env.ROOM_SESSION_SECRET || '',
+  roomSessionSecret: secretOrRandom('ROOM_SESSION_SECRET'),
   // Used to build the full monitor-link URL returned to admins, e.g. http://217.11.164.171
   publicBaseUrl: process.env.PUBLIC_BASE_URL || '',
   // For institutional use, channels should only be created by an admin via
   // /api/master/channels — set this to "false" in .env to close public
   // self-signup entirely. Defaults to "true" so nothing changes unless you opt in.
-  allowPublicRegister: process.env.ALLOW_PUBLIC_REGISTER !== 'false',
+  allowPublicRegister: process.env.ALLOW_PUBLIC_REGISTER === 'true',
 
   // --- LiveKit (Phase 6, runs ALONGSIDE HLS/RTMP — never replaces it) ---
   livekitEnabled: process.env.LIVEKIT_ENABLED === 'true',

@@ -1,6 +1,5 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
-const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
 const { canAccessClass } = require('../utils/classAccess');
 
 const router = express.Router();
@@ -11,23 +10,10 @@ const router = express.Router();
 // rest of the API uses) OR a valid student room-session cookie scoped to
 // this exact channel. Everyone else is rejected before anything reaches the
 // media server.
-async function isRealAccount(req) {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (!token) return false;
-  try {
-    verifyToken(token);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 router.use('/live/:channel', async (req, res, next) => {
   const channel = req.params.channel.toLowerCase();
-  if (await isRealAccount(req) || await canAccessClass(channel, req.cookies || {})) return next();
-  {
-    return res.status(401).send('برای مشاهده این کلاس باید از طریق سایت اصلی وارد شوید.');
-  }
+  if (await canAccessClass(channel, req.cookies || {})) return next();
+  return res.status(401).send('برای مشاهده این کلاس باید از طریق سایت اصلی وارد شوید.');
 });
 
 router.use(

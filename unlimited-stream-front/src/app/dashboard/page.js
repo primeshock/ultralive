@@ -327,7 +327,6 @@ function MutedUsersCard({ user, onSaved }) {
 
 function ProfileCard({ user, onSaved }) {
   const [streamTitle, setStreamTitle] = useState(user.streamTitle || "");
-  const [donateUrl, setDonateUrl] = useState(user.donateUrl || "");
   const [reminderText, setReminderText] = useState(user.autoChatMessage?.text || "");
   const [reminderInterval, setReminderInterval] = useState(user.autoChatMessage?.intervalMinutes ?? 10);
   const [reminderEnabled, setReminderEnabled] = useState(user.autoChatMessage?.enabled ?? false);
@@ -343,7 +342,6 @@ function ProfileCard({ user, onSaved }) {
     try {
       const { user } = await api.updateProfile({
         streamTitle,
-        donateUrl,
         autoChatMessage: {
           text: reminderText,
           intervalMinutes: Number(reminderInterval) || 10,
@@ -377,15 +375,6 @@ function ProfileCard({ user, onSaved }) {
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="donateUrl">لینک دونیت</Label>
-            <Input
-              id="donateUrl"
-              placeholder="https://..."
-              value={donateUrl}
-              onChange={(e) => setDonateUrl(e.target.value)}
-            />
-          </div>
 
           <Separator />
 

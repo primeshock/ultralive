@@ -208,21 +208,6 @@ export default function ChannelPage({ params }) {
           <div className="flex items-center gap-2">
             {channel.isLive && <Badge className="live-pulse rounded-full border-rose-300/30 bg-rose-500/15 text-rose-100"><Radio className="size-3" /> LIVE</Badge>}
             {channel.showViewerCount && <div className="glass-float flex items-center gap-2 rounded-full px-3 py-2 text-xs text-white/70"><Users className="size-3.5 text-cyan-200" /> {channel.viewerCount || 0}</div>}
-            {channel.donateUrl && (
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={
-                  <a
-                    href={channel.donateUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  />
-                }
-              >
-                دونیت
-              </Button>
-            )}
           </div>
         </div>
 

@@ -7,6 +7,7 @@ const { wpJoinSecret, roomSessionSecret } = require('../config/env');
  * Payload: { channel, userId, displayName, exp }  (exp = unix seconds, keep short: 60-120s)
  */
 function verifyWpToken(token) {
+  if (!wpJoinSecret) throw new Error('WP_JOIN_SECRET is not configured');
   const [payloadB64, sig] = String(token || '').split('.');
   if (!payloadB64 || !sig) throw new Error('malformed token');
 

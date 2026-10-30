@@ -15,7 +15,6 @@ function publicUser(user, ctx) {
     username: user.username || user.slug,
     displayName: user.displayName || user.title,
     streamTitle: user.streamTitle || user.title,
-    donateUrl: user.donateUrl || '',
     isLive: Boolean(user.isLive),
     chatEnabled: user.chatEnabled !== false,
     chatMode: user.chatMode || 'public',

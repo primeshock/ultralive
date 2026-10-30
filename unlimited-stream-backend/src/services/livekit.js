@@ -105,7 +105,16 @@ async function createStaffToken({ channel, identity, name, publish = false }) {
 // Creates (or returns the existing) RTMP ingress for a class. OBS uses this
 // single LiveKit destination; the legacy RTMP/HLS pipeline remains only as
 // compatibility code and is not required for the current viewer path.
-async function ensureIngress(channelDoc) {
+const ingressLocks = new Map();
+function ensureIngress(channelDoc) {
+  const key = channelDoc.username;
+  const run = (ingressLocks.get(key) || Promise.resolve()).catch(() => {}).then(() => ensureIngressUnlocked(channelDoc));
+  ingressLocks.set(key, run);
+  run.finally(() => { if (ingressLocks.get(key) === run) ingressLocks.delete(key); }).catch(() => {});
+  return run;
+}
+
+async function ensureIngressUnlocked(channelDoc) {
   assertEnabled();
   const settings = await SiteSettings.get();
   if (channelDoc.livekitIngressId && channelDoc.livekitIngressUrl && channelDoc.livekitStreamKey) {
@@ -236,7 +245,10 @@ async function syncChannelLiveState(username) {
 
 function startLiveStateSync() {
   if (!livekitEnabled) return;
+  let running = false;
   const tick = async () => {
+    if (running) return;
+    running = true;
     try {
       const [users, classes] = await Promise.all([
         User.find({ role: 'teacher', livekitIngressId: { $gt: '' } }).select('username isLive'),
@@ -253,6 +265,8 @@ function startLiveStateSync() {
       }
     } catch (err) {
       console.error('[livekit sync]', err.message);
+    } finally {
+      running = false;
     }
   };
   tick();

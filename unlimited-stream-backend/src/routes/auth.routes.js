@@ -13,9 +13,7 @@ const authLimiter = rateLimit({
 });
 
 router.post('/register', authLimiter, register);
-// No rate limit here (explicit choice) — bcrypt's own cost factor is the only
-// throttle on guessing attempts against this route.
-router.post('/login', login);
+router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false }), login);
 router.post('/logout', logout);
 router.get('/me', requireAuth, me);
 

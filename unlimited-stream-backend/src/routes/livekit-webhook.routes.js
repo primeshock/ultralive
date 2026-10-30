@@ -19,9 +19,7 @@ router.post('/', async (req, res) => {
       console.warn('[livekit webhook] empty body', { hasAuthorization: Boolean(authorization) });
       return res.status(400).json({ error: 'Empty webhook' });
     }
-    const event = await receiver.receive(raw, authToken(authorization) || authorization);
-    await handleWebhook(event);
-    res.json({ ok: true });
+    var event = await receiver.receive(raw, authToken(authorization) || authorization);
   } catch (err) {
     console.error('[livekit webhook]', {
       error: err.message,
@@ -29,7 +27,14 @@ router.post('/', async (req, res) => {
       contentType: req.get('Content-Type') || null,
       bodyBytes: Buffer.isBuffer(req.body) ? req.body.length : 0,
     });
-    res.status(401).json({ error: 'Invalid webhook' });
+    return res.status(401).json({ error: 'Invalid webhook' });
+  }
+  try {
+    await handleWebhook(event);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[livekit webhook] handler failed', err);
+    res.status(500).json({ error: 'Webhook handler failed' });
   }
 });
 

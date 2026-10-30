@@ -83,9 +83,10 @@ async function startJob({ profile, channel, duration, rampPerSecond, authCookie,
   if (!['localhost', '127.0.0.1', '::1'].includes(new URL(baseUrl).hostname)) args.push('--target-production');
   const child = spawn(process.execPath, [RUNNER_PATH, ...args], { cwd: path.resolve(__dirname, '../../../load-test'), env: { ...process.env, KOOSHA_LOADTEST_AUTH_COOKIE: authCookie || '' }, stdio: ['ignore', 'pipe', 'pipe'] });
   const job = { process: child, closed: false, output: [], errorOutput: [] };
+  child.on('error', (err) => { job.errorOutput.push(String(err.message)); });
   jobs.set(testId, job);
-  child.stdout.on('data', (chunk) => { job.output.push(String(chunk).slice(-2000)); });
-  child.stderr.on('data', (chunk) => { job.errorOutput.push(String(chunk).slice(-2000)); });
+  child.stdout.on('data', (chunk) => { job.output = [...job.output, String(chunk).slice(-2000)].slice(-20); });
+  child.stderr.on('data', (chunk) => { job.errorOutput = [...job.errorOutput, String(chunk).slice(-2000)].slice(-20); });
   child.on('close', async (code, signal) => {
     job.closed = true;
     if (!await readJson(resultPath(testId), testId)) await fs.writeFile(statusPath(testId), JSON.stringify({ testId, status: 'failed', aborted: true, abortReason: signal || `runner exited with code ${code}`, error: job.errorOutput.slice(-5).join('') }, null, 2));

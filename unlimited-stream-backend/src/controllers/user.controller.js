@@ -11,10 +11,9 @@ const THUMBNAIL_DIR = path.join(process.cwd(), 'media', 'thumbnails');
 
 async function updateProfile(req, res) {
   const user = req.user;
-  const { streamTitle, donateUrl, autoChatMessage } = req.body || {};
+  const { streamTitle, autoChatMessage } = req.body || {};
 
   if (typeof streamTitle === 'string') user.streamTitle = streamTitle.slice(0, 140);
-  if (typeof donateUrl === 'string') user.donateUrl = donateUrl.slice(0, 300);
 
   if (autoChatMessage && typeof autoChatMessage === 'object') {
     if (typeof autoChatMessage.text === 'string') {

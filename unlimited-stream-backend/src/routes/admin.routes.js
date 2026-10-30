@@ -41,7 +41,7 @@ function organizationChannelFilter(req) {
 async function myChannels(req) {
   const filter = { role: 'teacher', ...organizationChannelFilter(req) };
   if (req.user.role === 'admin') filter.managedBy = req.user._id;
-  return User.find(filter).select('username displayName streamTitle donateUrl streamKey livekitIngressUrl livekitStreamKey isLive chatEnabled chatMode showViewerCount managedBy');
+  return User.find(filter).select('username displayName streamTitle streamKey livekitIngressUrl livekitStreamKey isLive chatEnabled chatMode showViewerCount managedBy');
 }
 
 router.get('/channels', async (req, res) => res.json(await myChannels(req)));
@@ -85,14 +85,13 @@ router.post('/channels', async (req, res) => {
     username: channel.username,
     displayName: channel.displayName,
     streamTitle: channel.streamTitle,
-    donateUrl: channel.donateUrl,
     streamKey: channel.streamKey,
     managedBy: channel.managedBy,
   });
 });
 
 router.patch('/channels/:channel', loadOwnedChannel, async (req, res) => {
-  const { displayName, streamTitle, donateUrl } = req.body || {};
+  const { displayName, streamTitle } = req.body || {};
   if (displayName !== undefined) {
     const name = normalizeDisplayName(displayName);
     if (!name) return res.status(400).json({ error: 'نام کلاس لازم است (حداکثر ۸۰ کاراکتر).' });
@@ -103,15 +102,11 @@ router.patch('/channels/:channel', loadOwnedChannel, async (req, res) => {
     if (title === null) return res.status(400).json({ error: 'عنوان کلاس بیش از حد طولانی است.' });
     req.targetChannel.streamTitle = title;
   }
-  if (donateUrl !== undefined) {
-    req.targetChannel.donateUrl = String(donateUrl || '').trim().slice(0, 500);
-  }
   await req.targetChannel.save();
   res.json({
     username: req.targetChannel.username,
     displayName: req.targetChannel.displayName,
     streamTitle: req.targetChannel.streamTitle,
-    donateUrl: req.targetChannel.donateUrl,
   });
 });
 
@@ -189,6 +184,7 @@ router.post('/channels/:channel/thumbnail', loadOwnedChannel, thumbnailUpload.si
 // window) and see exactly what a real student would see — including the
 // one-session/one-device rule kicking in if you open it again elsewhere.
 router.post('/channels/:channel/test-link', loadOwnedChannel, async (req, res) => {
+  if (!wpJoinSecret) return res.status(503).json({ error: 'WP_JOIN_SECRET تنظیم نشده است.' });
   const testUserId = `test-${crypto.randomBytes(4).toString('hex')}`;
   const displayName = (req.body && req.body.displayName) || 'کاربر تستی';
   const payload = { channel: req.targetChannel.username, userId: testUserId, displayName, exp: Math.floor(Date.now() / 1000) + 300 };
