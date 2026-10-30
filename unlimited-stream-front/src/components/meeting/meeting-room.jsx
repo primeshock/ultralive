@@ -300,7 +300,7 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
 
   return (
     <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell relative flex h-dvh w-full max-w-full flex-col overflow-hidden text-white">
-      <header className="relative z-30 flex items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--s1)] px-4 py-2">
+      <header className="relative z-30 flex items-center justify-between gap-3 bg-[color-mix(in_oklab,var(--s2)_88%,#0a7bc4_12%)] shadow-[0_10px_24px_-14px_rgb(0_0_0/.7)] px-4 py-2">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-8 place-items-center rounded-lg bg-[var(--accent)] text-white"><Video className="size-4" /></span>
           <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{title}</h1><p className="truncate text-[11px] text-[var(--ink-3)]">{organization || "کلاس آنلاین"}</p></div>
