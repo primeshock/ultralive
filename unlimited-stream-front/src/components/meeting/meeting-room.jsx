@@ -9,6 +9,7 @@ import { useClassRoom } from "./use-room";
 import { AudioSink, ParticipantTile, VideoSurface, trackOf } from "./tiles";
 import { ContentViewer } from "./content-viewer";
 import { ParticipantsPanel, FilesPanel, ManagePanel } from "./panels";
+import { ModeSwitch } from "./mode-switch";
 
 function useTimer() {
   const [seconds, setSeconds] = useState(0);
@@ -37,7 +38,7 @@ const TABS = [
   { id: "manage", label: "مدیریت", icon: Settings2, staffOnly: true },
 ];
 
-export function MeetingRoom({ channel, title, organization, isStaff, chatEnabled, livekitSettings, initialSettings, onLeave }) {
+export function MeetingRoom({ channel, title, organization, appearance, appearanceStyle, mode, onModeChange, isStaff, chatEnabled, livekitSettings, initialSettings, onLeave }) {
   const [settings, setSettings] = useState({ showParticipantsToStudents: initialSettings?.showParticipantsToStudents !== false, studentsMayRaiseHand: initialSettings?.studentsMayRaiseHand !== false });
   const [content, setContent] = useState(null);
   const [files, setFiles] = useState([]);
@@ -63,9 +64,10 @@ export function MeetingRoom({ channel, title, organization, isStaff, chatEnabled
   const onData = useCallback((message) => {
     if (message.type === "content") { setContent(message.content || null); refreshState(); }
     else if (message.type === "settings") setSettings((cur) => ({ ...cur, ...message.settings }));
+    else if (message.type === "mode") onModeChange?.(message.mode);
     else if (message.type === "request") setRequest(message.kind);
     else if (message.type === "lower-hand") localRef.current?.setAttributes({ hand: "0" }).catch(() => {});
-  }, [refreshState]);
+  }, [refreshState, onModeChange]);
 
   const { room, state, error } = useClassRoom({ channel, livekitSettings, onData });
   useEffect(() => {
@@ -135,13 +137,14 @@ export function MeetingRoom({ channel, title, organization, isStaff, chatEnabled
   }
 
   return (
-    <div dir="rtl" className="relative flex h-dvh flex-col overflow-hidden bg-[radial-gradient(1200px_600px_at_80%_-10%,rgba(56,189,248,.14),transparent),radial-gradient(900px_500px_at_0%_110%,rgba(99,102,241,.16),transparent),#070d1c] text-white">
+    <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell relative flex h-dvh flex-col overflow-hidden text-white">
       <header className="flex items-center justify-between gap-3 border-b border-white/8 bg-white/[.03] px-4 py-2.5 backdrop-blur-xl">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 shadow-lg shadow-sky-500/20"><Video className="size-5" /></span>
           <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{title}</h1><p className="truncate text-xs text-white/50">{organization || "کلاس آنلاین"}</p></div>
         </div>
         <div className="flex items-center gap-2">
+          {isStaff && <ModeSwitch channel={channel} mode={mode} onChange={onModeChange} className="hidden md:inline-flex" />}
           <span className="flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-xs tabular-nums" dir="ltr"><Clock className="size-3.5 text-sky-300" />{timer}</span>
           <span className="hidden items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-xs sm:flex"><Users className="size-3.5 text-sky-300" />{participants.length}</span>
           <button onClick={() => setSidebar((v) => !v)} className="grid size-9 place-items-center rounded-xl bg-white/8 hover:bg-white/15 lg:hidden" aria-label="پنل کناری"><MessageSquare className="size-4" /></button>

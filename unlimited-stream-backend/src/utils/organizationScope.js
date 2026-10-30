@@ -53,7 +53,7 @@ function signOrganizationContext(userId, organizationId) {
 }
 
 function setOrganizationContext(res, token) {
-  res.cookie(CONTEXT_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: false, maxAge: 12 * 60 * 60 * 1000 });
+  res.cookie(CONTEXT_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: require('../config/env').cookieSecure, maxAge: 12 * 60 * 60 * 1000 });
 }
 
 module.exports = { CONTEXT_COOKIE, isSuperOwner, organizationFilter, loadOrganizationContext, requireOrganizationScope, signOrganizationContext, setOrganizationContext };

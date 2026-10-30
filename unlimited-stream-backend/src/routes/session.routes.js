@@ -74,7 +74,7 @@ router.get('/public/:token', async (req, res) => {
   const target = classDoc || teacher;
   if (!target || (target.constructor?.modelName === 'Class' && !target.guestAccess && target.accessMode !== 'public' && !(target.accessModes || []).includes('guest'))) return res.status(404).send('لینک همگانی نامعتبر یا غیرفعال است.');
   const channel = streamName(target);
-  res.cookie(`public_class_${channel}`, target.publicAccessToken, { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_TTL_MS });
+  res.cookie(`public_class_${channel}`, target.publicAccessToken, { httpOnly: true, sameSite: 'lax', secure: require('../config/env').cookieSecure, maxAge: SESSION_TTL_MS });
   res.redirect(`/channel/${channel}`);
 });
 
@@ -112,7 +112,7 @@ router.post('/guest/:channel', async (req, res) => {
     deviceId,
     expiresAt: new Date(Date.now() + SESSION_TTL_MS),
   });
-  const cookieOpts = { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_TTL_MS };
+  const cookieOpts = { httpOnly: true, sameSite: 'lax', secure: require('../config/env').cookieSecure, maxAge: SESSION_TTL_MS };
   res.cookie(`device_${channel}`, deviceId, cookieOpts);
   res.cookie(`room_session_${channel}`, signRoomSession({ channel, externalUserId, sessionId: session.sessionId, deviceId }), cookieOpts);
   res.json({ ok: true, channel });
@@ -127,7 +127,7 @@ function issueCookiesAndRedirect(res, channel, session) {
   });
 
   // secure:false to match the existing us_token cookie (no HTTPS in this deployment).
-  const cookieOpts = { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_TTL_MS };
+  const cookieOpts = { httpOnly: true, sameSite: 'lax', secure: require('../config/env').cookieSecure, maxAge: SESSION_TTL_MS };
   res.cookie(`device_${channel}`, session.deviceId, cookieOpts);
   res.cookie(`room_session_${channel}`, token, cookieOpts);
   res.redirect(`/channel/${channel}`);

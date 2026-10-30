@@ -1,595 +1,385 @@
 #!/usr/bin/env bash
+# Ultra Live — automatic installer (Ubuntu 22.04+/Debian 12+, run as root).
 #
-# Easy-install for Ultra Live (Unlimited Stream engine).
-# Sets up a fresh Ubuntu/Debian server end-to-end: Docker + MongoDB (in Docker,
-# random credentials), Node.js + ffmpeg + PM2, Nginx as a reverse proxy on :80,
-# firewall locked down to only what needs to be public, then starts everything.
+#   bash <(curl -fsSL https://raw.githubusercontent.com/primeshock/ultralive/koosha-live-v2/install.sh)
 #
-# Usage (as root, on a fresh server):
-#   sudo bash install.sh [PUBLIC_IP]
-#
-# PUBLIC_IP is optional — if omitted, the script guesses it via an external
-# "what's my IP" service. That guess is WRONG on servers behind NAT / with
-# multiple IPs (it only sees your outbound-facing IP, which can differ from the
-# IP others actually reach you on — e.g. the one you SSH'd in through). If in
-# doubt, just pass it explicitly:
-#   sudo bash install.sh 203.0.113.10
-#
-# Safe to re-run: skips steps that are already done, pulls the latest code, and
-# restarts the app with pm2 instead of failing on things that already exist.
+# Every run creates a NEW empty database; data of an older install is never reused
+# (move it between servers with the owner panel's Backup / Restore instead).
+# Options (all optional, otherwise you are asked):
+#   --domain example.com    serve over this domain (Let's Encrypt certificate)
+#   --email you@mail.com    contact e-mail for Let's Encrypt
+#   --owner-user NAME  --owner-pass PASS
+#   --branch NAME           git branch to install (default: koosha-live-v2)
+#   --yes                   never ask; use defaults / generate passwords
+set -Eeuo pipefail
 
-set -euo pipefail
-
-# ---------------------------------------------------------------------------
-# Logging & error handling — everything printed here also goes to LOG_FILE, and
-# any failure prints exactly which line broke and where to look for details.
-# ---------------------------------------------------------------------------
-LOG_FILE="/var/log/unlimited-stream-install.log"
-touch "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/unlimited-stream-install.log"
-exec > >(tee -a "$LOG_FILE") 2>&1
-
-on_error() {
-  local line=$1
-  echo
-  echo "❌ نصب توی خط $line شکست خورد."
-  echo "   جزئیات کامل توی لاگ: $LOG_FILE"
-  echo "   اسکریپت idempotent‌ه — بعد از رفع مشکل دوباره اجراش کن، از همونجا ادامه میده."
-  exit 1
-}
-trap 'on_error $LINENO' ERR
-
-log() {
-  echo
-  echo "==> [$(date '+%Y-%m-%d %H:%M:%S')] $*"
-  echo
-}
-
-# Fresh Ubuntu images commonly run `unattended-upgrades` shortly after boot, which
-# holds the dpkg/apt lock for anywhere from a few seconds to a couple of minutes.
-# Retry instead of failing outright the first time apt is busy.
-apt_get_retry() {
-  local attempt=1
-  local max_attempts=30
-  until apt-get "$@"; do
-    if (( attempt >= max_attempts )); then
-      echo "apt-get $* بعد از $max_attempts بار تلاش هنوز شکست می‌خوره."
-      return 1
-    fi
-    echo "apt مشغوله (احتمالاً unattended-upgrades) — تلاش ${attempt}/${max_attempts}، ۱۰ ثانیه صبر می‌کنیم..."
-    sleep 10
-    attempt=$((attempt + 1))
-  done
-}
-
-# ---------------------------------------------------------------------------
-# Preflight
-# ---------------------------------------------------------------------------
-if [[ $EUID -ne 0 ]]; then
-  echo "این اسکریپت باید با root/sudo اجرا بشه: sudo bash install.sh"
-  exit 1
-fi
-
-if [[ ! -f /etc/os-release ]] || ! grep -qiE 'ubuntu|debian' /etc/os-release; then
-  echo "این اسکریپت فقط روی Ubuntu/Debian تست شده. سیستم‌عاملت پشتیبانی نمیشه."
-  exit 1
-fi
-
-REPO_URL="https://github.com/primeshock/ultralive.git"
-REPO_BRANCH="koosha-live-current"
+REPO_URL="${ULTRALIVE_REPO:-https://github.com/primeshock/ultralive.git}"
+BRANCH="koosha-live-v2"
 APP_DIR="/opt/unlimited-stream"
-BACKEND_DIR="$APP_DIR/unlimited-stream-backend"
-FRONTEND_DIR="$APP_DIR/unlimited-stream-front"
-MONGO_CONTAINER="unlimited-stream-mongo"
-MONGO_VOLUME="unlimited-stream-mongo-data"
-NODE_MAJOR=20
-
-# ---------------------------------------------------------------------------
-# Existing installation: source-only update
-# ---------------------------------------------------------------------------
-# The public update command intentionally reuses this installer. Once the app
-# already exists, do not re-provision the machine: packages, Docker/Mongo,
-# Nginx, firewall rules, LiveKit files, and .env files are operational state.
-# Updating them during an ordinary source deploy is both slow and risky.
-update_existing_installation() {
-  log "به‌روزرسانی فقطِ source برای نصب موجود"
-
-  local rel backup_dir changes
-  backup_dir="/root/ultra-live-source-update-backups"
-  mkdir -p "$backup_dir"
-
-  # npm install from older deploys may have modified a lockfile. Preserve a
-  # copy, then restore only that generated file so it cannot block a fast-
-  # forward source update. Any other tracked change is deliberately left
-  # untouched and stops the deploy rather than being overwritten silently.
-  for rel in unlimited-stream-front/package-lock.json unlimited-stream-backend/package-lock.json; do
-    if ! git -C "$APP_DIR" diff --quiet -- "$rel"; then
-      cp "$APP_DIR/$rel" "$backup_dir/$(basename "$(dirname "$rel")")-$(basename "$rel").$(date +%Y%m%d%H%M%S)"
-      git -C "$APP_DIR" restore --source=HEAD --staged --worktree -- "$rel"
-      echo "نسخهٔ محلی $rel backup شد تا update متوقف نشود."
-    fi
-  done
-
-  changes="$(git -C "$APP_DIR" status --porcelain --untracked-files=no)"
-  if [[ -n "$changes" ]]; then
-    echo "❌ source روی سرور تغییر محلی دارد؛ برای جلوگیری از overwrite، update متوقف شد:"
-    echo "$changes"
-    echo "اول این تغییرات را commit/stash کن یا دستی بررسی‌شان کن؛ .env و داده‌ها دست‌نخورده مانده‌اند."
-    return 1
-  fi
-
-  git -C "$APP_DIR" fetch --prune origin "$REPO_BRANCH"
-  git -C "$APP_DIR" checkout -q "$REPO_BRANCH"
-  git -C "$APP_DIR" merge --ff-only "origin/$REPO_BRANCH"
-
-  # `npm ci` reads the committed lockfile and never rewrites it. The frontend
-  # needs devDependencies at build time; the backend does not.
-  (cd "$BACKEND_DIR" && npm ci --omit=dev)
-  (cd "$FRONTEND_DIR" && npm ci && npm run build -- --webpack)
-
-  if [[ ! -f "$APP_DIR/ecosystem.config.js" ]]; then
-    echo "❌ ecosystem.config.js پیدا نشد؛ این سرور نصب کامل ندارد."
-    return 1
-  fi
-  pm2 reload "$APP_DIR/ecosystem.config.js" --update-env
-  pm2 save
-
-  local attempt
-  for attempt in {1..15}; do
-    if curl -fsS --max-time 3 http://127.0.0.1/api/health >/dev/null; then
-      echo "✅ source update، build و reload با موفقیت انجام شد."
-      return 0
-    fi
-    sleep 1
-  done
-
-  echo "❌ PM2 reload شد، اما /api/health هنوز پاسخ درست نمی‌دهد."
-  echo "   بررسی کن: pm2 logs --lines 100"
-  return 1
-}
-
-if [[ -d "$APP_DIR/.git" ]]; then
-  update_existing_installation
-  exit $?
-fi
-
-# ---------------------------------------------------------------------------
-# 1/9 — base packages
-# ---------------------------------------------------------------------------
-log "1/9 آپدیت apt و نصب پکیج‌های پایه"
-export DEBIAN_FRONTEND=noninteractive
-
-# A previous Docker installation can leave an unsupported or unsigned Docker
-# apt source behind (for example, a source targeting Ubuntu "resolute"). The
-# official Docker installer below recreates its own source, so disable only
-# existing Docker source files before the first apt update.
-for apt_source in /etc/apt/sources.list.d/*; do
-  if [[ -f "$apt_source" ]] && grep -q 'download\.docker\.com' "$apt_source"; then
-      mv "$apt_source" "${apt_source}.ultra-live-disabled"
-    echo "Docker apt source غیرفعال شد: $apt_source"
-  fi
-done
-if [[ -f /etc/apt/sources.list ]] && grep -q 'download\.docker\.com' /etc/apt/sources.list; then
-  sed -i.bak '/download\.docker\.com/s/^/# disabled by Ultra Live installer: /' /etc/apt/sources.list
-  echo "Docker apt source داخل /etc/apt/sources.list غیرفعال شد."
-fi
-
-apt_get_retry update -y
-apt_get_retry install -y curl git ca-certificates gnupg ufw openssl
-
-# ---------------------------------------------------------------------------
-# 2/9 — Docker
-# ---------------------------------------------------------------------------
-log "2/9 نصب Docker"
-if command -v docker >/dev/null 2>&1; then
-  echo "Docker از قبل نصبه، رد میشیم."
-else
-  curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-  sh /tmp/get-docker.sh
-  rm -f /tmp/get-docker.sh
-fi
-systemctl enable --now docker
-
-# ---------------------------------------------------------------------------
-# 3/9 — MongoDB in Docker, random credentials, localhost-only
-# ---------------------------------------------------------------------------
-log "3/9 راه‌اندازی MongoDB روی Docker"
-ENV_FILE="$BACKEND_DIR/.env"
-
-if docker ps -a --format '{{.Names}}' | grep -qx "$MONGO_CONTAINER"; then
-  echo "کانتینر Mongo از قبل هست — رد میشیم (دیتا و پسورد قبلی دست‌نخورده می‌مونه)."
-  if [[ -f "$ENV_FILE" ]]; then
-    MONGO_USER=$(grep -oP '(?<=mongodb://)[^:]+' "$ENV_FILE" | head -1 || true)
-    MONGO_PASS=$(grep -oP '(?<=mongodb://)[^:]+:\K[^@]+' "$ENV_FILE" | head -1 || true)
-  fi
-  MONGO_USER="${MONGO_USER:-unknown}"
-  MONGO_PASS="${MONGO_PASS:-unknown (already configured on first run)}"
-else
-  MONGO_USER="stream_admin"
-  # NOT `tr -dc ... </dev/urandom | head -c N`: head closes the pipe as soon as it
-  # has enough bytes, tr then gets SIGPIPE, and with `set -o pipefail` that makes
-  # the whole pipeline "fail" even though the substitution captured the right
-  # output — aborts the script right here. openssl rand has no such pipe to break.
-  MONGO_PASS="$(openssl rand -hex 12)"
-  docker volume create "$MONGO_VOLUME" >/dev/null
-  docker run -d \
-    --name "$MONGO_CONTAINER" \
-    --restart unless-stopped \
-    -p 127.0.0.1:27017:27017 \
-    -e MONGO_INITDB_ROOT_USERNAME="$MONGO_USER" \
-    -e MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASS" \
-    -v "$MONGO_VOLUME":/data/db \
-    mongo:7 >/dev/null
-  echo "منتظر بالا اومدن Mongo..."
-  sleep 5
-fi
-
-# ---------------------------------------------------------------------------
-# 4/9 — Node.js, ffmpeg, pm2
-# ---------------------------------------------------------------------------
-log "4/9 نصب Node.js ${NODE_MAJOR}.x، ffmpeg و pm2"
-if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | grep -oP '(?<=v)\d+')" -lt "$NODE_MAJOR" ]]; then
-  curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
-  apt_get_retry install -y nodejs
-fi
-apt_get_retry install -y ffmpeg
-command -v pm2 >/dev/null 2>&1 || npm install -g pm2
-
-# ---------------------------------------------------------------------------
-# 5/9 — get the code
-# ---------------------------------------------------------------------------
-log "5/9 گرفتن کد از $REPO_URL"
-if [[ -d "$APP_DIR/.git" ]]; then
-  # npm can rewrite package-lock.json locally. Keep a backup and discard only
-  # that generated file so a previous update cannot block the source pull.
-  FRONT_LOCK_REL="unlimited-stream-front/package-lock.json"
-  if ! git -C "$APP_DIR" diff --quiet -- "$FRONT_LOCK_REL"; then
-    cp "$APP_DIR/$FRONT_LOCK_REL" "/root/koosha-package-lock.backup"
-    cp "$APP_DIR/$FRONT_LOCK_REL" "/root/ultra-live-package-lock.backup"
-    git -C "$APP_DIR" restore --source=HEAD --staged --worktree -- "$FRONT_LOCK_REL"
-    echo "package-lock محلی backup شد و نسخه repository استفاده می‌شود."
-    cp "$APP_DIR/$FRONT_LOCK_REL" "/root/ultra-live-package-lock.backup"
-  fi
-  git -C "$APP_DIR" pull --ff-only
-else
-  mkdir -p "$APP_DIR"
-  git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
-fi
-
-# ---------------------------------------------------------------------------
-# 6/9 — detect the server's public IP
-# ---------------------------------------------------------------------------
-log "6/9 تشخیص آی‌پی عمومی سرور"
-# ${1:-}/$SERVER_PUBLIC_IP: پاس بده اگه از قبل می‌دونی، وگرنه حدس می‌زنیم.
-PUBLIC_IP="${1:-${SERVER_PUBLIC_IP:-}}"
-# Opt-in flag: `sudo bash install.sh <IP> --with-livekit` or WITH_LIVEKIT=true.
-# Off by default — LiveKit needs a real UDP port range reachable from the
-# internet, which doesn't work on every VPS/NAT setup out of the box. HLS/RTMP
-# works fully without this either way.
-WITH_LIVEKIT="${WITH_LIVEKIT:-false}"
-[[ "${2:-}" == "--with-livekit" ]] && WITH_LIVEKIT="true"
-if [[ -n "$PUBLIC_IP" ]]; then
-  echo "آی‌پی داده‌شده استفاده میشه: $PUBLIC_IP"
-else
-  PUBLIC_IP="$(curl -fsSL --max-time 5 https://api.ipify.org || true)"
-  [[ -z "$PUBLIC_IP" ]] && PUBLIC_IP="$(curl -fsSL --max-time 5 https://ifconfig.me || true)"
-  [[ -z "$PUBLIC_IP" ]] && PUBLIC_IP="$(curl -fsSL --max-time 5 https://icanhazip.com | tr -d '[:space:]' || true)"
-  if [[ -z "$PUBLIC_IP" ]]; then
-    echo "نتونستم آی‌پی عمومی رو تشخیص بدم — از آی‌پی محلی استفاده می‌کنم (ممکنه از بیرون کار نکنه)."
-    PUBLIC_IP="$(hostname -I | awk '{print $1}')"
-  fi
-  echo "آی‌پی سرور (حدس زده‌شده): $PUBLIC_IP"
-  echo "⚠️  این روش IP رو از سرویس‌های بیرونی (ipify و...) حدس می‌زنه، که فقط IP خروجی رو می‌بینن —"
-  echo "   اگه سرور پشت NAT باشه یا چند IP داشته باشه، ممکنه این IP همون IP ای نباشه که ازش بهت SSH زدی."
-  echo "   اگه بعد نصب سایت بالا نیومد، دوباره اجرا کن و IP درست رو صریح بده:"
-  echo "   sudo bash install.sh YOUR_CORRECT_IP"
-fi
-
-# ---------------------------------------------------------------------------
-# 7/9 — env files (must exist BEFORE the frontend build — NEXT_PUBLIC_* vars
-# are baked in at build time, not read at runtime)
-# ---------------------------------------------------------------------------
-log "7/9 نوشتن فایل‌های .env"
-
-# Keep the JWT secret stable across re-runs (don't invalidate existing logins
-# every time), but always rewrite SERVER_IP/CORS_ORIGIN — that's exactly what
-# needs to be fixable by re-running with a corrected IP argument.
-JWT_SECRET=""
-[[ -f "$ENV_FILE" ]] && JWT_SECRET="$(grep -oP '(?<=^JWT_SECRET=).*' "$ENV_FILE" || true)"
-[[ -z "$JWT_SECRET" ]] && JWT_SECRET="$(openssl rand -hex 32)"
-
-WP_JOIN_SECRET=""
-[[ -f "$ENV_FILE" ]] && WP_JOIN_SECRET="$(grep -oP '(?<=^WP_JOIN_SECRET=).*' "$ENV_FILE" || true)"
-[[ -z "$WP_JOIN_SECRET" ]] && WP_JOIN_SECRET="$(openssl rand -hex 32)"
-
-ROOM_SESSION_SECRET=""
-[[ -f "$ENV_FILE" ]] && ROOM_SESSION_SECRET="$(grep -oP '(?<=^ROOM_SESSION_SECRET=).*' "$ENV_FILE" || true)"
-[[ -z "$ROOM_SESSION_SECRET" ]] && ROOM_SESSION_SECRET="$(openssl rand -hex 32)"
-
-cat > "$ENV_FILE" <<EOF
-PORT=5050
-PUBLIC_PORT=80
-RTMP_PORT=1935
-HTTP_MEDIA_PORT=8000
-MONGO_URI=mongodb://${MONGO_USER}:${MONGO_PASS}@127.0.0.1:27017/unlimited-stream?authSource=admin
-JWT_SECRET=${JWT_SECRET}
-SERVER_IP=${PUBLIC_IP}
-CORS_ORIGIN=http://${PUBLIC_IP}
-FFMPEG_PATH=$(command -v ffmpeg)
-WP_JOIN_SECRET=${WP_JOIN_SECRET}
-ROOM_SESSION_SECRET=${ROOM_SESSION_SECRET}
-PUBLIC_BASE_URL=http://${PUBLIC_IP}
-EOF
-echo "$BACKEND_DIR/.env نوشته شد."
-
-cat > "$FRONTEND_DIR/.env.production" <<EOF
-NEXT_PUBLIC_API_URL=http://${PUBLIC_IP}
-NEXT_PUBLIC_MEDIA_URL=http://${PUBLIC_IP}
-NEXT_PUBLIC_RTMP_URL=rtmp://${PUBLIC_IP}:1935/live
-EOF
-
-# ---------------------------------------------------------------------------
-# 8/9 — install deps and build
-# ---------------------------------------------------------------------------
-log "8/9 نصب پکیج‌ها و build گرفتن"
-(cd "$BACKEND_DIR" && npm install --omit=dev)
-(cd "$FRONTEND_DIR" && npm install && npm run build)
-
-log "ساخت اکانت سوپرادمین (owner)"
-[[ -z "${SEED_OWNER_PASSWORD:-}" ]] && SEED_OWNER_PASSWORD="$(openssl rand -hex 8)" && export SEED_OWNER_PASSWORD
-(cd "$BACKEND_DIR" && node scripts/seed-owner.js)
-
-# ---------------------------------------------------------------------------
-# 9/9 — Nginx reverse proxy
-# ---------------------------------------------------------------------------
-log "9/9 پیکربندی Nginx"
-apt_get_retry install -y nginx
-
-cat > /etc/nginx/sites-available/unlimited-stream <<'EOF'
-server {
-    listen 80;
-    server_name _;
-
-    location /socket.io/ {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        # Without this, the backend sees every request as coming from Nginx
-        # itself (127.0.0.1) and can't tell visitors apart — see app.js's
-        # `trust proxy` setting, which relies on this header being present.
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # Branding assets are served by the backend at the site root. Keep these
-    # paths ahead of the catch-all Next.js location so uploaded files render.
-    location ~ ^/(site-logo|site-favicon|site-background)$ {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    location /thumbnails/ {
-        proxy_pass http://127.0.0.1:5050;
-    }
-
-    location /live/ {
-        proxy_pass http://127.0.0.1:5050;
-        # Don't let Nginx buffer whole HLS responses before forwarding them —
-        # that would add latency on top of what we already tuned for in
-        # mediaServer.js (1s segments).
-        proxy_buffering off;
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-EOF
-
-ln -sf /etc/nginx/sites-available/unlimited-stream /etc/nginx/sites-enabled/unlimited-stream
-rm -f /etc/nginx/sites-enabled/default
-nginx -t
-systemctl enable --now nginx
-systemctl reload nginx
-
-# ---------------------------------------------------------------------------
-# Firewall — only what actually needs to be reachable from the internet:
-# SSH (so we don't lock ourselves out), HTTP (Nginx), and RTMP (OBS ingest,
-# which can't go through Nginx). Mongo/API/media ports stay closed.
-# ---------------------------------------------------------------------------
-log "پیکربندی فایروال (ufw)"
-ufw --force reset >/dev/null
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow OpenSSH
-ufw allow 80/tcp
-ufw allow 1935/tcp
-
-# ---------------------------------------------------------------------------
-# LiveKit (optional, Phase 6) — self-hosted via Docker, runs ALONGSIDE the
-# RTMP/HLS pipeline above. Only touched if --with-livekit / WITH_LIVEKIT=true
-# was passed; otherwise LIVEKIT_ENABLED stays false and nothing changes for
-# the existing streaming path.
-# ---------------------------------------------------------------------------
 LIVEKIT_DIR="/opt/livekit"
-if [[ "$WITH_LIVEKIT" == "true" ]]; then
-  log "راه‌اندازی LiveKit (اختیاری، --with-livekit)"
-  mkdir -p "$LIVEKIT_DIR"
+NODE_MAJOR=22
+DOMAIN=""; EMAIL=""; OWNER_USER=""; OWNER_PASS=""; ASSUME_YES="false"
 
-  if [[ -f "$LIVEKIT_DIR/.keys" ]]; then
-    LIVEKIT_API_KEY="$(grep -oP '(?<=^KEY=).*' "$LIVEKIT_DIR/.keys")"
-    LIVEKIT_API_SECRET="$(grep -oP '(?<=^SECRET=).*' "$LIVEKIT_DIR/.keys")"
-    echo "کلیدهای LiveKit از قبل موجودن — استفاده مجدد."
-  else
-    LIVEKIT_API_KEY="lk$(openssl rand -hex 8)"
-    LIVEKIT_API_SECRET="$(openssl rand -hex 32)"
-    printf 'KEY=%s\nSECRET=%s\n' "$LIVEKIT_API_KEY" "$LIVEKIT_API_SECRET" > "$LIVEKIT_DIR/.keys"
-    chmod 600 "$LIVEKIT_DIR/.keys"
+c_ok=$'\e[32m'; c_warn=$'\e[33m'; c_err=$'\e[31m'; c_dim=$'\e[2m'; c_off=$'\e[0m'
+log()  { echo; echo "${c_ok}▶ $*${c_off}"; }
+warn() { echo "${c_warn}⚠ $*${c_off}"; }
+die()  { echo "${c_err}✖ $*${c_off}" >&2; exit 1; }
+trap 'die "نصب در خط $LINENO متوقف شد. لاگ: /var/log/ultralive-install.log"' ERR
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --domain) DOMAIN="${2:-}"; shift 2 ;;
+    --email) EMAIL="${2:-}"; shift 2 ;;
+    --owner-user) OWNER_USER="${2:-}"; shift 2 ;;
+    --owner-pass) OWNER_PASS="${2:-}"; shift 2 ;;
+    --branch) BRANCH="${2:-}"; shift 2 ;;
+    --yes|-y) ASSUME_YES="true"; shift ;;
+    *) die "گزینهٔ ناشناخته: $1" ;;
+  esac
+done
+
+[[ $EUID -eq 0 ]] || die "این اسکریپت را با root اجرا کنید (sudo)."
+exec > >(tee -a /var/log/ultralive-install.log) 2>&1
+
+TTY=/dev/tty
+ask() { # ask "prompt" default -> echoes answer
+  local prompt="$1" default="${2:-}" reply=""
+  if [[ "$ASSUME_YES" == "true" || ! -r $TTY ]]; then echo "$default"; return; fi
+  read -r -p "$prompt" reply < $TTY || true
+  echo "${reply:-$default}"
+}
+ask_secret() {
+  local prompt="$1" reply=""
+  if [[ "$ASSUME_YES" == "true" || ! -r $TTY ]]; then echo ""; return; fi
+  read -r -s -p "$prompt" reply < $TTY || true; echo >&2
+  echo "$reply"
+}
+apt_retry() { for i in 1 2 3; do DEBIAN_FRONTEND=noninteractive apt-get "$@" && return 0; sleep 4; done; return 1; }
+
+# ---------------------------------------------------------------------------
+echo "${c_ok}"
+cat <<'BANNER'
+  ╔══════════════════════════════════════════════╗
+  ║        Ultra Live — نصب‌کنندهٔ خودکار        ║
+  ╚══════════════════════════════════════════════╝
+BANNER
+echo "${c_off}"
+
+PUBLIC_IP="$(curl -fsS --max-time 6 https://api.ipify.org 2>/dev/null || curl -fsS --max-time 6 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
+[[ -n "$PUBLIC_IP" ]] || die "آی‌پی عمومی سرور پیدا نشد."
+echo "آی‌پی سرور: ${PUBLIC_IP}"
+
+if [[ -z "$OWNER_USER" ]]; then OWNER_USER="$(ask 'یوزرنیم مدیر کل (owner) [admin]: ' admin)"; fi
+if [[ -z "$OWNER_PASS" ]]; then
+  OWNER_PASS="$(ask_secret 'رمز مدیر کل (حداقل ۸ کاراکتر؛ خالی = تولید خودکار): ')"
+  if [[ -n "$OWNER_PASS" ]]; then
+    CONFIRM="$(ask_secret 'تکرار رمز: ')"
+    [[ "$OWNER_PASS" == "$CONFIRM" ]] || die "رمزها یکسان نیستند."
   fi
+fi
+GENERATED_PASS="false"
+if [[ -z "$OWNER_PASS" ]]; then OWNER_PASS="$(openssl rand -base64 18 | tr -d '/+=' | head -c 16)"; GENERATED_PASS="true"; fi
+[[ ${#OWNER_PASS} -ge 8 ]] || die "رمز باید حداقل ۸ کاراکتر باشد."
+[[ "$OWNER_USER" =~ ^[A-Za-z0-9_]{3,24}$ ]] || die "یوزرنیم باید ۳ تا ۲۴ کاراکتر (حرف انگلیسی، عدد یا _) باشد."
 
-  cat > "$LIVEKIT_DIR/livekit.yaml" <<EOF
+if [[ -z "$DOMAIN" ]]; then DOMAIN="$(ask 'دامنه (اختیاری؛ خالی = فقط با آی‌پی): ' '')"; fi
+DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN%%/*}"
+if [[ -n "$DOMAIN" && -z "$EMAIL" ]]; then EMAIL="$(ask 'ایمیل برای Let'"'"'s Encrypt (اختیاری): ' '')"; fi
+HOST="${DOMAIN:-$PUBLIC_IP}"
+[[ -n "$DOMAIN" ]] && echo "حالت: دامنه ($DOMAIN) + SSL خودکار" || echo "حالت: فقط آی‌پی ($PUBLIC_IP) + SSL آی‌پی (Let's Encrypt)"
+
+# ---------------------------------------------------------------------------
+log "1/9 پکیج‌های پایه"
+apt_retry update -qq
+apt_retry install -y -qq curl git ca-certificates gnupg ufw openssl nginx ffmpeg snapd tar >/dev/null
+
+log "2/9 Docker"
+if ! command -v docker >/dev/null 2>&1; then curl -fsSL https://get.docker.com | sh; fi
+systemctl enable --now docker >/dev/null 2>&1 || true
+
+log "3/9 Node.js ${NODE_MAJOR} و pm2"
+if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | tr -dc '0-9.' | cut -d. -f1)" -lt 20 ]]; then
+  curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null
+  apt_retry install -y -qq nodejs >/dev/null
+fi
+command -v pm2 >/dev/null 2>&1 || npm install -g pm2 >/dev/null
+
+# ---------------------------------------------------------------------------
+log "4/9 سورس برنامه (${BRANCH})"
+if [[ -d "$APP_DIR/.git" ]]; then
+  STAMP="$(date +%Y%m%d-%H%M%S)"
+  warn "نصب قبلی پیدا شد؛ نسخهٔ قبلی به ${APP_DIR}.old-${STAMP} منتقل می‌شود (دیتابیس قبلی دست‌نخورده می‌ماند و استفاده نمی‌شود)."
+  pm2 delete all >/dev/null 2>&1 || true
+  mv "$APP_DIR" "${APP_DIR}.old-${STAMP}"
+  for old in ultralive-mongo unlimited-stream-mongo; do
+    if docker ps -a --format '{{.Names}}' | grep -qx "$old"; then docker stop "$old" >/dev/null; docker rename "$old" "${old}-old-${STAMP}"; fi
+  done
+fi
+git clone --depth 50 -b "$BRANCH" "$REPO_URL" "$APP_DIR"
+BACKEND_DIR="$APP_DIR/unlimited-stream-backend"; FRONT_DIR="$APP_DIR/unlimited-stream-front"
+
+# ---------------------------------------------------------------------------
+log "5/9 دیتابیس جدید MongoDB"
+MONGO_USER="ul_$(openssl rand -hex 4)"; MONGO_PASS="$(openssl rand -hex 16)"; MONGO_DB="ultralive"
+docker volume create "ultralive-mongo-$(date +%s)" >/dev/null
+MONGO_VOLUME="$(docker volume ls -q | grep '^ultralive-mongo-' | tail -1)"
+docker run -d --name ultralive-mongo --restart unless-stopped -p 127.0.0.1:27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME="$MONGO_USER" -e MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASS" \
+  -v "${MONGO_VOLUME}:/data/db" mongo:7 --bind_ip_all >/dev/null
+echo -n "منتظر Mongo"; for i in $(seq 1 40); do
+  docker exec ultralive-mongo mongosh --quiet -u "$MONGO_USER" -p "$MONGO_PASS" --authenticationDatabase admin --eval 'db.runCommand({ping:1}).ok' >/dev/null 2>&1 && break; echo -n "."; sleep 2
+done; echo
+
+# ---------------------------------------------------------------------------
+log "6/9 LiveKit (اتاق‌های تعاملی + ورودی OBS)"
+mkdir -p "$LIVEKIT_DIR"
+LK_KEY="lk$(openssl rand -hex 8)"; LK_SECRET="$(openssl rand -hex 32)"
+cat > "$LIVEKIT_DIR/livekit.yaml" <<EOF
 port: 7880
+bind_addresses: ["127.0.0.1"]
+log_level: info
 rtc:
   tcp_port: 7881
-  port_range_start: 50000
-  port_range_end: 50100
+  udp_port: 7882          # one multiplexed UDP port: simpler firewall, same performance
   use_external_ip: true
+  congestion_control:
+    enabled: true
+    allow_pause: false
+room:
+  auto_create: true
+  empty_timeout: 300
+  departure_timeout: 20
 redis:
   address: 127.0.0.1:6379
 keys:
-  ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+  ${LK_KEY}: ${LK_SECRET}
 webhook:
+  api_key: ${LK_KEY}
   urls:
     - http://127.0.0.1:5050/api/livekit/webhook
 ingress:
   rtmp_base_url: rtmp://${PUBLIC_IP}:1936/live
-turn:
-  enabled: true
-  domain: ${PUBLIC_IP}
-  udp_port: 3478
 EOF
-
-  # Ingress's own config — rtmp_port MUST be something other than 1935,
-  # since node-media-server (our existing OBS ingest) already owns 1935 on
-  # this same host with network_mode: host. 1936 here must match the
-  # rtmp_base_url port above and the ufw rule below.
-  cat > "$LIVEKIT_DIR/ingress.yaml" <<EOF
-api_key: ${LIVEKIT_API_KEY}
-api_secret: ${LIVEKIT_API_SECRET}
+cat > "$LIVEKIT_DIR/ingress.yaml" <<EOF
+api_key: ${LK_KEY}
+api_secret: ${LK_SECRET}
 ws_url: ws://127.0.0.1:7880
 redis:
   address: 127.0.0.1:6379
 rtmp_port: 1936
 whip_port: 8089
 EOF
-
-  cat > "$LIVEKIT_DIR/docker-compose.yml" <<EOF
+cat > "$LIVEKIT_DIR/docker-compose.yml" <<EOF
 services:
   redis:
     image: redis:7
     restart: unless-stopped
     network_mode: host
+    command: redis-server --bind 127.0.0.1 --save ""
   livekit:
     image: livekit/livekit-server:latest
     restart: unless-stopped
     network_mode: host
-    volumes:
-      - ${LIVEKIT_DIR}/livekit.yaml:/livekit.yaml:ro
+    volumes: ["${LIVEKIT_DIR}/livekit.yaml:/livekit.yaml:ro"]
     command: --config /livekit.yaml --node-ip=${PUBLIC_IP}
-    depends_on:
-      - redis
+    depends_on: [redis]
   ingress:
     image: livekit/ingress:latest
     restart: unless-stopped
     network_mode: host
-    volumes:
-      - ${LIVEKIT_DIR}/ingress.yaml:/ingress.yaml:ro
+    volumes: ["${LIVEKIT_DIR}/ingress.yaml:/ingress.yaml:ro"]
     command: --config /ingress.yaml
-    depends_on:
-      - redis
-      - livekit
+    depends_on: [redis, livekit]
 EOF
+(cd "$LIVEKIT_DIR" && docker compose down >/dev/null 2>&1 || true; docker compose up -d)
 
-  (cd "$LIVEKIT_DIR" && docker compose up -d)
+# ---------------------------------------------------------------------------
+log "7/9 تنظیمات و build"
+SCHEME="https"
+JWT_SECRET="$(openssl rand -hex 32)"; WP_SECRET="$(openssl rand -hex 32)"; ROOM_SECRET="$(openssl rand -hex 32)"
+cat > "$BACKEND_DIR/.env" <<EOF
+PORT=5050
+PUBLIC_PORT=443
+RTMP_PORT=1935
+HTTP_MEDIA_PORT=8000
+MONGO_URI=mongodb://${MONGO_USER}:${MONGO_PASS}@127.0.0.1:27017/${MONGO_DB}?authSource=admin
+JWT_SECRET=${JWT_SECRET}
+ROOM_SESSION_SECRET=${ROOM_SECRET}
+WP_JOIN_SECRET=${WP_SECRET}
+SERVER_IP=${PUBLIC_IP}
+CORS_ORIGIN=${SCHEME}://${HOST}
+PUBLIC_BASE_URL=${SCHEME}://${HOST}
+FFMPEG_PATH=$(command -v ffmpeg)
+COOKIE_SECURE=true
+ALLOW_PUBLIC_REGISTER=false
+ALLOW_PANEL_UPDATE=true
+LIVEKIT_ENABLED=true
+LIVEKIT_URL=http://127.0.0.1:7880
+LIVEKIT_WS_URL=wss://${HOST}/livekit
+LIVEKIT_API_KEY=${LK_KEY}
+LIVEKIT_API_SECRET=${LK_SECRET}
+EOF
+chmod 600 "$BACKEND_DIR/.env"
+cat > "$FRONT_DIR/.env.production" <<EOF
+NEXT_PUBLIC_API_URL=${SCHEME}://${HOST}
+NEXT_PUBLIC_MEDIA_URL=${SCHEME}://${HOST}
+NEXT_PUBLIC_RTMP_URL=rtmp://${PUBLIC_IP}:1935/live
+EOF
+(cd "$BACKEND_DIR" && npm ci --omit=dev --no-audit --no-fund)
+(cd "$FRONT_DIR" && npm ci --no-audit --no-fund && npm run build)
+(cd "$BACKEND_DIR" && SEED_OWNER_USERNAME="$OWNER_USER" SEED_OWNER_PASSWORD="$OWNER_PASS" node scripts/seed-owner.js)
+chmod +x "$APP_DIR/update.sh"
+pm2 startOrReload "$APP_DIR/ecosystem.config.js" && pm2 save >/dev/null
+env PATH="$PATH" pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 
-  # RTC media (UDP), the Ingress RTMP port, and LiveKit's own signaling port
-  # (7880) — LiveKit's WebSocket signaling is used directly by the browser,
-  # not proxied through Nginx (this whole deployment has no TLS yet, so
-  # there's no wss:// to offer anyway; ws:// direct to the port matches how
-  # RTMP already works unproxied here).
-  ufw allow 50000:50100/udp
-  ufw allow 7880/tcp
-  ufw allow 7881/tcp
-  ufw allow 1936/tcp    # LiveKit Ingress RTMP — separate from the 1935 RTMP above
-  ufw allow 3478/udp    # LiveKit embedded TURN relay for restrictive networks
-  echo "LiveKit بالا اومد. کلیدها توی ${LIVEKIT_DIR}/.keys ذخیره شدن."
-else
-  LIVEKIT_API_KEY=""
-  LIVEKIT_API_SECRET=""
-fi
+# ---------------------------------------------------------------------------
+log "8/9 Nginx و SSL"
+mkdir -p /var/www/letsencrypt /etc/ultralive-ssl
+SSL_CERT=""; SSL_KEY=""; SSL_MODE=""
 
-# .env was already written in step 7/9, before these values existed — upsert
-# them now instead of duplicating the whole heredoc (keeps re-runs idempotent
-# whether or not --with-livekit was used this time vs a previous run).
-upsert_env() {
-  local key="$1" value="$2"
-  if grep -q "^${key}=" "$ENV_FILE"; then
-    sed -i "s#^${key}=.*#${key}=${value}#" "$ENV_FILE"
-  else
-    echo "${key}=${value}" >> "$ENV_FILE"
-  fi
+write_nginx() {
+  local cert="$1" key="$2"
+  cat > /etc/nginx/sites-available/ultralive <<EOF
+map \$http_upgrade \$connection_upgrade { default upgrade; '' close; }
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+    location / { return 301 https://${HOST}\$request_uri; }
 }
-upsert_env LIVEKIT_ENABLED "$WITH_LIVEKIT"
-upsert_env LIVEKIT_URL "http://127.0.0.1:7880"
-upsert_env LIVEKIT_WS_URL "ws://${PUBLIC_IP}:7880"
-upsert_env LIVEKIT_API_KEY "$LIVEKIT_API_KEY"
-upsert_env LIVEKIT_API_SECRET "$LIVEKIT_API_SECRET"
 
-ufw --force enable
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    http2 on;
+    server_name ${HOST};
+    ssl_certificate ${cert};
+    ssl_certificate_key ${key};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    client_max_body_size 250m;
 
-# ---------------------------------------------------------------------------
-# Start with pm2
-# ---------------------------------------------------------------------------
-log "استارت اپ‌ها با pm2"
-cat > "$APP_DIR/ecosystem.config.js" <<EOF
-module.exports = {
-  apps: [
-    {
-      name: 'unlimited-stream-backend',
-      cwd: '${BACKEND_DIR}',
-      script: 'src/server.js',
-    },
-    {
-      name: 'unlimited-stream-frontend',
-      cwd: '${FRONTEND_DIR}',
-      script: 'node_modules/.bin/next',
-      args: 'start -p 3000',
-    },
-  ],
-};
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:5050;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 3600s;
+    }
+    # LiveKit signaling (wss) — media itself flows over UDP 7882 / TCP 7881.
+    location /livekit/ {
+        proxy_pass http://127.0.0.1:7880/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_read_timeout 3600s;
+        proxy_buffering off;
+    }
+    location = /api/system/restore {
+        client_max_body_size 4g;
+        proxy_request_buffering off;
+        proxy_read_timeout 1800s;
+        proxy_pass http://127.0.0.1:5050;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    location /api/ {
+        proxy_pass http://127.0.0.1:5050;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 600s;
+    }
+    location ~ ^/(site-logo|site-favicon|site-background|thumbnails/.*)\$ {
+        proxy_pass http://127.0.0.1:5050;
+        proxy_set_header Host \$host;
+    }
+    location /live/ {
+        proxy_pass http://127.0.0.1:5050;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_buffering off;
+    }
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
 EOF
+  ln -sf /etc/nginx/sites-available/ultralive /etc/nginx/sites-enabled/ultralive
+  rm -f /etc/nginx/sites-enabled/default
+  nginx -t && systemctl reload nginx
+}
 
-pm2 startOrReload "$APP_DIR/ecosystem.config.js"
-pm2 save
-STARTUP_CMD="$(pm2 startup systemd -u root --hp /root | tail -1)"
-eval "$STARTUP_CMD" >/dev/null 2>&1 || true
+self_signed() {
+  SSL_MODE="self-signed"
+  SSL_CERT=/etc/ultralive-ssl/selfsigned.crt; SSL_KEY=/etc/ultralive-ssl/selfsigned.key
+  local san; [[ "$HOST" =~ ^[0-9.]+$ ]] && san="IP:${HOST}" || san="DNS:${HOST}"
+  openssl req -x509 -nodes -newkey rsa:2048 -days 825 -keyout "$SSL_KEY" -out "$SSL_CERT" -subj "/CN=${HOST}" -addext "subjectAltName=${san}" 2>/dev/null
+}
+
+# temporary self-signed cert so nginx can start and answer the ACME challenge on :80
+self_signed; write_nginx "$SSL_CERT" "$SSL_KEY"
+
+ufw --force reset >/dev/null; ufw default deny incoming >/dev/null; ufw default allow outgoing >/dev/null
+for r in OpenSSH 80/tcp 443/tcp 1935/tcp 1936/tcp 7881/tcp 7882/udp; do ufw allow "$r" >/dev/null; done
+ufw --force enable >/dev/null
+
+if ! snap list certbot >/dev/null 2>&1; then snap install --classic certbot >/dev/null 2>&1 || warn "نصب certbot با snap ناموفق بود."; fi
+ln -sf /snap/bin/certbot /usr/local/bin/certbot 2>/dev/null || true
+CB_EMAIL_ARGS=(--register-unsafely-without-email); [[ -n "$EMAIL" ]] && CB_EMAIL_ARGS=(-m "$EMAIL")
+if command -v certbot >/dev/null 2>&1; then
+  if [[ -n "$DOMAIN" ]]; then
+    RESOLVED="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
+    [[ "$RESOLVED" == "$PUBLIC_IP" ]] || warn "رکورد DNS دامنه (${RESOLVED:-نامشخص}) با آی‌پی سرور (${PUBLIC_IP}) یکی نیست؛ ممکن است گرفتن SSL ناموفق باشد."
+    if certbot certonly --webroot -w /var/www/letsencrypt -d "$DOMAIN" --non-interactive --agree-tos "${CB_EMAIL_ARGS[@]}" --deploy-hook "systemctl reload nginx"; then
+      SSL_MODE="letsencrypt-domain"; SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"; SSL_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+    fi
+  else
+    # Let's Encrypt IP-address certificates: 6-day lifetime, webroot challenge, needs certbot >= 5.4.
+    if certbot certonly --webroot -w /var/www/letsencrypt --preferred-profile shortlived --ip-address "$PUBLIC_IP" --non-interactive --agree-tos "${CB_EMAIL_ARGS[@]}" --deploy-hook "systemctl reload nginx"; then
+      SSL_MODE="letsencrypt-ip"; SSL_CERT="/etc/letsencrypt/live/${PUBLIC_IP}/fullchain.pem"; SSL_KEY="/etc/letsencrypt/live/${PUBLIC_IP}/privkey.pem"
+    fi
+  fi
+fi
+if [[ "$SSL_MODE" == letsencrypt-* ]]; then write_nginx "$SSL_CERT" "$SSL_KEY"
+else warn "گواهی Let's Encrypt گرفته نشد؛ با گواهی self-signed ادامه می‌دهیم (مرورگر هشدار نشان می‌دهد). بعداً می‌توانید دوباره certbot را اجرا کنید."; SSL_MODE="self-signed"; fi
 
 # ---------------------------------------------------------------------------
-# Done
-# ---------------------------------------------------------------------------
-echo
-echo "✅ نصب با موفقیت تموم شد"
-echo
-echo "سایت:        http://${PUBLIC_IP}"
-echo "RTMP سرور:   rtmp://${PUBLIC_IP}:1935/live"
-echo
-echo "MongoDB:"
-echo "  user: ${MONGO_USER}"
-echo "  pass: ${MONGO_PASS}"
-echo "  uri:  mongodb://${MONGO_USER}:${MONGO_PASS}@127.0.0.1:27017/unlimited-stream?authSource=admin"
-echo
-echo "سوپرادمین (owner):"
-echo "  یوزرنیم: ${SEED_OWNER_USERNAME:-shadowstrix}"
-echo "  رمز:     ${SEED_OWNER_PASSWORD}"
-echo "  (حتماً بعد از اولین ورود عوضش کن)"
-echo
-echo "کلید مشترک وردپرس (WP_JOIN_SECRET) داخل همینه، برای اتصال به وردپرس لازمت میشه:"
-echo "  ${BACKEND_DIR}/.env"
-echo
-echo "لاگ کامل نصب: $LOG_FILE"
-echo "وضعیت پروسه‌ها: pm2 list       لاگ زنده: pm2 logs"
-echo
+log "9/9 بررسی نهایی"
+sleep 4
+curl -ksf "https://127.0.0.1/api/health" -H "Host: ${HOST}" >/dev/null && HEALTH="OK" || HEALTH="FAILED (pm2 logs را ببینید)"
+echo "${c_ok}"
+cat <<EOF
+╔════════════════════════════════════════════════════════════╗
+  ✅ نصب انجام شد
+╚════════════════════════════════════════════════════════════╝
+EOF
+echo "${c_off}"
+echo "آدرس سایت:          ${SCHEME}://${HOST}"
+echo "ورود مدیر:          ${SCHEME}://${HOST}/adminlogin"
+echo "یوزرنیم مدیر کل:    ${OWNER_USER}"
+[[ "$GENERATED_PASS" == "true" ]] && echo "رمز مدیر کل:        ${OWNER_PASS}   ${c_warn}(همین حالا ذخیره کنید)${c_off}" || echo "رمز مدیر کل:        (همانی که وارد کردید)"
+echo "SSL:                ${SSL_MODE}"
+echo "وضعیت API:          ${HEALTH}"
+echo "RTMP (OBS):         rtmp://${PUBLIC_IP}:1935/live   — یا کلید LiveKit از پنل کلاس"
+echo "کلید مشترک وردپرس:  ${BACKEND_DIR}/.env  (WP_JOIN_SECRET)"
+echo "بکاپ و به‌روزرسانی: پنل مدیر کل ← تنظیمات ← سیستم"
+echo "لاگ نصب:            /var/log/ultralive-install.log"

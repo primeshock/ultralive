@@ -1,2 +1,8 @@
 .DS_Store
 *.log
+
+.update.log
+.update-status.json
+.next-build
+.next.old
+backups/

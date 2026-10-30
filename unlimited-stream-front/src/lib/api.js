@@ -218,6 +218,7 @@ export const api = {
   // --- LiveKit (Phase 6, alongside HLS) ---
   meetingState: (channel) => apiFetch(`/api/meeting/${channel}/state`),
   meetingSettings: (channel, payload) => apiFetch(`/api/meeting/${channel}/settings`, { method: "POST", body: JSON.stringify(payload) }),
+  meetingMode: (channel, mode) => apiFetch(`/api/meeting/${channel}/mode`, { method: "POST", body: JSON.stringify({ mode }) }),
   meetingContent: (channel, fileId) => apiFetch(`/api/meeting/${channel}/content`, { method: "POST", body: JSON.stringify({ fileId }) }),
   meetingParticipants: (channel) => apiFetch(`/api/meeting/${channel}/participants`),
   meetingParticipantAction: (channel, identity, payload) => apiFetch(`/api/meeting/${channel}/participants/${encodeURIComponent(identity)}`, { method: "POST", body: JSON.stringify(payload) }),

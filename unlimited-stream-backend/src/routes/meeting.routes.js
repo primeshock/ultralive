@@ -97,6 +97,16 @@ router.post('/:channel/settings', loadTarget, requireStaff, requireClass, async 
   res.json(view);
 });
 
+// Same class link, different format per session: studio (OBS) <-> desktop (interactive room).
+router.post('/:channel/mode', loadTarget, requireStaff, requireClass, async (req, res) => {
+  const mode = req.body?.mode;
+  if (!['studio', 'desktop'].includes(mode)) return res.status(400).json({ error: 'حالت نامعتبر است.' });
+  req.target.mode = mode;
+  await req.target.save();
+  await broadcast(req.channel, { type: 'mode', mode });
+  res.json({ mode });
+});
+
 router.post('/:channel/content', loadTarget, requireStaff, requireClass, async (req, res) => {
   let shared = null;
   if (req.body?.fileId) {

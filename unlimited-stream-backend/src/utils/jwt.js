@@ -17,7 +17,7 @@ function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false, // no HTTPS requirement for this deployment
+    secure: require('../config/env').cookieSecure,
     maxAge: MAX_AGE_MS,
   });
 }

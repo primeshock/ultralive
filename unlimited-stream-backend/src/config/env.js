@@ -34,6 +34,8 @@ module.exports = {
   // For institutional use, channels should only be created by an admin via
   // /api/master/channels — set this to "false" in .env to close public
   // self-signup entirely. Defaults to "true" so nothing changes unless you opt in.
+  // true once the site is served over HTTPS (install.sh sets it); keeps cookies off plain HTTP.
+  cookieSecure: process.env.COOKIE_SECURE === 'true',
   allowPublicRegister: process.env.ALLOW_PUBLIC_REGISTER === 'true',
 
   // --- LiveKit (Phase 6, runs ALONGSIDE HLS/RTMP — never replaces it) ---

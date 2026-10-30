@@ -21,14 +21,14 @@ async function main() {
   const existing = await User.findOne({ username: USERNAME });
   if (existing) {
     existing.passwordHash = passwordHash;
-    existing.role = 'owner';
+    existing.role = 'SUPER_OWNER';
     await existing.save();
     console.log(`✅ اکانت owner موجود بود، رمز/نقش‌اش تنظیم شد: ${USERNAME}`);
   } else {
     await User.create({
       username: USERNAME,
       passwordHash,
-      role: 'owner',
+      role: 'SUPER_OWNER',
       streamKey: crypto.randomBytes(20).toString('hex'),
       displayName: USERNAME,
     });
