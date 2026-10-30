@@ -124,7 +124,7 @@ NEXT_PUBLIC_MEDIA_URL=https://$new
 NEXT_PUBLIC_RTMP_URL=rtmp://$(env_get SERVER_IP):1935/live
 EOF
   echo "Rebuilding the UI for the new address (the site stays up) ..."
-  (cd "$FRONT" && rm -rf .next-build && NODE_OPTIONS="--max-old-space-size=2048" NEXT_DIST_DIR=.next-build npm run build && rm -rf .next && mv .next-build .next) || die "Build failed; the old UI is still running."
+  (cd "$FRONT" && rm -rf .next-build && NODE_OPTIONS="--max-old-space-size=2048" NEXT_DIST_DIR=.next-build npm run build && test -f .next-build/BUILD_ID && rm -rf .next && mv .next-build .next) || die "Build failed; the old UI is still running."
   pm2 reload "$APP_DIR/ecosystem.config.js" --update-env >/dev/null
   ok "Done → https://$new"
 }

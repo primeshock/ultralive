@@ -40,6 +40,7 @@ echo "▶ build (in a side directory)"
 rm -rf "$FRONT/.next-build"
 (cd "$FRONT" && NODE_OPTIONS="--max-old-space-size=2048" NEXT_DIST_DIR=.next-build npm run build)
 
+[[ -f "$FRONT/.next-build/BUILD_ID" ]] || { echo "✖ Build output missing (.next-build/BUILD_ID)"; false; }
 status running "Swapping and reloading"
 echo "▶ swap + reload"
 rm -rf "$FRONT/.next.old"

@@ -326,7 +326,7 @@ EOF
 (cd "$FRONT_DIR" && npm ci --no-audit --no-fund)
 if [[ "$MODE" == "keep" ]]; then
   # build beside the running site, then swap, so the live UI is never half-built
-  (cd "$FRONT_DIR" && rm -rf .next-build && NODE_OPTIONS="--max-old-space-size=2048" NEXT_DIST_DIR=.next-build npm run build && rm -rf .next && mv .next-build .next)
+  (cd "$FRONT_DIR" && rm -rf .next-build && NODE_OPTIONS="--max-old-space-size=2048" NEXT_DIST_DIR=.next-build npm run build && test -f .next-build/BUILD_ID && rm -rf .next && mv .next-build .next)
 else
   (cd "$FRONT_DIR" && NODE_OPTIONS="--max-old-space-size=2048" npm run build)
   (cd "$BACKEND_DIR" && SEED_OWNER_USERNAME="$OWNER_USER" SEED_OWNER_PASSWORD="$OWNER_PASS" node scripts/seed-owner.js)
