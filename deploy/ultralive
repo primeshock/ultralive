@@ -181,6 +181,12 @@ cmd_doctor() {
     const { EgressClient } = require('livekit-server-sdk');
     new EgressClient(process.env.LIVEKIT_URL, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
       .listEgress().then(() => process.exit(0)).catch((e) => { console.error(e.message); process.exit(1); });" 2>/tmp/ul-eg.err); then ok "egress API reachable"; else warn "egress API: $(head -c 160 /tmp/ul-eg.err)"; bad=1; fi
+  local cores; cores="$(nproc)"; echo "CPU cores: $cores  (a recording needs ~2-4; more is better while students are connected)"
+  if ! grep -q "room_composite_cpu_cost" "$LIVEKIT_DIR/egress.yaml" 2>/dev/null; then
+    printf '\n# default needs 4 free cores per recording and silently refuses on smaller servers\ncpu_cost:\n  max_cpu_utilization: 0.85\n  room_composite_cpu_cost: 1.5\n' >> "$LIVEKIT_DIR/egress.yaml"
+    (cd "$LIVEKIT_DIR" && docker compose up -d --force-recreate egress >/dev/null 2>&1) && ok "egress config repaired (it now accepts recordings on this server); try recording again"
+    bad=1
+  fi
   local rdir; rdir="$(env_get RECORDINGS_DIR)"; rdir="${rdir:-/opt/ultralive-recordings}"
   if touch "$rdir/.ul-write-test" 2>/dev/null; then rm -f "$rdir/.ul-write-test"; ok "recordings folder writable: $rdir"; else warn "recordings folder not writable: $rdir"; bad=1; fi
   echo "last egress log lines:"; docker logs --tail 6 livekit-egress-1 2>&1 | cut -c1-160 | sed 's/^/   /'

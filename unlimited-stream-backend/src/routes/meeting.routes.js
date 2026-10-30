@@ -360,7 +360,10 @@ router.post('/:channel/mute-all', loadTarget, requireStaff, async (req, res) => 
 });
 
 // ---- recording (LiveKit Egress, room composite -> MP4 on disk) ----
-const egress = () => new EgressClient(livekitUrl, livekitApiKey, livekitApiSecret);
+// Starting a composite recording launches a headless Chrome inside Egress: that routinely takes 10-40 s, so the
+// SDK's default 10 s request timeout is far too short.
+const egress = () => new EgressClient(livekitUrl, livekitApiKey, livekitApiSecret, { requestTimeout: 90 });
+const smallServer = require('os').cpus().length < 4;
 
 router.post('/:channel/recording/start', loadTarget, requireStaff, requireClass, async (req, res) => {
   if (await Recording.exists({ classSlug: req.channel, status: 'recording' })) return res.status(409).json({ error: 'ضبط از قبل در حال انجام است.' });
@@ -370,13 +373,14 @@ router.post('/:channel/recording/start', loadTarget, requireStaff, requireClass,
     const info = await egress().startRoomCompositeEgress(
       roomName(req.channel),
       { file: new EncodedFileOutput({ fileType: EncodedFileType.MP4, filepath: `/out/${relative}` }) },
-      { layout: 'speaker', encodingOptions: { width: 1280, height: 720, framerate: 24, videoBitrate: 2500, audioBitrate: 96 } }
+      { layout: 'speaker', encodingOptions: smallServer ? { width: 1280, height: 720, framerate: 15, videoBitrate: 1500, audioBitrate: 96 } : { width: 1280, height: 720, framerate: 24, videoBitrate: 2500, audioBitrate: 96 } }
     );
     await Recording.create({ classSlug: req.channel, organizationId: req.target.organizationId || null, egressId: info.egressId, file: relative, startedBy: String(req.user._id) });
     res.status(201).json({ recording: true });
   } catch (err) {
     console.error('[recording] start failed:', err.message);
-    res.status(503).json({ error: `ضبط شروع نشد: ${err.message}. (روی سرور بزنید: ultralive doctor)`, detail: err.message });
+    const hint = /timeout|abort/i.test(err.message) ? 'سرویس ضبط پاسخ نداد؛ معمولاً CPU سرور برای ضبط کافی نیست (ضبط حدود ۴ هسته می‌خواهد).' : err.message;
+    res.status(503).json({ error: `ضبط شروع نشد: ${hint} (روی سرور بزنید: ultralive doctor)`, detail: err.message });
   }
 });
 

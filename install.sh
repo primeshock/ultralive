@@ -239,6 +239,10 @@ ws_url: ws://127.0.0.1:7880
 redis:
   address: 127.0.0.1:6379
 health_port: 9091
+# default needs 4 free cores per recording and silently refuses on smaller servers (requests then just time out)
+cpu_cost:
+  max_cpu_utilization: 0.85
+  room_composite_cpu_cost: 1.5
 EOF
 cat > "$LIVEKIT_DIR/docker-compose.yml" <<EOF
 services:
