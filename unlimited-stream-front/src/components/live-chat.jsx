@@ -254,7 +254,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="h-8 min-w-0 flex-1 bg-transparent px-1 text-[13px] text-white outline-none placeholder:text-[var(--ink-3)] disabled:cursor-not-allowed"
+          className="h-8 min-w-0 flex-1 bg-transparent px-1 text-[13px] text-white !outline-none focus-visible:!outline-none placeholder:text-[var(--ink-3)] disabled:cursor-not-allowed"
           placeholder={!chatEnabled ? (canModerate ? "چت برای دانش‌آموزان بسته است" : "چت بسته است") : connected ? "پیام بنویس..." : "در حال اتصال..."}
           disabled={!canSend}
           maxLength={300}

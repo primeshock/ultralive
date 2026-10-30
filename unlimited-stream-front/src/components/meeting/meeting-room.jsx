@@ -47,7 +47,7 @@ function EndCountdown({ endsAt, floating }) {
 function ToolButton({ icon: Icon, label, onClick, active, danger, showLabel }) {
   const tone = danger ? "bg-rose-500/90 text-white hover:bg-rose-400" : active ? "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]" : "glass-btn text-white";
   const btn = (
-    <button onClick={onClick} aria-label={label} className={`flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-medium transition ${tone}`}>
+    <button onClick={onClick} aria-label={label} className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-medium transition ${tone}`}>
       <Icon className="size-[18px]" />{showLabel && <span className="whitespace-nowrap">{label}</span>}
     </button>
   );
