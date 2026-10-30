@@ -169,6 +169,15 @@ redis:
 rtmp_port: 1936
 whip_port: 8089
 EOF
+mkdir -p /opt/ultralive-recordings && chmod 777 /opt/ultralive-recordings
+cat > "$LIVEKIT_DIR/egress.yaml" <<EOF
+api_key: ${LK_KEY}
+api_secret: ${LK_SECRET}
+ws_url: ws://127.0.0.1:7880
+redis:
+  address: 127.0.0.1:6379
+health_port: 9091
+EOF
 cat > "$LIVEKIT_DIR/docker-compose.yml" <<EOF
 services:
   redis:
@@ -189,6 +198,17 @@ services:
     network_mode: host
     volumes: ["${LIVEKIT_DIR}/ingress.yaml:/ingress.yaml:ro"]
     command: --config /ingress.yaml
+    depends_on: [redis, livekit]
+  egress:
+    image: livekit/egress:latest
+    restart: unless-stopped
+    network_mode: host
+    cap_add: [SYS_ADMIN]
+    environment:
+      EGRESS_CONFIG_FILE: /egress.yaml
+    volumes:
+      - ${LIVEKIT_DIR}/egress.yaml:/egress.yaml:ro
+      - /opt/ultralive-recordings:/out
     depends_on: [redis, livekit]
 EOF
 (cd "$LIVEKIT_DIR" && docker compose down >/dev/null 2>&1 || true; docker compose up -d)
@@ -218,6 +238,7 @@ LIVEKIT_URL=http://127.0.0.1:7880
 LIVEKIT_WS_URL=wss://${HOST}/livekit
 LIVEKIT_API_KEY=${LK_KEY}
 LIVEKIT_API_SECRET=${LK_SECRET}
+RECORDINGS_DIR=/opt/ultralive-recordings
 EOF
 chmod 600 "$BACKEND_DIR/.env"
 cat > "$FRONT_DIR/.env.production" <<EOF
