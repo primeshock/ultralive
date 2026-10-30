@@ -220,14 +220,24 @@ function MeetingView({ channel, title, organization, appearance, appearanceStyle
     };
     try {
       if (kind === "mic" || kind === "cam") {
+        const src = kind === "mic" ? "microphone" : "camera";
+        const other = kind === "mic" ? "camera" : "microphone";
+        // Closing releases the device completely (track stopped + unpublished) so the browser's "recording"
+        // indicator goes off and the next open starts from a clean state. A merely muted track keeps the device
+        // busy, and re-requesting it then fails ("in use by another app").
+        const release = async (source) => { const pub = local.getTrackPublication(source); if (pub?.track) await local.unpublishTrack(pub.track, true); };
         const turningOn = kind === "mic" ? !micOn : !camOn;
-        if (turningOn && canUse("microphone") && canUse("camera") && !micOn && !camOn) {
-          // Phones fail when audio and video are requested one after the other ("in use by another app"):
-          // ask for both in a single request, then keep only what was asked for.
-          await acquire(() => local.enableCameraAndMicrophone());
-          if (kind === "mic") await local.setCameraEnabled(false); else await local.setMicrophoneEnabled(false);
-        } else if (kind === "mic") await acquire(() => local.setMicrophoneEnabled(!micOn));
-        else await acquire(() => local.setCameraEnabled(!camOn));
+        if (!turningOn) await release(src);
+        else {
+          const nothingOpen = !local.getTrackPublication("microphone") && !local.getTrackPublication("camera");
+          if (nothingOpen && canUse("microphone") && canUse("camera")) {
+            // phones fail when audio and video are requested one after the other: ask for both in ONE request,
+            // then keep only what was asked for
+            await acquire(() => local.enableCameraAndMicrophone());
+            await release(other);
+          } else if (kind === "mic") await acquire(() => local.setMicrophoneEnabled(true));
+          else await acquire(() => local.setCameraEnabled(true));
+        }
       } else {
         await local.setScreenShareEnabled(!screenOn,
           { audio: true, contentHint: "detail", resolution: { width: 1920, height: 1080, frameRate: 15 }, selfBrowserSurface: "exclude", surfaceSwitching: "include" },
