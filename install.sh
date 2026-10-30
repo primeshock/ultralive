@@ -289,7 +289,7 @@ server {
 }
 
 server {
-    # `listen ... http2` works on every nginx version (the standalone `http2 on;` needs >= 1.25.1)
+    # the 'listen ... http2' form works on every nginx version
     listen 443 ssl http2 default_server;
     listen [::]:443 ssl http2 default_server;
     server_name ${HOST};
