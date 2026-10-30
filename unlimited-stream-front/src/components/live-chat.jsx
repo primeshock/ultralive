@@ -40,6 +40,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
   const [replyTarget, setReplyTarget] = useState(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const bottomRef = useRef(null);
+  const rootRef = useRef(null);
 
   const canModerate = user && ["admin", "owner", "SUPER_OWNER", "ORGANIZATION_OWNER", "ADMIN_L1", "ADMIN_L2"].includes(user.role);
 
@@ -104,7 +105,13 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
   }, [channel]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // scrollIntoView() would also scroll the whole page (the cause of "page jumps to the bottom on load");
+    // only the chat's own scroll area may move.
+    let node = bottomRef.current?.parentElement;
+    while (node && node !== rootRef.current) {
+      if (node.scrollHeight > node.clientHeight && /(auto|scroll)/.test(getComputedStyle(node).overflowY)) { node.scrollTo({ top: node.scrollHeight, behavior: "smooth" }); break; }
+      node = node.parentElement;
+    }
   }, [messages]);
 
   function sendMessage(e) {
@@ -132,7 +139,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
   const canSend = connected && chatEnabled;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden text-white">
+    <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden text-white">
       <div className={`flex items-center justify-between border-b border-white/10 ${compact ? "px-3 py-2" : "px-4 py-3"}`}>
         <div><p className={`${compact ? "text-xs font-medium text-white/85" : "text-sm font-semibold"}`}>گفت‌وگوی کلاس</p>{!compact && <p className="text-[11px] text-white/45">هم‌زمان با اتاق زنده</p>}</div>
         <span className="flex items-center gap-2"><span className={`size-2 rounded-full ${connected ? "bg-emerald-400 shadow-[0_0_12px_rgb(52_211_153)]" : "bg-white/25"}`} aria-label={connected ? "متصل" : "در حال اتصال"} />{headerExtra}</span>
