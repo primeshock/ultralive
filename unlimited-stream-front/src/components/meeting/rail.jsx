@@ -74,7 +74,7 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
 function RailButton({ icon: Icon, label, active, onClick }) {
   return (
     <button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex size-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[var(--ink)] transition data-[active=true]:text-white">
-      <Icon className="size-[18px]" /><span className="text-[10px] font-medium leading-4 tracking-tighter">{label}</span>
+      <Icon className="size-[18px]" /><span className="text-[9px] font-medium leading-4 tracking-tighter">{label}</span>
     </button>
   );
 }
