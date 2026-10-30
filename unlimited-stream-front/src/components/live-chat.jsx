@@ -30,7 +30,7 @@ function MessageText({ text }) {
   );
 }
 
-export function LiveChat({ channel, initialEnabled = true }) {
+export function LiveChat({ channel, initialEnabled = true, compact = false }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
@@ -133,27 +133,27 @@ export function LiveChat({ channel, initialEnabled = true }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden text-white">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-        <div><p className="text-sm font-semibold">گفت‌وگوی کلاس</p><p className="text-[11px] text-white/45">هم‌زمان با اتاق زنده</p></div>
+      <div className={`flex items-center justify-between border-b border-white/10 ${compact ? "px-3 py-2" : "px-4 py-3"}`}>
+        <div><p className={`${compact ? "text-xs font-medium text-white/85" : "text-sm font-semibold"}`}>گفت‌وگوی کلاس</p>{!compact && <p className="text-[11px] text-white/45">هم‌زمان با اتاق زنده</p>}</div>
         <span className={`size-2 rounded-full ${connected ? "bg-emerald-400 shadow-[0_0_12px_rgb(52_211_153)]" : "bg-white/25"}`} aria-label={connected ? "متصل" : "در حال اتصال"} />
       </div>
-      <ScrollArea className="flex-1 min-h-0 p-4">
-        <div className="flex flex-col gap-2.5">
+      <ScrollArea className={`flex-1 min-h-0 ${compact ? "p-2" : "p-4"}`}>
+        <div className={`flex flex-col ${compact ? "gap-1.5" : "gap-2.5"}`}>
           {messages.map((m, i) =>
             m.kind === "system" ? (
               <p key={i} className="text-sm text-muted-foreground italic wrap-break-word">
                 <MessageText text={m.text} />
               </p>
             ) : (
-              <div key={i} className="group flex items-start justify-between gap-1 rounded-2xl border border-white/8 bg-white/[0.055] px-3 py-2 transition-colors hover:bg-white/[0.09]">
+              <div key={i} className={`group flex items-start justify-between gap-1 border border-white/8 bg-white/[0.055] transition-colors hover:bg-white/[0.09] ${compact ? "rounded-md px-2 py-1" : "rounded-2xl px-3 py-2"}`}>
                 <div className="min-w-0">
                   {m.replyTo && findMessage(m.replyTo) && (
                     <p className="text-xs text-muted-foreground border-r-2 pr-1.5 mb-0.5 truncate">
                       پاسخ به {findMessage(m.replyTo).username}: {findMessage(m.replyTo).text}
                     </p>
                   )}
-                  <p className="text-sm leading-6 wrap-break-word">
-                    <span className="font-semibold text-cyan-100">{m.username}: </span>
+                  <p className={`wrap-break-word ${compact ? "text-[12.5px] leading-5" : "text-sm leading-6"}`}>
+                    <span className={compact ? "text-[11px] font-medium text-cyan-200/80" : "font-semibold text-cyan-100"}>{m.username}: </span>
                     <MessageText text={m.text} />
                   </p>
                 </div>
@@ -222,14 +222,14 @@ export function LiveChat({ channel, initialEnabled = true }) {
         </div>
       )}
 
-      <form onSubmit={sendMessage} className="m-3 flex gap-2 rounded-full border border-white/12 bg-black/20 p-1.5 focus-within:border-cyan-300/45">
+      <form onSubmit={sendMessage} className={`flex gap-2 border border-white/12 bg-black/20 focus-within:border-cyan-300/45 ${compact ? "m-2 rounded-xl p-1.5" : "m-3 rounded-full p-1.5"}`}>
         <button type="button" onClick={() => setShowEmoji((s) => !s)} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="ایموجی">
           <Smile className="size-5" />
         </button>
         <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="border-0 bg-transparent text-white shadow-none focus-visible:ring-0"
+          className={`border-0 bg-transparent text-white shadow-none focus-visible:ring-0 ${compact ? "h-9 text-[13px]" : ""}`}
           placeholder={!chatEnabled ? "چت بسته است" : connected ? "پیام بنویس..." : "در حال اتصال..."}
           disabled={!canSend}
           maxLength={300}

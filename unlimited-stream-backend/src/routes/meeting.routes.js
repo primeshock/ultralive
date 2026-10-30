@@ -97,8 +97,9 @@ function meetingSettings(target) {
 // ---- state & settings ----------------------------------------------------
 router.get('/:channel/state', loadTarget, requireViewer, async (req, res) => {
   const files = isClassTarget(req.target) ? await ClassFile.find({ classSlug: req.channel }).sort({ createdAt: -1 }).limit(200) : [];
-  const recording = req.isStaff ? Boolean(await Recording.exists({ classSlug: req.channel, status: 'recording' })) : false;
-  res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, presenters: req.target.settings?.presenters || [], identity: req.identity, recording, settings: meetingSettings(req.target), endsAt: endTimers.get(req.channel)?.endsAt || null, files: files.map((f) => fileView(req.channel, f)) });
+  const activeRecording = req.isStaff ? await Recording.findOne({ classSlug: req.channel, status: 'recording' }).select('startedAt') : null;
+  const recording = Boolean(activeRecording);
+  res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, presenters: req.target.settings?.presenters || [], identity: req.identity, recording, recordingSince: activeRecording?.startedAt || null, settings: meetingSettings(req.target), endsAt: endTimers.get(req.channel)?.endsAt || null, files: files.map((f) => fileView(req.channel, f)) });
 });
 
 router.post('/:channel/settings', loadTarget, requireStaff, requireClass, async (req, res) => {

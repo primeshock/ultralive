@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, MonitorOff, Hand, MessageSquare, Users, FolderOpen, PhoneOff, Clock, Maximize2, Lock, Loader2, WifiOff, PanelRightClose, PanelRightOpen, ArrowLeftRight, ChevronDown, Timer } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, MonitorOff, Hand, MessageSquare, Users, FolderOpen, PhoneOff, Clock, Maximize2, Loader2, WifiOff, PanelRightClose, PanelRightOpen, ArrowLeftRight, ChevronDown, Timer, LogOut } from "lucide-react";
 import { LiveChat } from "@/components/live-chat";
 import { PollWidget } from "@/components/poll-widget";
 import { api } from "@/lib/api";
@@ -14,6 +14,8 @@ import { ContentRail, HeaderActions } from "./rail";
 import { Stage } from "./stage";
 import { AnnotatedSurface, loadPdf } from "./annotated-surface";
 import { createBoardStore } from "./board-store";
+import { Tip } from "./tip";
+import { PanelBoundary } from "./boundary";
 
 const pad = (n) => String(n).padStart(2, "0");
 const clock = (s) => `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
@@ -26,11 +28,12 @@ function useTick() {
 
 function ToolButton({ icon: Icon, label, onClick, active, danger, showLabel }) {
   const tone = danger ? "bg-rose-500 text-white hover:bg-rose-400" : active ? "bg-sky-500 text-white hover:bg-sky-400" : "bg-white/10 text-white hover:bg-white/18";
-  return (
-    <button onClick={onClick} title={label} aria-label={label} className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-medium transition ${tone}`}>
+  const btn = (
+    <button onClick={onClick} aria-label={label} className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-medium transition ${tone}`}>
       <Icon className="size-[18px]" />{showLabel && <span className="whitespace-nowrap">{label}</span>}
     </button>
   );
+  return showLabel ? btn : <Tip label={label} side="top">{btn}</Tip>;
 }
 
 const TABS = [["chat", "چت", MessageSquare], ["files", "فایل‌ها", FolderOpen], ["people", "افراد", Users]];
@@ -48,7 +51,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const [ended, setEnded] = useState(false);
   const [pdfDoc, setPdfDoc] = useState(null);
   const [boardMax, setBoardMax] = useState(1);
-  const [recording, setRecording] = useState(false);
+  const [rec, setRec] = useState({ state: "idle", acc: 0, since: 0 }); // idle | recording | paused
   const [recordings, setRecordings] = useState([]);
   const [presenters, setPresenters] = useState([]);
   const [identity, setIdentity] = useState(null);
@@ -66,7 +69,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
     setBoardMax((m) => Math.max(m, state.settings.stage?.boardPage || 1));
     setFiles(state.files || []);
     setEndsAt(state.endsAt || null);
-    setRecording(Boolean(state.recording));
+    setRec(state.recording ? { state: "recording", acc: 0, since: state.recordingSince ? Date.parse(state.recordingSince) : Date.now() } : { state: "idle", acc: 0, since: 0 });
     setPresenters(state.presenters || []);
     setIdentity(state.identity || null);
   }, []);
@@ -97,7 +100,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
     let alive = true;
     api.meetingRecordings(channel).then((r) => alive && setRecordings(r)).catch(() => {});
     return () => { alive = false; };
-  }, [isStaff, tab, channel, recording]);
+  }, [isStaff, tab, channel, rec.state]);
 
   const local = room?.localParticipant;
   useEffect(() => { localRef.current = local || null; });
@@ -137,11 +140,11 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const screenTrack = screenSharer ? trackOf(screenSharer, "screen_share") : null;
 
   const panels = [];
-  if (screenTrack) panels.push({ id: "screen", title: `صفحهٔ ${screenSharer.name || ""}`, node: <div className="relative h-full bg-black"><VideoSurface track={screenTrack} fit="contain" /></div> });
+  if (screenTrack) panels.push({ id: "screen", title: `صفحهٔ ${screenSharer.name || ""}`, node: <div className="relative h-full bg-black"><VideoSurface track={screenTrack} fit="contain" /></div>, onClose: screenSharer.isLocal ? () => toggle("screen") : undefined, closeLabel: "توقف اشتراک صفحه" });
   if (stage.content) {
     const isPdf = stage.content.mime === "application/pdf";
     panels.push({
-      id: "content", title: stage.content.name,
+      id: "content", title: stage.content.name, onClose: canControl ? () => updateStage({ fileId: null }) : undefined, closeLabel: "بستن سند",
       node: isPdf ? (
         <AnnotatedSurface key={stage.content.id} store={store} channel={channel} boardKey={`file:${stage.content.id}:${stage.page}`} pdf={pdfDoc ? { doc: pdfDoc, page: stage.page } : null} canDraw={canControl} publish={publish} ink={ink} registerActions={registerActions} onActivate={activateSurface}
           pager={{ page: stage.page, total: pdfDoc?.numPages || stage.page, canChange: canControl, canAdd: false, set: (n) => { const total = pdfDoc?.numPages || n; setStage((s) => ({ ...s, page: Math.min(Math.max(1, n), total) })); api.meetingStage(channel, { page: Math.min(Math.max(1, n), total) }).catch(() => {}); } }} />
@@ -150,7 +153,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   }
   if (stage.boardOpen) {
     panels.push({
-      id: "board", title: "تخته", node: (
+      id: "board", title: "تخته", onClose: canControl ? () => updateStage({ boardOpen: false }) : undefined, closeLabel: "بستن تخته", node: (
         <AnnotatedSurface store={store} channel={channel} boardKey={`board:${stage.boardPage}`} pdf={null} canDraw={canControl} publish={publish} ink={ink} registerActions={registerActions} onActivate={activateSurface}
           pager={{ page: stage.boardPage, total: boardMax, canChange: canControl, canAdd: true, set: (n) => { const next = Math.max(1, Math.min(n, 200)); setBoardMax((m) => Math.max(m, next)); setStage((s) => ({ ...s, boardPage: next })); api.meetingStage(channel, { boardPage: next }).catch(() => {}); } }} />
       ),
@@ -199,6 +202,26 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const toggleHand = () => local?.setAttributes({ hand: handRaised ? "0" : "1" }).catch(() => {});
   async function answerRequest() { const kind = request; setRequest(null); await toggle(kind === "microphone" ? "mic" : kind === "camera" ? "cam" : "screen"); }
 
+  const recSeconds = rec.acc + (rec.state === "recording" && now ? Math.max(0, Math.round((now - rec.since) / 1000)) : 0);
+  async function recAction(action) {
+    try {
+      const t = Date.now();
+      if (action === "start" || action === "resume") {
+        await api.meetingRecording(channel, "start");
+        setRec((r) => ({ state: "recording", acc: action === "start" ? 0 : r.acc, since: t }));
+        flash(action === "start" ? "ضبط کلاس شروع شد." : "ضبط ادامه یافت (فایل جدید).");
+      } else if (action === "pause") {
+        await api.meetingRecording(channel, "stop");
+        setRec((r) => ({ state: "paused", acc: r.acc + Math.round((t - r.since) / 1000), since: 0 }));
+        flash("ضبط موقتاً متوقف شد؛ فایل این بخش ذخیره می‌شود.");
+      } else {
+        if (rec.state === "recording") await api.meetingRecording(channel, "stop");
+        setRec({ state: "idle", acc: 0, since: 0 });
+        flash("ضبط پایان یافت؛ فایل‌ها در تب «فایل‌ها» ظاهر می‌شوند.");
+      }
+    } catch (e) { flash(e.message); }
+  }
+
   const updateStage = (patch) => api.meetingStage(channel, patch).then(({ stage: next }) => setStage({ ...EMPTY_STAGE, ...next })).catch((e) => flash(e.message));
   const updateSettings = (patch) => { setSettings((c) => ({ ...c, ...patch })); api.meetingSettings(channel, patch).catch(() => {}); };
 
@@ -218,7 +241,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
 
   return (
     <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell relative flex h-dvh w-full max-w-full flex-col overflow-hidden text-white">
-      <header className="flex items-center justify-between gap-3 border-b border-white/8 bg-white/[.03] px-4 py-2 backdrop-blur-xl">
+      <header className="relative z-30 flex items-center justify-between gap-3 border-b border-white/8 bg-white/[.03] px-4 py-2 backdrop-blur-xl">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 shadow-lg shadow-sky-500/20"><Video className="size-4" /></span>
           <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{title}</h1><p className="truncate text-[11px] text-white/50">{organization || "کلاس آنلاین"}</p></div>
@@ -228,14 +251,16 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
           {isStaff && <ModeSwitch channel={channel} mode={mode} onChange={onModeChange} className="hidden md:inline-flex" />}
           <span className="flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-xs tabular-nums" dir="ltr"><Clock className="size-3.5 text-sky-300" />{clock(seconds)}</span>
           {local && <span className="hidden items-center gap-1.5 rounded-full bg-white/8 px-2.5 py-1.5 sm:flex"><Quality value={local.connectionQuality} /></span>}
-          {isStaff && <HeaderActions channel={channel} settings={settings} mode={mode} onMode={onModeChange} onSettings={updateSettings} flash={flash} endsAt={endsAt} recording={recording} onRecording={() => api.meetingRecording(channel, recording ? "stop" : "start").then(() => { setRecording(!recording); flash(recording ? "ضبط متوقف شد و فایل آماده می‌شود." : "ضبط کلاس شروع شد."); }).catch((e) => flash(e.message))} />}
-          <button onClick={() => document.documentElement.requestFullscreen?.()} className="hidden size-8 place-items-center rounded-xl bg-white/8 hover:bg-white/15 md:grid" aria-label="تمام‌صفحه"><Maximize2 className="size-4" /></button>
-          <button onClick={() => { room?.disconnect(); onLeave?.(); }} title="خروج از کلاس" aria-label="خروج از کلاس" className="grid size-8 place-items-center rounded-xl bg-white/8 text-rose-200 hover:bg-rose-500/80 hover:text-white"><PhoneOff className="size-4" /></button>
+          {isStaff && <HeaderActions channel={channel} settings={settings} mode={mode} onMode={onModeChange} onSettings={updateSettings} flash={flash} endsAt={endsAt} rec={rec} recSeconds={recSeconds} onRec={recAction} />}
+          <Tip label="تمام‌صفحه"><button onClick={() => document.documentElement.requestFullscreen?.()} className="hidden size-8 place-items-center rounded-xl bg-white/8 hover:bg-white/15 md:grid" aria-label="تمام‌صفحه"><Maximize2 className="size-4" /></button></Tip>
+          <Tip label="خروج از کلاس"><button onClick={() => { room?.disconnect(); onLeave?.(); }} aria-label="خروج از کلاس" className="grid size-8 place-items-center rounded-xl bg-white/8 text-white/85 transition hover:bg-rose-500/80 hover:text-white"><LogOut className="size-4" /></button></Tip>
         </div>
       </header>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 p-2 md:flex-row">
-        {sideMode !== "hidden" && (
+        {sideMode === "hidden" ? (
+          <button onClick={() => setSide("auto")} title="باز کردن چت و افراد" aria-label="باز کردن چت و افراد" className="flex h-10 w-full shrink-0 items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] text-white/75 backdrop-blur-xl transition hover:bg-white/12 hover:text-white md:h-auto md:w-10 md:flex-col md:py-4"><PanelRightOpen className="size-4" /><MessageSquare className="size-4" /><Users className="size-4" /></button>
+        ) : (
           <aside className={`flex max-h-[46vh] min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[.04] backdrop-blur-xl md:max-h-none ${sideWidth}`}>
             <div className="flex shrink-0 items-center gap-1 border-b border-white/8 p-1">
               <nav className="flex flex-1 gap-0.5">
@@ -254,16 +279,16 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
                 {strip.map((p) => <ParticipantTile key={p.identity} compact participant={p} />)}
               </div>
             )}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto"><PanelBoundary key={tab}>
               {tab === "chat" && (
                 <div className="flex h-full min-h-[260px] flex-col gap-2 p-1.5">
                   {!isStaff && <details className="group shrink-0 rounded-xl border border-white/8 bg-white/[.03]"><summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs text-white/80">نظرسنجی / آزمون <ChevronDown className="size-3.5 transition group-open:rotate-180" /></summary><div className="max-h-72 overflow-y-auto p-1.5"><PollWidget channel={channel} /></div></details>}
-                  <div className="min-h-0 flex-1 [&_*]:!text-inherit"><LiveChat key={channel} channel={channel} initialEnabled={chatEnabled} /></div>
+                  <div className="min-h-0 flex-1"><LiveChat key={channel} compact channel={channel} initialEnabled={chatEnabled} /></div>
                 </div>
               )}
               {tab === "files" && <FilesPanel channel={channel} files={files} sharedId={stage.content?.id} isStaff={canControl} onChanged={refresh} onShare={(fileId) => updateStage({ fileId })} recordings={recordings} />}
               {tab === "people" && <ParticipantsPanel channel={channel} rows={rows} isStaff={isStaff} hiddenForStudents={hidePeople} onChanged={() => {}} />}
-            </div>
+            </PanelBoundary></div>
           </aside>
         )}
 
@@ -271,7 +296,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
           {state !== "connected" && !room ? (
             <div className="grid flex-1 place-items-center text-white/60"><div className="text-center"><Loader2 className="mx-auto mb-3 size-7 animate-spin text-sky-300" />در حال اتصال به کلاس...</div></div>
           ) : presenting ? (
-            <Stage panels={panels} />
+            <PanelBoundary><Stage panels={panels} /></PanelBoundary>
           ) : (
             <div className={`grid min-h-0 flex-1 auto-rows-fr content-center gap-3 overflow-y-auto ${participants.length <= 1 ? "grid-cols-1" : participants.length <= 4 ? "grid-cols-1 sm:grid-cols-2" : participants.length <= 9 ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-2 md:grid-cols-3 xl:grid-cols-4"}`}>
               {participants.map((p) => <ParticipantTile key={p.identity} participant={p} />)}
@@ -283,7 +308,6 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
             {canUse("camera") && <ToolButton icon={camOn ? Video : VideoOff} label={camOn ? "بستن دوربین" : "دوربین"} active={camOn} onClick={() => toggle("cam")} />}
             {canUse("screen") && <ToolButton icon={screenOn ? MonitorOff : MonitorUp} label={screenOn ? "توقف اشتراک" : "اشتراک صفحه"} active={screenOn} onClick={() => toggle("screen")} />}
             {!isStaff && settings.studentsMayRaiseHand && <ToolButton showLabel icon={Hand} label={handRaised ? "پایین آوردن دست" : "بالا بردن دست"} active={handRaised} onClick={toggleHand} />}
-            {sideMode === "hidden" && <ToolButton showLabel icon={PanelRightOpen} label="چت و افراد" onClick={() => setSide("auto")} />}
           </div>
         </main>
 

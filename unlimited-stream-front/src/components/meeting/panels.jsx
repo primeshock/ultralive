@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Hand, Mic, Video, MonitorUp, UserX, Upload, FileText, Trash2, Presentation, Eye, X, Download } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 import { initials } from "./tiles";
+import { Tip } from "./tip";
 
 const QUALITY = { excellent: [3, "text-emerald-400", "عالی"], good: [2, "text-emerald-300", "خوب"], poor: [1, "text-amber-400", "ضعیف"], lost: [0, "text-rose-400", "قطع‌شدگی"] };
 
