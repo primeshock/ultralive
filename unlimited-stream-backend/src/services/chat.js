@@ -18,6 +18,15 @@ const reminderTimers = new Map(); // username -> interval handle
 const chatEnabledState = new Map(); // channel -> boolean
 const mutedUsersState = new Map(); // channel -> Set<username>
 const chatModeState = new Map(); // channel -> 'public' | 'private'
+const slowModeState = new Map(); // channel -> seconds between messages per user (0 = off)
+const pinnedState = new Map(); // channel -> { id, username, text } | null
+const lastSent = new Map(); // `${channel}|${senderKey}` -> { at, text }
+
+// periodically forget old anti-spam entries
+setInterval(() => { const cutoff = Date.now() - 5 * 60 * 1000; for (const [k, v] of lastSent) if (v.at < cutoff) lastSent.delete(k); }, 60 * 1000).unref();
+
+const SLOW_CHOICES = [0, 5, 15, 30, 60];
+const pinnedPayload = (room) => pinnedState.get(room) || null;
 
 async function ensureChannelStateLoaded(room) {
   if (chatEnabledState.has(room) && mutedUsersState.has(room) && chatModeState.has(room)) return;
@@ -122,12 +131,15 @@ function initChat(httpServer) {
       if (socket.data.participantType === 'staff') socket.join(`staff:${room}`);
 
       await ensureChannelStateLoaded(room);
-      socket.emit('chat:state', { enabled: isChatEnabled(room) });
+      socket.emit('chat:state', { enabled: isChatEnabled(room), slow: slowModeState.get(room) || 0, pinned: pinnedPayload(room) });
 
       const isStaff = socket.data.participantType === 'staff';
       const senderKey = socket.data.participantType === 'staff' ? socket.data.username : socket.data.studentId;
+      const mine = [senderKey, socket.data.username].filter(Boolean);
       const historyFilter =
-        isPrivateMode(room) && !isStaff ? { channel: room, $or: [{ senderKey: { $in: [senderKey, socket.data.username].filter(Boolean) } }, { senderType: 'staff' }, { senderType: 'system' }] } : { channel: room };
+        isPrivateMode(room) && !isStaff
+          ? { channel: room, $or: [{ senderKey: { $in: mine } }, { toKey: { $in: mine } }, { senderType: 'staff', toKey: null }, { senderType: 'system' }] }
+          : { channel: room };
 
       const history = await ChatMessage.find(historyFilter).sort({ createdAt: -1 }).limit(HISTORY_LIMIT).lean();
       history.reverse();
@@ -139,6 +151,7 @@ function initChat(httpServer) {
           text: m.text,
           kind: m.kind,
           replyTo: m.replyTo,
+          staff: m.senderType === 'staff',
           externalUserId: ['student', 'guest'].includes(m.senderType) ? m.senderKey : null,
           ts: m.createdAt.getTime(),
         }))
@@ -151,15 +164,33 @@ function initChat(httpServer) {
       const replyTo = payload && typeof payload.replyTo === 'string' ? payload.replyTo : null;
       if (!channel || !text || !socket.rooms.has(channel)) return;
 
-      if (!isChatEnabled(channel)) {
+      const isStaff = socket.data.participantType === 'staff';
+      // A closed chat only blocks students — the host can still write and everyone sees it.
+      if (!isChatEnabled(channel) && !isStaff) {
         socket.emit('chat:error', { message: 'چت بسته است' });
         return;
       }
-
-      const isStaff = socket.data.participantType === 'staff';
       const username = socket.data.username || socket.data.displayName;
       const senderKey = socket.data.participantType === 'staff' ? socket.data.username : socket.data.studentId;
       if (!username) return; // never joined this channel's chat — ignore
+
+      if (!isStaff) {
+        const slow = slowModeState.get(channel) || 0;
+        const key = `${channel}|${senderKey}`;
+        const prev = lastSent.get(key);
+        const now = Date.now();
+        const gap = Math.max(slow * 1000, 700); // even with slow mode off: no more than ~1 message/second
+        if (prev && now - prev.at < gap) {
+          const wait = Math.ceil((gap - (now - prev.at)) / 1000);
+          socket.emit('chat:error', { message: slow ? `هر ${slow} ثانیه یک پیام می‌توانید بفرستید (${wait} ثانیه دیگر)` : 'لطفاً کمی آهسته‌تر پیام بدهید' });
+          return;
+        }
+        if (prev && prev.text === text && now - prev.at < 30 * 1000) {
+          socket.emit('chat:error', { message: 'این پیام را همین حالا فرستادید' });
+          return;
+        }
+        lastSent.set(key, { at: now, text });
+      }
 
       if (isMuted(channel, socket.data.username || '')) {
         socket.emit('chat:error', { message: 'شما توسط مدیر سکوت شده‌اید' });
@@ -177,6 +208,13 @@ function initChat(httpServer) {
         }
       }
 
+      // Private mode: a staff message that replies to someone goes only to that person; without a reply it is for everyone.
+      let toKey = null;
+      if (isStaff && replyTo && isPrivateMode(channel)) {
+        const parent = await ChatMessage.findById(replyTo).select('senderKey senderType').lean().catch(() => null);
+        if (parent && parent.senderType !== 'staff' && parent.senderKey) toKey = parent.senderKey;
+      }
+
       let saved;
       try {
         saved = await ChatMessage.create({
@@ -186,6 +224,7 @@ function initChat(httpServer) {
           kind: 'user',
           replyTo,
           senderKey,
+          toKey,
           senderType: isStaff ? 'staff' : socket.data.participantType || 'student',
         });
       } catch (err) {
@@ -198,10 +237,19 @@ function initChat(httpServer) {
         text,
         replyTo,
         externalUserId: isStaff ? null : senderKey,
+        staff: isStaff,
         ts: Date.now(),
       };
 
-      if (isPrivateMode(channel) && !isStaff) {
+      if (toKey) {
+        // addressed reply: the person it is for, the sender and the other staff
+        socket.emit('chat:message', { ...outgoing, private: true });
+        for (const id of io.sockets.adapter.rooms.get(channel) || []) {
+          const s = io.sockets.sockets.get(id);
+          if (!s || s.id === socket.id) continue;
+          if (s.data.participantType === 'staff' || s.data.studentId === toKey) s.emit('chat:message', { ...outgoing, private: true });
+        }
+      } else if (isPrivateMode(channel) && !isStaff) {
         // Private mode + student sender: only the sender and staff see it.
         socket.emit('chat:message', outgoing);
         io.to(`staff:${channel}`).emit('chat:message', outgoing);
@@ -209,6 +257,31 @@ function initChat(httpServer) {
         // Public mode, or the sender IS staff (staff messages always broadcast).
         io.to(channel).emit('chat:message', outgoing);
       }
+    });
+  });
+
+  io.on('connection', (socket) => {
+    const staffRoom = (channel) => {
+      const room = typeof channel === 'string' ? channel.toLowerCase() : '';
+      return room && socket.rooms.has(room) && socket.data.participantType === 'staff' ? room : null;
+    };
+    socket.on('chat:slow', ({ channel, seconds } = {}) => {
+      const room = staffRoom(channel);
+      const n = Number(seconds);
+      if (!room || !SLOW_CHOICES.includes(n)) return;
+      slowModeState.set(room, n);
+      io.to(room).emit('chat:state', { enabled: isChatEnabled(room), slow: n, pinned: pinnedPayload(room) });
+    });
+    socket.on('chat:pin', async ({ channel, id } = {}) => {
+      const room = staffRoom(channel);
+      if (!room) return;
+      if (!id) pinnedState.set(room, null);
+      else {
+        const m = await ChatMessage.findOne({ _id: String(id), channel: room, kind: 'user' }).select('username text').lean().catch(() => null);
+        if (!m) return;
+        pinnedState.set(room, { id: String(m._id), username: m.username, text: m.text });
+      }
+      io.to(room).emit('chat:pinned', pinnedPayload(room));
     });
   });
 
@@ -232,12 +305,14 @@ function isChatEnabled(channel) {
 function setChatEnabled(channel, enabled) {
   const room = channel.toLowerCase();
   chatEnabledState.set(room, enabled);
-  io?.to(room).emit('chat:state', { enabled });
+  io?.to(room).emit('chat:state', { enabled, slow: slowModeState.get(room) || 0, pinned: pinnedPayload(room) });
 }
 
 async function clearChat(channel) {
   const room = channel.toLowerCase();
   await ChatMessage.deleteMany({ channel: room });
+  pinnedState.set(room, null);
+  io?.to(room).emit('chat:pinned', null);
   io?.to(room).emit('chat:clear');
 }
 

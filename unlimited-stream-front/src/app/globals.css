@@ -353,3 +353,7 @@ textarea::placeholder {
 .glass-btn { background: var(--s2); border: 1px solid var(--line-strong); color: var(--ink); box-shadow: var(--hl); }
 .glass-btn:hover { background: var(--s3); }
 .glass-btn[data-active="true"] { background: var(--accent); border-color: var(--accent-hover); color: #fff; }
+
+/* dock-style magnification target (transform is written by useDock in meeting/rail.jsx) */
+[data-dock] { transition: transform 140ms cubic-bezier(.2,.7,.3,1), background-color 150ms; will-change: transform; }
+[data-dock]:hover { z-index: 1; }

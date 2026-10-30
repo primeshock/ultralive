@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MoreVertical, Reply, Smile, X } from "lucide-react";
+import { MoreVertical, Pin, PinOff, Reply, Smile, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,6 +39,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
   const [sendError, setSendError] = useState("");
   const [replyTarget, setReplyTarget] = useState(null);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [pinned, setPinned] = useState(null);
   const bottomRef = useRef(null);
   const rootRef = useRef(null);
 
@@ -71,9 +72,11 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
     function onSystem(msg) {
       setMessages((prev) => [...prev.slice(-199), { ...msg, kind: "system" }]);
     }
-    function onState({ enabled }) {
+    function onState({ enabled, pinned: p }) {
       setChatEnabled(enabled);
+      if (p !== undefined) setPinned(p);
     }
+    function onPinned(p) { setPinned(p); }
     function onClear() { setMessages([]); setReplyTarget(null); }
     function onError({ message }) {
       setSendError(message);
@@ -87,6 +90,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
     socket.on("chat:system", onSystem);
     socket.on("chat:state", onState);
     socket.on("chat:clear", onClear);
+    socket.on("chat:pinned", onPinned);
     socket.on("chat:error", onError);
 
     if (socket.connected) onConnect();
@@ -99,6 +103,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
       socket.off("chat:system", onSystem);
     socket.off("chat:state", onState);
     socket.off("chat:clear", onClear);
+    socket.off("chat:pinned", onPinned);
       socket.off("chat:error", onError);
       socket.disconnect();
     };
@@ -136,7 +141,8 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
     return messages.find((m) => String(m.id) === String(id));
   }
 
-  const canSend = connected && chatEnabled;
+  const canSend = connected && (chatEnabled || Boolean(canModerate));
+  const pin = (id) => getSocket().emit("chat:pin", { channel, id });
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden text-white">
@@ -144,15 +150,22 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
         <div><p className={`${compact ? "text-[13px] font-medium text-[var(--ink)]" : "text-sm font-semibold"}`}>گفت‌وگوی کلاس</p>{!compact && <p className="text-[11px] text-[var(--ink-3)]">هم‌زمان با اتاق زنده</p>}</div>
         <span className="flex items-center gap-2"><span className={`size-2 rounded-full ${connected ? "bg-emerald-400" : "bg-[var(--s3)]"}`} aria-label={connected ? "متصل" : "در حال اتصال"} />{headerExtra}</span>
       </div>
+      {pinned && (
+        <div className="flex items-start gap-2 border-b border-[var(--line)] bg-[var(--accent-soft)] px-3 py-1.5">
+          <Pin className="mt-1 size-3.5 shrink-0 text-[var(--accent-ink)]" />
+          <p className="min-w-0 flex-1 text-[12px] leading-5 text-[var(--ink)] wrap-break-word"><span className="font-medium text-[var(--accent-ink)]">{pinned.username}: </span><MessageText text={pinned.text} /></p>
+          {canModerate && <button type="button" onClick={() => pin(null)} aria-label="برداشتن پین" className="text-[var(--ink-3)] hover:text-[var(--ink)]"><PinOff className="size-3.5" /></button>}
+        </div>
+      )}
       <ScrollArea className={`flex-1 min-h-0 ${compact ? "p-2" : "p-4"}`}>
-        <div className={`flex flex-col ${compact ? "gap-1.5" : "gap-2.5"}`}>
+        <div className={`flex flex-col ${compact ? "gap-1" : "gap-1.5"}`}>
           {messages.map((m, i) =>
             m.kind === "system" ? (
               <p key={i} className="px-2 py-1 text-center text-[12px] text-[var(--ink-3)] wrap-break-word">
                 <MessageText text={m.text} />
               </p>
             ) : (
-              <div key={i} className={`group flex items-start justify-between gap-2 rounded-lg transition-colors hover:bg-[var(--s2)] ${compact ? "px-2.5 py-1.5" : "px-3 py-2"}`}>
+              <div key={i} className={`group flex items-start justify-between gap-2 rounded-lg bg-[color-mix(in_oklab,var(--s2)_55%,transparent)] transition-colors hover:bg-[var(--s2)] ${compact ? "px-2.5 py-1" : "px-3 py-1.5"}`}>
                 <div className="min-w-0">
                   {m.replyTo && findMessage(m.replyTo) && (
                     <p className="mb-0.5 truncate border-r-2 border-[var(--accent)] pr-1.5 text-[12px] text-[var(--ink-3)]">
@@ -162,6 +175,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
                   <p className={`wrap-break-word text-[var(--ink)] ${compact ? "text-[13px] leading-6" : "text-sm leading-6"}`}>
                     <span className={`${compact ? "text-[12px]" : "text-[13px]"} font-medium ${m.externalUserId ? "text-[var(--ink-2)]" : "text-[var(--accent-ink)]"}`}>{m.username}<span className="text-[var(--ink-3)]">: </span></span>
                     <MessageText text={m.text} />
+                    {m.private && <span className="ms-1.5 rounded bg-[var(--accent-soft)] px-1 text-[11px] text-[var(--accent-ink)]">خصوصی</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
@@ -173,6 +187,11 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
                   >
                     <Reply className="size-4" />
                   </button>
+                  {canModerate && m.id && (
+                    <button type="button" onClick={() => pin(m.id)} className="text-[var(--ink-3)] hover:text-[var(--ink)]" aria-label="پین کردن">
+                      <Pin className="size-4" />
+                    </button>
+                  )}
                   {canModerate && m.username && m.externalUserId && (
                     <DropdownMenu>
                       <DropdownMenuTrigger
@@ -236,7 +255,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
           value={text}
           onChange={(e) => setText(e.target.value)}
           className={`text-white shadow-none focus-visible:ring-0 ${compact ? "h-10 flex-1 rounded-lg border border-[var(--line)] bg-[var(--s2)] px-3 text-[13px] placeholder:text-[var(--ink-3)] focus-visible:border-[var(--accent)]" : "border-0 bg-transparent"}`}
-          placeholder={!chatEnabled ? "چت بسته است" : connected ? "پیام بنویس..." : "در حال اتصال..."}
+          placeholder={!chatEnabled ? (canModerate ? "چت برای دانش‌آموزان بسته است" : "چت بسته است") : connected ? "پیام بنویس..." : "در حال اتصال..."}
           disabled={!canSend}
           maxLength={300}
         />

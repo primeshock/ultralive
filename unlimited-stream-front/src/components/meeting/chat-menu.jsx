@@ -1,12 +1,21 @@
 "use client";
 
-import { MoreVertical, Trash2, Globe2, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { MoreVertical, Trash2, Globe2, ShieldCheck, Timer } from "lucide-react";
+import { getSocket } from "@/lib/socket";
 import { api } from "@/lib/api";
 import { Pop, usePop } from "./rail";
 
 // Host-only three-dot menu on top of the chat: enable/disable, public vs private, clear.
 export function ChatMenu({ channel, chatEnabled, chatMode, onEnabled, onMode, flash }) {
   const [open, toggle, close] = usePop();
+  const [slow, setSlow] = useState(0);
+  useEffect(() => {
+    const socket = getSocket();
+    const onState = (st) => { if (typeof st?.slow === "number") setSlow(st.slow); };
+    socket.on("chat:state", onState);
+    return () => socket.off("chat:state", onState);
+  }, []);
   const run = async (fn, ok) => { try { await fn(); if (ok) flash(ok); } catch (e) { flash(e.message); } };
   const seg = (active) => `flex-1 rounded-lg border px-2 py-2.5 text-center transition ${active ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-[var(--s1)] hover:bg-[var(--s2)]"}`;
   return (
@@ -23,6 +32,11 @@ export function ChatMenu({ channel, chatEnabled, chatMode, onEnabled, onMode, fl
           <div className="flex gap-1.5 px-1">
             <button onClick={() => run(async () => { await api.setChatMode(channel, "public"); onMode("public"); }, "چت عمومی شد.")} className={seg(chatMode !== "private")}><span className="flex items-center justify-center gap-1 text-xs font-medium text-white"><Globe2 className="size-3.5" />عمومی</span></button>
             <button onClick={() => run(async () => { await api.setChatMode(channel, "private"); onMode("private"); }, "چت خصوصی شد.")} className={seg(chatMode === "private")}><span className="flex items-center justify-center gap-1 text-xs font-medium text-white"><ShieldCheck className="size-3.5" />خصوصی</span></button>
+          </div>
+          <div className="mx-1 mt-2 h-px bg-[var(--s2)]" />
+          <p className="mt-2 flex items-center gap-1.5 px-2 text-xs text-[var(--ink-2)]"><Timer className="size-3.5" />فاصلهٔ بین پیام‌های هر کاربر (ضد اسپم)</p>
+          <div className="mt-1.5 flex gap-1 px-1">
+            {[0, 5, 15, 30, 60].map((n) => <button key={n} onClick={() => { setSlow(n); getSocket().emit("chat:slow", { channel, seconds: n }); }} className={`flex-1 rounded-lg border px-1 py-1.5 text-center text-[11px] transition ${slow === n ? "border-[var(--accent)] bg-[var(--accent-soft)] text-white" : "border-[var(--line)] text-[var(--ink-2)] hover:bg-[var(--s2)]"}`}>{n === 0 ? "خاموش" : `${n} ث`}</button>)}
           </div>
           <button onClick={() => { if (window.confirm("همهٔ پیام‌های چت پاک شود؟")) { run(() => api.clearChat(channel), "چت پاک شد."); close(); } }} className="mt-2 flex w-full items-center gap-2 rounded-lg border border-rose-400/25 px-2 py-2 text-xs text-rose-200 hover:bg-rose-500/15"><Trash2 className="size-3.5" />پاک کردن همهٔ پیام‌ها</button>
         </Pop>

@@ -11,6 +11,8 @@ const chatMessageSchema = new mongoose.Schema({
   senderType: { type: String, enum: ['staff', 'student', 'guest', 'system'], default: 'staff' },
   // Phase B: lets a message reference an earlier one it's replying to.
   replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatMessage', default: null },
+  // Private mode: a staff reply addressed to one person is delivered only to them (+ staff).
+  toKey: { type: String, default: null },
   // TTL: chat history auto-expires so it doesn't grow forever — this is for
   // surviving a refresh/reconnect, not a permanent chat log.
   createdAt: { type: Date, default: Date.now, expires: '7d' },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PenTool, FileText, BarChart3, Settings2, Presentation, X, Timer, Pause, Play, Square, Undo2, Trash2, Ban, Shapes, Palette } from "lucide-react";
 import { api } from "@/lib/api";
@@ -11,6 +11,29 @@ import { INK_TOOLS, INK_COLORS, INK_WIDTHS } from "./annotated-surface";
 const PRIMARY = ["pan", "pen", "hl", "eraser", "text"];
 const SHAPES = ["line", "rect", "ellipse", "arrow"];
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+// macOS-dock style magnification: icons near the pointer grow slightly, the selected one stays a bit larger.
+// Works by writing transforms straight to the DOM from one pointer listener — no React re-renders.
+function useDock() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const nav = ref.current;
+    if (!nav || !window.matchMedia("(hover: hover)").matches) return;
+    const items = () => nav.querySelectorAll("[data-dock]");
+    const apply = (x, y) => items().forEach((el) => {
+      const r = el.getBoundingClientRect();
+      const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+      const base = el.dataset.active === "true" ? 1.1 : 1;
+      el.style.transform = `scale(${base + 0.14 * Math.max(0, 1 - d / 70)})`;
+    });
+    const move = (e) => apply(e.clientX, e.clientY);
+    const leave = () => items().forEach((el) => { el.style.transform = ""; });
+    nav.addEventListener("pointermove", move);
+    nav.addEventListener("pointerleave", leave);
+    return () => { nav.removeEventListener("pointermove", move); nav.removeEventListener("pointerleave", leave); };
+  }, []);
+  return ref;
+}
 
 function Toggle({ checked, onChange, label }) {
   return (
@@ -25,7 +48,7 @@ function Toggle({ checked, onChange, label }) {
 // portal (position: fixed) — it can never be clipped by, or hidden under, the stage / rail containers.
 export function usePop() {
   const [open, setOpen] = useState(null);
-  const toggle = (id, e) => { const rect = e.currentTarget.getBoundingClientRect(); setOpen((cur) => (cur?.id === id ? null : { id, rect })); };
+  const toggle = (id, e) => { const b = e.currentTarget.getBoundingClientRect(); const nav = e.currentTarget.closest("nav"); const n = nav ? nav.getBoundingClientRect() : b; const rect = { top: b.top, bottom: b.bottom, left: b.left, right: b.right, railLeft: n.left, railRight: n.right }; setOpen((cur) => (cur?.id === id ? null : { id, rect })); };
   return [open, toggle, () => setOpen(null)];
 }
 
@@ -35,7 +58,7 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
   const vh = typeof window === "undefined" ? 800 : window.innerHeight;
   let left; let top;
   if (direction === "down") { top = anchor.bottom + 8; left = Math.min(Math.max(8, anchor.left), vw - w - 8); }
-  else { left = anchor.right + 8 + w > vw - 8 ? Math.max(8, anchor.left - w - 8) : anchor.right + 8; top = Math.max(8, Math.min(anchor.top, vh - 200)); }
+  else { const r = anchor.railRight ?? anchor.right; const l = anchor.railLeft ?? anchor.left; left = r + 14 + w > vw - 8 ? Math.max(8, l - w - 14) : r + 14; top = Math.max(8, Math.min(anchor.top, vh - 200)); }
   return createPortal(
     <>
       <div className="fixed inset-0 z-[70]" onClick={onClose} aria-hidden />
@@ -50,7 +73,7 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
 
 function RailButton({ icon: Icon, label, active, onClick }) {
   return (
-    <button onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex w-[52px] shrink-0 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[var(--ink)] transition data-[active=true]:text-white">
+    <button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex w-[52px] shrink-0 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[var(--ink)] transition data-[active=true]:text-white">
       <Icon className="size-[18px]" /><span className="text-[11px] font-medium leading-4 tracking-normal">{label}</span>
     </button>
   );
@@ -58,7 +81,7 @@ function RailButton({ icon: Icon, label, active, onClick }) {
 
 function Tool({ icon: Icon, label, active, onClick, danger }) {
   return (
-    <Tip label={label} side="right"><button onClick={onClick} aria-label={label} data-active={Boolean(active)} className={`glass-btn grid size-8 place-items-center rounded-lg transition ${danger ? "!text-rose-300" : "text-[var(--ink)]"}`}><Icon className="size-4" /></button></Tip>
+    <Tip label={label} side="right"><button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className={`glass-btn grid size-8 place-items-center rounded-lg transition ${danger ? "!text-rose-300" : "text-[var(--ink)]"}`}><Icon className="size-4" /></button></Tip>
   );
 }
 
@@ -69,8 +92,9 @@ function Tool({ icon: Icon, label, active, onClick, danger }) {
 export function ContentRail({ channel, stage, files, onStage, drawable, ink, onInk, onInkAction, pollOpen, onPoll }) {
   const [open, toggle, close] = usePop();
   const hasDoc = Boolean(stage.content);
+  const dock = useDock();
   return (
-    <nav aria-label="کنترل محتوا" className="flex flex-row flex-wrap items-center gap-1 rounded-2xl border border-[var(--line)] bg-[var(--s1)] p-1 md:max-h-full md:w-[64px] md:flex-col md:flex-nowrap md:overflow-y-auto md:overflow-x-hidden">
+    <nav ref={dock} aria-label="کنترل محتوا" className="flex flex-row flex-wrap items-center gap-1 rounded-2xl border border-[var(--line)] bg-[var(--s1)] p-1 md:max-h-full md:w-[76px] md:flex-col md:flex-nowrap md:overflow-y-auto md:overflow-x-hidden">
       <RailButton icon={PenTool} label="تخته" active={stage.boardOpen} onClick={() => onStage({ boardOpen: !stage.boardOpen })} />
       <RailButton icon={FileText} label="سند" active={hasDoc || open?.id === "doc"} onClick={(e) => toggle("doc", e)} />
       <RailButton icon={BarChart3} label="نظرسنجی" active={pollOpen} onClick={onPoll} />
@@ -80,8 +104,8 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
           <span className="my-1 h-px w-8 shrink-0 bg-[var(--s2)] max-md:hidden" />
           <div className="flex flex-wrap gap-1 md:flex-col md:flex-nowrap">
             {PRIMARY.map((id) => { const [, Icon, label] = INK_TOOLS.find((t) => t[0] === id); return <Tool key={id} icon={Icon} label={label} active={ink.tool === id} onClick={() => onInk({ tool: id })} />; })}
-            <Tip label="شکل‌ها" side="right"><button onClick={(e) => toggle("shapes", e)} data-active={SHAPES.includes(ink.tool)} aria-label="شکل‌ها" className="glass-btn grid size-8 place-items-center rounded-lg text-[var(--ink)] transition data-[active=true]:text-white"><Shapes className="size-4" /></button></Tip>
-            <Tip label="رنگ و ضخامت" side="right"><button onClick={(e) => toggle("style", e)} aria-label="رنگ و ضخامت" className="glass-btn relative grid size-8 place-items-center rounded-lg transition"><span className="rounded-full border border-white/50" style={{ background: ink.color, width: 10 + ink.width, height: 10 + ink.width }} /><Palette className="absolute -bottom-1 -right-1 size-3 text-[var(--ink-2)]" /></button></Tip>
+            <Tip label="شکل‌ها" side="right"><button data-dock onClick={(e) => toggle("shapes", e)} data-active={SHAPES.includes(ink.tool)} aria-label="شکل‌ها" className="glass-btn grid size-8 place-items-center rounded-lg text-[var(--ink)] transition data-[active=true]:text-white"><Shapes className="size-4" /></button></Tip>
+            <Tip label="رنگ و ضخامت" side="right"><button data-dock onClick={(e) => toggle("style", e)} aria-label="رنگ و ضخامت" className="glass-btn relative grid size-8 place-items-center rounded-lg transition"><span className="rounded-full border border-white/50" style={{ background: ink.color, width: 10 + ink.width, height: 10 + ink.width }} /><Palette className="absolute -bottom-1 -right-1 size-3 text-[var(--ink-2)]" /></button></Tip>
           </div>
           <span className="my-1 h-px w-8 shrink-0 bg-[var(--s2)] max-md:hidden" />
           <Tool icon={Undo2} label="برگشت" onClick={() => onInkAction("undo")} />
