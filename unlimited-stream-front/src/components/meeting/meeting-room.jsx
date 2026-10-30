@@ -50,6 +50,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const [pdfDoc, setPdfDoc] = useState(null);
   const [boardMax, setBoardMax] = useState(1);
   const [recording, setRecording] = useState(false);
+  const [recordings, setRecordings] = useState([]);
   const store = useMemo(() => createBoardStore(), []);
   const localRef = useRef(null);
   const roomRef = useRef(null);
@@ -62,6 +63,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
     setBoardMax((m) => Math.max(m, state.settings.stage?.boardPage || 1));
     setFiles(state.files || []);
     setEndsAt(state.endsAt || null);
+    setRecording(Boolean(state.recording));
   }, []);
   const refresh = useCallback(() => api.meetingState(channel).then(applyState).catch(() => {}), [channel, applyState]);
 
@@ -83,6 +85,13 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
     api.meetingState(channel).then((s) => { if (alive) applyState(s); }).catch(() => {});
     return () => { alive = false; };
   }, [channel, applyState]);
+
+  useEffect(() => {
+    if (!isStaff || tab !== "files") return undefined;
+    let alive = true;
+    api.meetingRecordings(channel).then((r) => alive && setRecordings(r)).catch(() => {});
+    return () => { alive = false; };
+  }, [isStaff, tab, channel, recording]);
 
   const local = room?.localParticipant;
   useEffect(() => { localRef.current = local || null; });
@@ -224,7 +233,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
                   <div className="min-h-0 flex-1 [&_*]:!text-inherit"><LiveChat key={channel} channel={channel} initialEnabled={chatEnabled} /></div>
                 </div>
               )}
-              {tab === "files" && <FilesPanel channel={channel} files={files} sharedId={stage.content?.id} isStaff={isStaff} onChanged={refresh} onShare={(fileId) => updateStage({ fileId })} />}
+              {tab === "files" && <FilesPanel channel={channel} files={files} sharedId={stage.content?.id} isStaff={isStaff} onChanged={refresh} onShare={(fileId) => updateStage({ fileId })} recordings={recordings} />}
               {tab === "people" && <ParticipantsPanel channel={channel} rows={rows} isStaff={isStaff} hiddenForStudents={hidePeople} onChanged={() => {}} />}
             </div>
           </aside>
@@ -253,7 +262,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
 
         {isStaff && (
           <div className="order-last hidden shrink-0 lg:block">
-            <ControlRail channel={channel} settings={settings} stage={stage} files={files} mode={mode} onMode={onModeChange} onSettings={updateSettings} onStage={updateStage} flash={flash} endsAt={endsAt} recording={recording} onRecording={() => { setRecording((r) => !r); flash("ضبط کلاس در نسخهٔ بعدی فعال می‌شود."); }} />
+            <ControlRail channel={channel} settings={settings} stage={stage} files={files} mode={mode} onMode={onModeChange} onSettings={updateSettings} onStage={updateStage} flash={flash} endsAt={endsAt} recording={recording} onRecording={() => api.meetingRecording(channel, recording ? "stop" : "start").then(() => { setRecording(!recording); flash(recording ? "ضبط متوقف شد و فایل آماده می‌شود." : "ضبط کلاس شروع شد."); }).catch((e) => flash(e.message))} />
           </div>
         )}
       </div>

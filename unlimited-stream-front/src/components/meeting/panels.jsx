@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Hand, Mic, MonitorUp, UserX, MicOff, Lock, Upload, FileText, Trash2, Presentation, Eye, X, Download } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 import { initials } from "./tiles";
 
 const QUALITY = { excellent: [3, "text-emerald-400", "عالی"], good: [2, "text-emerald-300", "خوب"], poor: [1, "text-amber-400", "ضعیف"], lost: [0, "text-rose-400", "قطع‌شدگی"] };
@@ -59,6 +59,17 @@ export function ParticipantRow({ channel, data, isStaff, onChanged }) {
           <button disabled={busy} title="حذف از کلاس" onClick={() => act({ action: "kick" })} className="grid size-6 place-items-center rounded-md bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 disabled:opacity-40"><UserX className="size-3.5" /></button>
         </div>
       )}
+      {isStaff && recordings.length > 0 && (
+        <div className="space-y-1.5 border-t border-white/10 pt-3">
+          <p className="px-1 text-[11px] text-white/50">ضبط‌های کلاس</p>
+          {recordings.map((r) => (
+            <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-white/[.03] px-2 py-1.5 text-[11px] text-white/80">
+              <span>{new Date(r.startedAt).toLocaleString("fa-IR")} {r.durationSeconds ? `· ${Math.round(r.durationSeconds / 60)} دقیقه` : ""}</span>
+              {r.url ? <a href={r.url.startsWith("/") ? `${API_URL}${r.url}` : r.url} className="rounded-md bg-sky-500/90 px-2 py-1 text-white">دانلود</a> : <span className="text-white/45">{r.status === "failed" ? "ناموفق" : "در حال پردازش"}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -85,7 +96,7 @@ function fmtSize(bytes) {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-export function FilesPanel({ channel, files, sharedId, isStaff, onChanged, onShare }) {
+export function FilesPanel({ channel, files, sharedId, isStaff, onChanged, onShare, recordings = [] }) {
   const input = useRef(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

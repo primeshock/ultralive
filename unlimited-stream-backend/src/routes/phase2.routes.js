@@ -175,6 +175,36 @@ router.delete('/classes/:classId', loadClass, async (req, res) => {
   res.json({ ok: true });
 });
 
+const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+router.get('/classes/:classId/reports/attendance', loadClass, async (req, res) => {
+  const from = req.query.from ? new Date(String(req.query.from)) : new Date(0);
+  const to = req.query.to ? new Date(`${String(req.query.to)}T23:59:59.999Z`) : new Date();
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return res.status(400).json({ error: 'بازهٔ تاریخ نامعتبر است.' });
+  const sessions = await LiveSession.find({ classId: req.classDoc._id, startedAt: { $gte: from, $lte: to } }).select('_id startedAt').lean();
+  const rows = await Attendance.find({ sessionId: { $in: sessions.map((s) => s._id) } }).populate('studentId', 'externalId name').lean();
+  const byStudent = new Map();
+  const now = Date.now();
+  for (const row of rows) {
+    const id = row.studentId?.externalId || String(row.studentId);
+    const entry = byStudent.get(id) || { name: row.studentId?.name || '', id, sessions: new Set(), seconds: 0, first: null, last: null };
+    entry.sessions.add(String(row.sessionId));
+    entry.seconds += row.leftAt ? row.duration : Math.max(0, Math.round((now - row.joinedAt.getTime()) / 1000));
+    if (!entry.first || row.joinedAt < entry.first) entry.first = row.joinedAt;
+    const end = row.leftAt || new Date();
+    if (!entry.last || end > entry.last) entry.last = end;
+    byStudent.set(id, entry);
+  }
+  const report = [...byStudent.values()].map((e) => ({
+    name: e.name, id: e.id, sessions: e.sessions.size, totalSessions: sessions.length, minutes: Math.round(e.seconds / 60),
+    percent: sessions.length ? Math.round((e.sessions.size / sessions.length) * 100) : 0, first: e.first, last: e.last,
+  })).sort((a, b) => b.minutes - a.minutes);
+  if (req.query.format !== 'csv') return res.json({ totalSessions: sessions.length, students: report });
+  const lines = [['نام', 'شناسه', 'جلسات حاضر', 'کل جلسات', 'درصد حضور', 'مجموع دقیقه', 'اولین ورود', 'آخرین خروج'].map(csvCell).join(',')];
+  for (const r of report) lines.push([r.name, r.id, r.sessions, r.totalSessions, `${r.percent}%`, r.minutes, r.first?.toISOString() || '', r.last?.toISOString() || ''].map(csvCell).join(','));
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="attendance-${req.classDoc.slug}.csv"` });
+  res.send(`\uFEFF${lines.join('\r\n')}`);
+});
+
 router.get('/classes/:classId', loadClass, async (req, res) => {
   res.json(serializeClass(req.classDoc));
 });

@@ -4,7 +4,8 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const mongoose = require('mongoose');
-const { TrackSource, DataPacket_Kind } = require('livekit-server-sdk');
+const { TrackSource, DataPacket_Kind, EgressClient, EncodedFileOutput, EncodedFileType } = require('livekit-server-sdk');
+const Recording = require('../models/Recording');
 const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
 const ClassFile = require('../models/ClassFile');
@@ -15,7 +16,7 @@ const { canAccessClass } = require('../utils/classAccess');
 const { loadOrganizationContext } = require('../utils/organizationScope');
 const { findStreamTarget, canManageStreamTarget, isClassTarget } = require('../utils/streamTarget');
 const { roomService, roomName } = require('../services/livekit');
-const { corsOrigin } = require('../config/env');
+const { corsOrigin, livekitUrl, livekitApiKey, livekitApiSecret, recordingsDir } = require('../config/env');
 
 const router = express.Router();
 const FILES_ROOT = path.join(process.cwd(), 'media', 'class-files');
@@ -83,7 +84,8 @@ function meetingSettings(target) {
 // ---- state & settings ----------------------------------------------------
 router.get('/:channel/state', loadTarget, requireViewer, async (req, res) => {
   const files = isClassTarget(req.target) ? await ClassFile.find({ classSlug: req.channel }).sort({ createdAt: -1 }).limit(200) : [];
-  res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, settings: meetingSettings(req.target), endsAt: endTimers.get(req.channel)?.endsAt || null, files: files.map((f) => fileView(req.channel, f)) });
+  const recording = req.isStaff ? Boolean(await Recording.exists({ classSlug: req.channel, status: 'recording' })) : false;
+  res.json({ mode: req.target.mode || 'studio', isStaff: req.isStaff, recording, settings: meetingSettings(req.target), endsAt: endTimers.get(req.channel)?.endsAt || null, files: files.map((f) => fileView(req.channel, f)) });
 });
 
 router.post('/:channel/settings', loadTarget, requireStaff, requireClass, async (req, res) => {
@@ -296,6 +298,49 @@ router.post('/:channel/mute-all', loadTarget, requireStaff, async (req, res) => 
     for (const track of p.tracks || []) if (!track.muted && track.source !== TrackSource.SCREEN_SHARE) await svc.mutePublishedTrack(room, p.identity, track.sid, true).catch(() => {});
   }
   res.json({ ok: true });
+});
+
+// ---- recording (LiveKit Egress, room composite -> MP4 on disk) ----
+const egress = () => new EgressClient(livekitUrl, livekitApiKey, livekitApiSecret);
+
+router.post('/:channel/recording/start', loadTarget, requireStaff, requireClass, async (req, res) => {
+  if (await Recording.exists({ classSlug: req.channel, status: 'recording' })) return res.status(409).json({ error: 'ضبط از قبل در حال انجام است.' });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const relative = `${req.channel}/${stamp}.mp4`;
+  try {
+    const info = await egress().startRoomCompositeEgress(
+      roomName(req.channel),
+      { file: new EncodedFileOutput({ fileType: EncodedFileType.MP4, filepath: `/out/${relative}` }) },
+      { layout: 'speaker', encodingOptions: { width: 1280, height: 720, framerate: 24, videoBitrate: 2500, audioBitrate: 96 } }
+    );
+    await Recording.create({ classSlug: req.channel, organizationId: req.target.organizationId || null, egressId: info.egressId, file: relative, startedBy: String(req.user._id) });
+    res.status(201).json({ recording: true });
+  } catch (err) {
+    res.status(503).json({ error: 'سرویس ضبط (Egress) در دسترس نیست یا کلاس هنوز شروع نشده است.', detail: err.message });
+  }
+});
+
+router.post('/:channel/recording/stop', loadTarget, requireStaff, requireClass, async (req, res) => {
+  const active = await Recording.findOne({ classSlug: req.channel, status: 'recording' });
+  if (!active) return res.status(404).json({ error: 'ضبط فعالی وجود ندارد.' });
+  await egress().stopEgress(active.egressId).catch(() => {});
+  active.status = 'finishing';
+  await active.save();
+  res.json({ recording: false });
+});
+
+router.get('/:channel/recordings', loadTarget, requireStaff, async (req, res) => {
+  const list = await Recording.find({ classSlug: req.channel }).sort({ startedAt: -1 }).limit(50);
+  res.json(list.map((r) => ({ id: r._id, status: r.status, size: r.size, durationSeconds: r.durationSeconds, startedAt: r.startedAt, url: r.status === 'ready' ? `/api/meeting/${req.channel}/recordings/${r._id}/download` : null })));
+});
+
+router.get('/:channel/recordings/:id/download', loadTarget, requireStaff, async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).end();
+  const rec = await Recording.findOne({ _id: req.params.id, classSlug: req.channel, status: 'ready' });
+  if (!rec) return res.status(404).end();
+  const full = path.resolve(recordingsDir, rec.file);
+  if (!full.startsWith(path.resolve(recordingsDir) + path.sep)) return res.status(400).end();
+  res.download(full, `${req.channel}-${rec.startedAt.toISOString().slice(0, 10)}.mp4`, (err) => { if (err && !res.headersSent) res.status(404).end(); });
 });
 
 module.exports = router;

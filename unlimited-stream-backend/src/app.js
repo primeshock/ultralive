@@ -87,6 +87,8 @@ app.use(liveRoutes); // -> /live/:channel
 app.use('/api/livekit', livekitRoutes);
 app.use('/api/meeting', require('./routes/meeting.routes'));
 app.use('/api/system', require('./routes/system.routes'));
+app.use('/api/integrations', require('./routes/integrations.routes'));
+app.use('/api/v1', require('./routes/public-api.routes'));
 app.use('/api', phase2Routes);
 app.use(mediaRoutes);
 

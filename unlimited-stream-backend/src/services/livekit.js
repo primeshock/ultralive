@@ -7,6 +7,7 @@ const Student = require('../models/Student');
 const Attendance = require('../models/Attendance');
 const { livekitEnabled, livekitUrl, livekitApiKey, livekitApiSecret } = require('../config/env');
 const { recommendedLivekitSettings } = require('../utils/livekitSettings');
+const webhooks = require('./webhooks');
 const { findStreamTarget, isClassTarget, streamName } = require('../utils/streamTarget');
 
 function assertEnabled() {
@@ -403,7 +404,26 @@ async function syncStudentAttendance(channel, event) {
 
 // Keeps User.isLive in sync when the stream arrives via LiveKit Ingress
 // instead of (or in addition to) the existing RTMP→node-media-server path.
+async function handleEgressEvent(event) {
+  const info = event.egressInfo;
+  if (!info?.egressId) return;
+  const Recording = require('../models/Recording');
+  const status = String(info.status);
+  const file = info.fileResults?.[0] || info.file || null;
+  const ended = ['EGRESS_COMPLETE', '3', 'COMPLETE'].some((v) => status.includes(v)) || String(event.event) === 'egress_ended';
+  if (!ended) return;
+  const failed = /FAIL|ABORT|LIMIT/i.test(status);
+  const relative = file?.filename ? String(file.filename).replace(/^\/?out\//, '') : '';
+  const doc = await Recording.findOneAndUpdate(
+    { egressId: info.egressId },
+    { status: failed || !relative ? 'failed' : 'ready', file: relative, size: Number(file?.size || 0), durationSeconds: Math.round(Number(file?.duration || 0) / 1e9), endedAt: new Date() },
+    { new: true }
+  );
+  if (doc && doc.status === 'ready') webhooks.emit(doc.organizationId, 'recording.ready', { class: { slug: doc.classSlug }, recordingId: String(doc._id), durationSeconds: doc.durationSeconds });
+}
+
 async function handleWebhook(event) {
+  if (String(event.event || '').startsWith('egress_')) return handleEgressEvent(event);
   const type = String(event.event || '');
   const identity = webhookIdentity(event);
   const room = webhookRoomName(event);
@@ -421,8 +441,16 @@ async function handleWebhook(event) {
     return;
   }
 
+  const classForOrg = await Class.findOne({ channel }).select('organizationId slug title').lean();
+  const orgId = classForOrg?.organizationId || null;
+  const hookClass = { slug: classForOrg?.slug || channel, title: classForOrg?.title || '' };
+  const evType = String(event.event || '').toLowerCase();
+  if (['participant_joined', 'participant_left'].includes(evType) && !isIngressParticipant(webhookIdentity(event)) && !webhookIdentity(event).startsWith('staff:') && !webhookIdentity(event).startsWith('monitor:')) {
+    webhooks.emit(orgId, evType === 'participant_joined' ? 'student.joined' : 'student.left', { class: hookClass, identity: webhookIdentity(event), name: event.participant?.name || '' });
+  }
   await syncStudentAttendance(channel, event);
   if (goLive === null) return;
+  webhooks.emit(orgId, goLive ? 'class.started' : 'class.ended', { class: hookClass });
   if (goLive) {
     await ensureLiveSession(channel, event);
   } else {
