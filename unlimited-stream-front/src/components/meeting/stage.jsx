@@ -5,7 +5,7 @@ import { Maximize2, Minimize2, Minus, X, ScreenShare, FileText, PenTool, Expand,
 import { Tip } from "./tip";
 
 const ICONS = { screen: ScreenShare, content: FileText, board: PenTool, cameras: Video };
-const iconBtn = "glass-btn grid size-6 place-items-center rounded-lg text-[var(--ink)] transition hover:text-white";
+const iconBtn = "glass-btn grid size-8 place-items-center rounded-lg text-white transition";
 
 // One teaching surface. Every panel can go full-screen; the header (and any in-panel controls) stay available
 // there, with an explicit "exit full screen" button. iOS Safari has no element fullscreen, so it falls back to a
@@ -32,10 +32,10 @@ function PanelFrame({ p, isMain, sideCount, canGroup, soloId, setSolo, toggleMin
         <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-[var(--ink)]"><Icon className="size-3.5 shrink-0 text-[var(--accent-ink)]" /><span className="truncate">{p.title}</span></span>
         <span className="flex shrink-0 items-center gap-1">
           {p.actions}
-          {!full && canGroup && <Tip label="کوچک کردن"><button aria-label="کوچک کردن" onClick={() => toggleMini(p.id)} className={iconBtn}><Minus className="size-3.5" /></button></Tip>}
-          {!full && canGroup && <Tip label={soloId === p.id ? "بازگشت به حالت عادی" : "بزرگ کردن"}><button aria-label="بزرگ کردن" onClick={() => setSolo(soloId === p.id ? null : p.id)} className={iconBtn}>{soloId === p.id ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}</button></Tip>}
-          <Tip label={full ? "خروج از تمام‌صفحه" : "تمام‌صفحه"}><button aria-label={full ? "خروج از تمام‌صفحه" : "تمام‌صفحه"} onClick={toggleFull} className={iconBtn}>{full ? <Shrink className="size-3.5" /> : <Expand className="size-3.5" />}</button></Tip>
-          {p.onClose && <Tip label={p.closeLabel || "بستن"}><button aria-label="بستن" onClick={p.onClose} className={`${iconBtn} hover:!bg-rose-500/80`}><X className="size-3.5" /></button></Tip>}
+          {!full && canGroup && <Tip label="کوچک کردن"><button aria-label="کوچک کردن" onClick={() => toggleMini(p.id)} className={iconBtn}><Minus className="size-4" /></button></Tip>}
+          {!full && canGroup && <Tip label={soloId === p.id ? "بازگشت به حالت عادی" : "بزرگ کردن"}><button aria-label="بزرگ کردن" onClick={() => setSolo(soloId === p.id ? null : p.id)} className={iconBtn}>{soloId === p.id ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}</button></Tip>}
+          <Tip label={full ? "خروج از تمام‌صفحه" : "تمام‌صفحه"}><button aria-label={full ? "خروج از تمام‌صفحه" : "تمام‌صفحه"} onClick={toggleFull} className={iconBtn}>{full ? <Shrink className="size-4" /> : <Expand className="size-4" />}</button></Tip>
+          {p.onClose && <Tip label={p.closeLabel || "بستن"}><button aria-label="بستن" onClick={p.onClose} className={`${iconBtn} hover:!bg-rose-500/80`}><X className="size-4" /></button></Tip>}
         </span>
       </header>
       <div className="relative min-h-0 flex-1">{p.node}</div>
