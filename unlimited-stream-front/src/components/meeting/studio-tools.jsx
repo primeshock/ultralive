@@ -1,25 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Copy, Image as ImageIcon, KeyRound, Link2, Radio, Users } from "lucide-react";
+import { BarChart3, Image as ImageIcon, KeyRound, Link2, Radio } from "lucide-react";
 import { api } from "@/lib/api";
-import { Pop, RailButton, Toggle, usePop, useDock } from "./rail";
-
-const tile = "rounded-lg bg-[color-mix(in_oklab,var(--s2)_55%,transparent)] px-2.5 py-2 text-xs text-[var(--ink)] transition hover:bg-[var(--s3)]";
-
-function CopyField({ label, value }) {
-  const [done, setDone] = useState(false);
-  const copy = () => { navigator.clipboard?.writeText(value).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }).catch(() => {}); };
-  return (
-    <div className="mt-1.5">
-      <p className="mb-0.5 px-1 text-[11px] text-[var(--ink-3)]">{label}</p>
-      <button type="button" onClick={copy} className={`flex w-full items-center justify-between gap-2 text-left ${tile}`}>
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px]" dir="ltr">{value}</span>
-        <span className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--accent-ink)]"><Copy className="size-3" />{done ? "کپی شد" : "کپی"}</span>
-      </button>
-    </div>
-  );
-}
+import { AccessPanel, CopyField, Pop, RailButton, tile, usePop, useDock } from "./rail";
 
 /**
  * Host tool rail for the studio room — the same kind of rail as the desktop room, holding what the old
@@ -29,7 +13,6 @@ export function StudioRail({ channel, info, pollOpen, onPoll, onChannelPatch, fl
   const [open, toggle, close] = usePop();
   const dock = useDock();
   const [ingress, setIngress] = useState(null);
-  const [links, setLinks] = useState({ student: "", pub: "" });
   const [busy, setBusy] = useState(false);
   const guard = async (fn, ok) => { setBusy(true); try { await fn(); if (ok) flash(ok); } catch (e) { flash(e.message || "انجام نشد."); } finally { setBusy(false); } };
 
@@ -55,18 +38,7 @@ export function StudioRail({ channel, info, pollOpen, onPoll, onChannelPatch, fl
 
       {open?.id === "access" && (
         <Pop anchor={open.rect} wide title="دسترسی و نمایش" onClose={close}>
-          <div className="space-y-1 p-1">
-            <Toggle checked={Boolean(info.showViewerCount)} onChange={(v) => guard(async () => { await api.setViewerCount(channel, v); onChannelPatch({ showViewerCount: v }); })} label="نمایش تعداد حاضرین" />
-            <p className="flex items-center gap-1.5 px-2 pb-1 text-[11px] text-[var(--ink-3)]"><Users className="size-3.5" />حاضرین فعلی: {info.viewerCount || 0}</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button disabled={busy} onClick={() => guard(async () => { await api.setClassAccess(channel, "private"); setLinks((l) => ({ ...l, pub: "" })); }, "کلاس فقط از سایت اصلی قابل ورود است.")} className={`text-center ${tile}`}>فقط سایت اصلی</button>
-              <button disabled={busy} onClick={() => guard(async () => { const r = await api.setClassAccess(channel, "public"); setLinks((l) => ({ ...l, pub: r.publicUrl || "" })); }, "لینک همگانی آماده است.")} className={`text-center ${tile}`}>لینک همگانی</button>
-              <button disabled={busy} onClick={() => guard(async () => { const r = await api.setClassAccess(channel, "public", true); setLinks((l) => ({ ...l, pub: r.publicUrl || "" })); }, "لینک همگانی جدید ساخته شد.")} className={`text-center ${tile}`}>لینک همگانی جدید</button>
-              <button disabled={busy} onClick={() => guard(async () => { const r = await api.createTestLink(channel, "دانش‌آموز API"); setLinks((l) => ({ ...l, student: r.url })); }, "لینک موقت ساخته شد.")} className={`text-center ${tile}`}>لینک موقت API</button>
-            </div>
-            {links.pub && <CopyField label="لینک همگانی" value={links.pub} />}
-            {links.student && <CopyField label="لینک موقت دانش‌آموز" value={links.student} />}
-          </div>
+          <AccessPanel channel={channel} showViewerCount={info.showViewerCount} viewerCount={info.viewerCount} onViewerCount={(v) => onChannelPatch({ showViewerCount: v })} flash={flash} />
         </Pop>
       )}
     </nav>

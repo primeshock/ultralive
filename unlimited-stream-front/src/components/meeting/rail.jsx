@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { PenTool, FileText, BarChart3, Settings2, Presentation, X, Timer, Pause, Play, Square, Undo2, Trash2, Ban, Shapes, Palette } from "lucide-react";
+import { PenTool, FileText, BarChart3, Settings2, Presentation, X, Timer, Pause, Play, Square, Undo2, Trash2, Ban, Shapes, Palette, Link2, Users, Copy } from "lucide-react";
 import { api } from "@/lib/api";
 import { ModeSwitch } from "./mode-switch";
 import { Tip } from "./tip";
@@ -80,6 +80,46 @@ export function Pop({ anchor, title, onClose, children, wide, direction = "side"
   );
 }
 
+export const tile = "rounded-lg bg-[color-mix(in_oklab,var(--s2)_55%,transparent)] px-2.5 py-2 text-xs text-[var(--ink)] transition hover:bg-[var(--s3)]";
+
+export function CopyField({ label, value }) {
+  const [done, setDone] = useState(false);
+  const copy = () => { navigator.clipboard?.writeText(value).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }).catch(() => {}); };
+  return (
+    <div className="mt-1.5">
+      <p className="mb-0.5 px-1 text-[11px] text-[var(--ink-3)]">{label}</p>
+      <button type="button" onClick={copy} className={`flex w-full items-center justify-between gap-2 text-left ${tile}`}>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px]" dir="ltr">{value}</span>
+        <span className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--accent-ink)]"><Copy className="size-3" />{done ? "کپی شد" : "کپی"}</span>
+      </button>
+    </div>
+  );
+}
+
+
+// Class access: who may enter and how (public link, temporary API link) + whether the head-count is shown.
+export function AccessPanel({ channel, showViewerCount, viewerCount, onViewerCount, flash }) {
+  const [links, setLinks] = useState({ student: "", pub: "" });
+  const [busy, setBusy] = useState(false);
+  const [showCount, setShowCount] = useState(Boolean(showViewerCount));
+  const guard = async (fn, ok) => { setBusy(true); try { await fn(); if (ok) flash(ok); } catch (e) { flash(e.message || "انجام نشد."); } finally { setBusy(false); } };
+  const access = (mode, regenerate, msg) => guard(async () => { const r = await api.setClassAccess(channel, mode, regenerate); setLinks((l) => ({ ...l, pub: mode === "public" ? r.publicUrl || "" : "" })); }, msg);
+  return (
+    <div className="space-y-1 p-1">
+      <Toggle checked={showCount} onChange={(v) => guard(async () => { await api.setViewerCount(channel, v); setShowCount(v); onViewerCount?.(v); })} label="نمایش تعداد حاضرین" />
+      <p className="flex items-center gap-1.5 px-2 pb-1 text-[11px] text-[var(--ink-3)]"><Users className="size-3.5" />حاضرین فعلی: {viewerCount || 0}</p>
+      <div className="grid grid-cols-2 gap-1.5">
+        <button disabled={busy} onClick={() => access("private", false, "کلاس فقط از سایت اصلی قابل ورود است.")} className={`text-center ${tile}`}>فقط سایت اصلی</button>
+        <button disabled={busy} onClick={() => access("public", false, "لینک همگانی آماده است.")} className={`text-center ${tile}`}>لینک همگانی</button>
+        <button disabled={busy} onClick={() => access("public", true, "لینک همگانی جدید ساخته شد.")} className={`text-center ${tile}`}>لینک همگانی جدید</button>
+        <button disabled={busy} onClick={() => guard(async () => { const r = await api.createTestLink(channel, "دانش‌آموز API"); setLinks((l) => ({ ...l, student: r.url })); }, "لینک موقت ساخته شد.")} className={`text-center ${tile}`}>لینک موقت API</button>
+      </div>
+      {links.pub && <CopyField label="لینک همگانی" value={links.pub} />}
+      {links.student && <CopyField label="لینک موقت دانش‌آموز" value={links.student} />}
+    </div>
+  );
+}
+
 export function RailButton({ icon: Icon, label, active, onClick }) {
   return (
     <button data-dock onClick={onClick} aria-label={label} data-active={Boolean(active)} className="glass-btn flex size-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[var(--ink)] transition data-[active=true]:text-white">
@@ -98,7 +138,7 @@ function Tool({ icon: Icon, label, active, onClick, danger }) {
  * Side rail = content controls ONLY. What it shows follows what is on stage:
  * always: whiteboard / document / poll. While a PDF or whiteboard is open: the annotation toolkit.
  */
-export function ContentRail({ channel, stage, files, onStage, drawable, ink, onInk, onInkAction, pollOpen, onPoll }) {
+export function ContentRail({ channel, access, flash, stage, files, onStage, drawable, ink, onInk, onInkAction, pollOpen, onPoll }) {
   const [open, toggle, close] = usePop();
   const hasDoc = Boolean(stage.content);
   const dock = useDock();
@@ -107,6 +147,7 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
       <RailButton icon={PenTool} label="تخته" active={stage.boardOpen} onClick={() => onStage({ boardOpen: !stage.boardOpen })} />
       <RailButton icon={FileText} label="سند" active={hasDoc || open?.id === "doc"} onClick={(e) => toggle("doc", e)} />
       <RailButton icon={BarChart3} label="نظرسنجی" active={pollOpen} onClick={onPoll} />
+      {access && <RailButton icon={Link2} label="دسترسی" active={open?.id === "access"} onClick={(e) => toggle("access", e)} />}
 
       {drawable && (
         <>
@@ -131,6 +172,12 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
         <Pop anchor={open.rect} title="رنگ و ضخامت" onClose={close}>
           <div className="grid grid-cols-7 gap-1.5 p-1.5">{INK_COLORS.map((c) => <button key={c} aria-label={c} onClick={() => onInk({ color: c })} style={{ background: c }} className={`size-7 rounded-full border transition ${ink.color === c ? "scale-110 border-white ring-2 ring-[var(--accent-ink)]" : "border-white/30"}`} />)}</div>
           <div className="flex items-center justify-around px-1 pb-1.5 pt-1">{INK_WIDTHS.map((w) => <button key={w} aria-label="ضخامت" onClick={() => onInk({ width: w })} data-active={ink.width === w} className="glass-btn grid size-10 place-items-center rounded-lg"><span className="rounded-full bg-white" style={{ width: w + 4, height: w + 4 }} /></button>)}</div>
+        </Pop>
+      )}
+
+      {access && open?.id === "access" && (
+        <Pop anchor={open.rect} wide title="دسترسی و نمایش" onClose={close}>
+          <AccessPanel channel={channel} showViewerCount={access.showViewerCount} viewerCount={access.viewerCount} flash={flash} />
         </Pop>
       )}
 

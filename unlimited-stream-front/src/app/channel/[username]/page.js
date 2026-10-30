@@ -206,6 +206,7 @@ export default function ChannelPage({ params }) {
       <div className="fixed inset-0 z-50">
         <MeetingRoom
           channel={username}
+          access={{ showViewerCount: channel.showViewerCount, viewerCount: channel.viewerCount }}
           guest={guestInfo?.guest ? { name: guestInfo.name, onRename: async (name) => { await api.setPublicGuestName(username, name); window.location.reload(); } } : null}
           mode={channel.mode}
           appearance={appearance?.preset}

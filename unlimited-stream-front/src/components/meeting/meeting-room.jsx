@@ -42,7 +42,7 @@ export function MeetingRoom(props) {
   return <PanelBoundary><MeetingView {...props} session={session} bus={bus} /></PanelBoundary>;
 }
 
-function MeetingView({ channel, guest, title, organization, appearance, appearanceStyle, mode, onModeChange, isStaff, chatEnabled, chatMode: initialChatMode, initialSettings, onLeave, session, bus }) {
+function MeetingView({ channel, guest, access, title, organization, appearance, appearanceStyle, mode, onModeChange, isStaff, chatEnabled, chatMode: initialChatMode, initialSettings, onLeave, session, bus }) {
   const [settings, setSettings] = useState({ showParticipantsToStudents: initialSettings?.showParticipantsToStudents !== false, studentsMayRaiseHand: initialSettings?.studentsMayRaiseHand !== false });
   const [stage, setStage] = useState(EMPTY_STAGE);
   const [files, setFiles] = useState([]);
@@ -344,7 +344,7 @@ function MeetingView({ channel, guest, title, organization, appearance, appearan
 
         {canControl && (
           <div className="order-first shrink-0 md:order-last max-md:overflow-x-auto">
-            <ContentRail channel={channel} stage={stage} files={files} onStage={updateStage} drawable={drawable} ink={ink} onInk={(patch) => setInk((cur) => ({ ...cur, ...patch }))} onInkAction={runInk} pollOpen={pollOpen} onPoll={(e) => { setPollPos(pollAnchor(e)); setPollOpen((o) => !o); setSide((cur) => (cur === "hidden" ? "auto" : cur)); setTab("chat"); }} />
+            <ContentRail channel={channel} access={isStaff ? access : null} flash={flash} stage={stage} files={files} onStage={updateStage} drawable={drawable} ink={ink} onInk={(patch) => setInk((cur) => ({ ...cur, ...patch }))} onInkAction={runInk} pollOpen={pollOpen} onPoll={(e) => { setPollPos(pollAnchor(e)); setPollOpen((o) => !o); setSide((cur) => (cur === "hidden" ? "auto" : cur)); setTab("chat"); }} />
           </div>
         )}
       </div>
