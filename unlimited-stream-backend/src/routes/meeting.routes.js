@@ -364,7 +364,8 @@ router.post('/:channel/recording/start', loadTarget, requireStaff, requireClass,
     await Recording.create({ classSlug: req.channel, organizationId: req.target.organizationId || null, egressId: info.egressId, file: relative, startedBy: String(req.user._id) });
     res.status(201).json({ recording: true });
   } catch (err) {
-    res.status(503).json({ error: 'سرویس ضبط (Egress) در دسترس نیست یا کلاس هنوز شروع نشده است.', detail: err.message });
+    console.error('[recording] start failed:', err.message);
+    res.status(503).json({ error: `ضبط شروع نشد: ${err.message}. (روی سرور بزنید: ultralive doctor)`, detail: err.message });
   }
 });
 

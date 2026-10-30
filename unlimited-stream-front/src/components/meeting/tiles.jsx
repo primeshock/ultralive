@@ -46,7 +46,7 @@ export function AudioSink({ participants }) {
   );
 }
 
-export function ParticipantTile({ participant, onClick, active, compact = false }) {
+export function ParticipantTile({ participant, onClick, active, compact = false, zoom = false }) {
   const camera = trackOf(participant, "camera");
   const micOn = Boolean(trackOf(participant, "microphone"));
   const hand = participant.attributes?.hand === "1";
@@ -58,7 +58,7 @@ export function ParticipantTile({ participant, onClick, active, compact = false 
       className={`group relative isolate aspect-video w-full overflow-hidden rounded-2xl border bg-slate-900/80 text-right shadow-lg transition ${participant.isSpeaking ? "border-cyan-300/80 ring-2 ring-cyan-300/40" : "border-white/10 hover:border-white/30"} ${active ? "ring-2 ring-sky-400/70" : ""}`}
     >
       {camera ? (
-        <VideoSurface track={camera} mirror={participant.isLocal} />
+        <VideoSurface track={camera} mirror={participant.isLocal} className={zoom ? "scale-[1.1]" : ""} />
       ) : (
         <div className="grid h-full w-full place-items-center bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,.18),transparent_55%),linear-gradient(160deg,#0f1b33,#0a1224)]">
           <span className={`grid place-items-center rounded-full bg-white/10 font-semibold text-white/90 ring-1 ring-white/15 ${compact ? "size-10 text-base" : "size-16 text-2xl"}`}>{initials(participant.name)}</span>

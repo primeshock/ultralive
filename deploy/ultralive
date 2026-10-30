@@ -173,6 +173,17 @@ cmd_doctor() {
   else warn "LiveKit rejected the backend's key ($(head -c 120 /tmp/ul-lk.err)) — recreating containers"; (cd "$LIVEKIT_DIR" && docker compose up -d --force-recreate >/dev/null 2>&1); bad=1; fi
   title "Signalling through nginx (wss)"
   [[ "$(curl -ksS --max-time 6 "https://127.0.0.1/livekit/" -H "Host: $host" 2>/dev/null)" == "OK" ]] && ok "https://$host/livekit/ → LiveKit" || { warn "LiveKit is not reachable through nginx"; bad=1; }
+  title "Recording (Egress)"
+  local est; est="$(docker inspect -f '{{.State.Status}}' livekit-egress-1 2>/dev/null || echo missing)"
+  if [[ "$est" == "running" ]]; then ok "egress container is running"; else warn "egress container: $est (recording cannot work)"; bad=1; fi
+  if (cd "$BACKEND" && node -e "
+    require('dotenv').config();
+    const { EgressClient } = require('livekit-server-sdk');
+    new EgressClient(process.env.LIVEKIT_URL, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
+      .listEgress().then(() => process.exit(0)).catch((e) => { console.error(e.message); process.exit(1); });" 2>/tmp/ul-eg.err); then ok "egress API reachable"; else warn "egress API: $(head -c 160 /tmp/ul-eg.err)"; bad=1; fi
+  local rdir; rdir="$(env_get RECORDINGS_DIR)"; rdir="${rdir:-/opt/ultralive-recordings}"
+  if touch "$rdir/.ul-write-test" 2>/dev/null; then rm -f "$rdir/.ul-write-test"; ok "recordings folder writable: $rdir"; else warn "recordings folder not writable: $rdir"; bad=1; fi
+  echo "last egress log lines:"; docker logs --tail 6 livekit-egress-1 2>&1 | cut -c1-160 | sed 's/^/   /'
   title "Limits"
   local pid; pid="$(pm2 pid unlimited-stream-backend 2>/dev/null | head -1)"
   [[ -n "$pid" && "$pid" != 0 ]] && echo "backend open-files limit: $(awk '/Max open files/{print $4}' /proc/$pid/limits)  (want 65535; run: ultralive tune)"

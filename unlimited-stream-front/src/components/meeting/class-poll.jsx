@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BarChart3, Check, X, Plus, Timer, Lock, Eye, RotateCcw, Trash2 } from "lucide-react";
+import { BarChart3, Check, X, Plus, Timer, Lock, Eye, RotateCcw, Trash2, Trash } from "lucide-react";
 import { api } from "@/lib/api";
 
 const COLORS = ["#38bdf8", "#34d399", "#fbbf24", "#fb7185", "#a78bfa", "#22d3ee"];
@@ -20,6 +20,15 @@ function normalize(raw, results) {
     hasResults: Boolean(results || raw.results),
     options: raw.options.map((o) => ({ id: String(o.id || o._id), text: o.text, isCorrect: o.isCorrect, count: counts[String(o.id || o._id)] || 0 })),
   };
+}
+
+function Switch({ checked, onChange, label }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="flex items-center gap-1.5 text-[11px] text-white/70">
+      <span className={`relative h-[18px] w-8 shrink-0 rounded-full transition ${checked ? "bg-sky-500" : "bg-white/20"}`}><span className={`absolute top-[2px] size-[14px] rounded-full bg-white shadow transition-all ${checked ? "right-[2px]" : "right-[16px]"}`} /></span>
+      {label}
+    </button>
+  );
 }
 
 function Left({ closesAt }) {
@@ -85,7 +94,7 @@ function Creator({ channel, onDone, onCancel }) {
       <div className="flex items-center gap-1.5">
         {form.options.length < 8 && <button type="button" onClick={() => set({ options: [...form.options, { text: "", isCorrect: false }] })} className="flex items-center gap-1 rounded-md bg-white/8 px-2 py-1 text-[11px] text-white/75 hover:bg-white/14"><Plus className="size-3" />گزینه</button>}
         <select value={form.timerSeconds} onChange={(e) => set({ timerSeconds: e.target.value })} className="rounded-md border border-white/12 bg-[#0d1428] px-1.5 py-1 text-[11px] text-white/80">{TIMERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-        <label className="flex items-center gap-1 text-[11px] text-white/65"><input type="checkbox" checked={form.showResults} onChange={(e) => set({ showResults: e.target.checked })} />نتیجهٔ زنده</label>
+        <Switch checked={form.showResults} onChange={(v) => set({ showResults: v })} label="نتیجهٔ زنده" />
       </div>
       {error && <p className="text-[11px] text-rose-300">{error}</p>}
       <div className="flex gap-1.5"><button disabled={busy} className="flex-1 rounded-md bg-sky-500 py-1.5 text-[12px] font-medium text-white hover:bg-sky-400 disabled:opacity-50">{busy ? "..." : "انتشار"}</button><button type="button" onClick={onCancel} className="rounded-md bg-white/8 px-3 text-[12px] text-white/75 hover:bg-white/14">انصراف</button></div>
@@ -129,7 +138,7 @@ export function ClassPoll({ channel, isStaff, audience = 0, tick = 0, onChange }
   const act = async (fn) => { setError(""); try { await fn(); await load(); onChange?.(); } catch (e) { setError(e.message); } };
   const vote = () => act(() => api.votePoll(channel, poll.id, pick));
 
-  const shell = "mx-2 mb-1.5 rounded-lg border border-white/10 bg-white/[.045] p-2 text-white";
+  const shell = "poll-in w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-white/14 bg-[#0b1226]/80 p-3 text-white shadow-2xl shadow-black/40 backdrop-blur-xl";
   if (isStaff && creating) return <div className={shell}><Creator channel={channel} onCancel={() => setCreating(false)} onDone={() => { setCreating(false); load(); onChange?.(); }} /></div>;
 
   if (!poll) {
@@ -165,7 +174,8 @@ export function ClassPoll({ channel, isStaff, audience = 0, tick = 0, onChange }
           {!finished && <button onClick={() => act(() => api.closePoll(poll.id))} className="flex items-center gap-1 rounded-md bg-white/8 px-2 py-1 text-[11px] hover:bg-white/14"><Lock className="size-3" />بستن رأی‌گیری</button>}
           {poll.mode === "quiz" && !poll.revealed && <button onClick={() => act(() => api.revealPoll(poll.id))} className="flex items-center gap-1 rounded-md bg-white/8 px-2 py-1 text-[11px] hover:bg-white/14"><Eye className="size-3" />نمایش پاسخ</button>}
           <button onClick={() => act(() => api.resetPoll(poll.id))} className="flex items-center gap-1 rounded-md bg-white/8 px-2 py-1 text-[11px] hover:bg-white/14"><RotateCcw className="size-3" />ریست</button>
-          <label className="flex items-center gap-1 px-1 text-[11px] text-white/65"><input type="checkbox" checked={poll.showResults} onChange={(e) => act(() => api.updatePoll(poll.id, { showResults: e.target.checked }))} />نتیجه برای دانش‌آموز</label>
+          <Switch checked={poll.showResults} onChange={(v) => act(() => api.updatePoll(poll.id, { showResults: v }))} label="نتیجه برای دانش‌آموز" />
+          <button onClick={() => { if (window.confirm("این نظرسنجی و رأی‌هایش حذف شود؟")) act(() => api.deletePoll(poll.id).then(() => setPoll(null))); }} title="حذف نظرسنجی" aria-label="حذف نظرسنجی" className="grid size-6 place-items-center rounded-md bg-rose-500/15 text-rose-300 hover:bg-rose-500/25"><Trash className="size-3" /></button>
           <button onClick={() => setCreating(true)} className="ms-auto flex items-center gap-1 rounded-md bg-sky-500/90 px-2 py-1 text-[11px] font-medium hover:bg-sky-400"><Plus className="size-3" />جدید</button>
         </div>
       )}

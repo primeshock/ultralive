@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, MonitorOff, Hand, MessageSquare, Users, FolderOpen, PhoneOff, Clock, Maximize2, Loader2, WifiOff, PanelRightClose, PanelRightOpen, ArrowLeftRight, ChevronDown, Timer, LogOut } from "lucide-react";
+import { BarChart3, Mic, MicOff, Video, VideoOff, MonitorUp, MonitorOff, Hand, MessageSquare, Users, FolderOpen, PhoneOff, Clock, Maximize2, Loader2, WifiOff, PanelRightClose, PanelRightOpen, ArrowLeftRight, ChevronDown, Timer, LogOut } from "lucide-react";
 import { LiveChat } from "@/components/live-chat";
 import { PollWidget } from "@/components/poll-widget";
 import { api } from "@/lib/api";
@@ -45,7 +45,7 @@ function EndCountdown({ endsAt, floating }) {
 }
 
 function ToolButton({ icon: Icon, label, onClick, active, danger, showLabel }) {
-  const tone = danger ? "bg-rose-500 text-white hover:bg-rose-400" : active ? "bg-sky-500 text-white hover:bg-sky-400" : "bg-white/10 text-white hover:bg-white/18";
+  const tone = danger ? "bg-rose-500/90 text-white hover:bg-rose-400" : active ? "bg-sky-500/90 text-white hover:bg-sky-400" : "border border-white/12 bg-white/10 text-white backdrop-blur-md hover:bg-white/18";
   const btn = (
     <button onClick={onClick} aria-label={label} className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-medium transition ${tone}`}>
       <Icon className="size-[18px]" />{showLabel && <span className="whitespace-nowrap">{label}</span>}
@@ -75,6 +75,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const [chatOn, setChatOn] = useState(chatEnabled !== false);
   const [chatMode, setChatMode] = useState(initialChatMode || "public");
   const [pollOpen, setPollOpen] = useState(false);
+  const [camMax, setCamMax] = useState(false);
   const [pollTick, setPollTick] = useState(0);
   const [identity, setIdentity] = useState(null);
   const [ink, setInk] = useState({ tool: "pen", color: "#ef4444", width: 3 });
@@ -83,7 +84,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const localRef = useRef(null);
   const roomRef = useRef(null);
 
-  const flash = useCallback((text) => { setNotice(text); setTimeout(() => setNotice(null), 4000); }, []);
+  const flash = useCallback((text, ms = 4000) => { setNotice(text); setTimeout(() => setNotice(null), ms); }, []);
   const applyState = useCallback((state) => {
     setSettings((cur) => ({ ...cur, showParticipantsToStudents: state.settings.showParticipantsToStudents, studentsMayRaiseHand: state.settings.studentsMayRaiseHand }));
     setStage({ ...EMPTY_STAGE, ...state.settings.stage });
@@ -158,6 +159,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const screenOn = Boolean(local && trackOf(local, "screen_share"));
   const handRaised = local?.attributes?.hand === "1";
   const handCount = participants.filter((p) => p.attributes?.hand === "1").length;
+  const withCamera = participants.filter((p) => trackOf(p, "camera"));
   const screenSharer = participants.find((p) => trackOf(p, "screen_share"));
   const screenTrack = screenSharer ? trackOf(screenSharer, "screen_share") : null;
 
@@ -181,7 +183,8 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
       ),
     });
   }
-  const presenting = panels.length > 0;
+  if (camMax && withCamera.length > 0) panels.unshift({ id: "cameras", title: `دوربین‌ها (${withCamera.length})`, node: <div className="absolute inset-0 overflow-y-auto p-2"><div className={`grid gap-2 ${withCamera.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3"}`}>{withCamera.map((p) => <ParticipantTile key={p.identity} zoom participant={p} />)}</div></div>, onClose: () => setCamMax(false), closeLabel: "برگرداندن به کنار" });
+  const presenting = panels.some((p) => p.id !== "cameras");
   const drawable = canControl && (stage.boardOpen || Boolean(stage.content && stage.content.mime === "application/pdf"));
 
   // While anything is presented, the lesson material gets the bandwidth: cameras drop to the low layer.
@@ -262,7 +265,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
         setRec({ state: "idle", acc: 0, since: 0 });
         flash("ضبط پایان یافت؛ فایل‌ها در تب «فایل‌ها» ظاهر می‌شوند.");
       }
-    } catch (e) { flash(e.message); }
+    } catch (e) { flash(e.message, 10000); }
   }
 
   const updateStage = (patch) => api.meetingStage(channel, patch).then(({ stage: next }) => setStage({ ...EMPTY_STAGE, ...next })).catch((e) => flash(e.message));
@@ -275,12 +278,10 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
     return <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell grid h-dvh place-items-center text-center text-white"><div><PhoneOff className="mx-auto mb-4 size-10 text-sky-300" /><h2 className="text-lg font-semibold">کلاس به پایان رسید</h2><p className="mt-1 text-sm text-white/60">از حضور شما سپاسگزاریم.</p><button onClick={onLeave} className="mt-5 rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-medium">خروج</button></div></div>;
   }
 
-  const sideMode = side === "auto" ? (presenting ? "narrow" : "normal") : side;
-  const sideWidth = sideMode === "narrow" ? "md:w-[248px]" : "md:w-[320px]";
+  const sideMode = side === "auto" ? "normal" : side;
+  const sideWidth = sideMode === "narrow" ? "md:w-[300px]" : "md:w-[360px]";
   const hidePeople = !isStaff && !settings.showParticipantsToStudents;
   const tabs = TABS.filter(([id]) => id !== "people" || !hidePeople);
-  const withCamera = participants.filter((p) => trackOf(p, "camera"));
-  const strip = presenting ? withCamera.slice(0, 6) : [];
 
   return (
     <div dir="rtl" data-appearance={appearance || "aurora"} style={appearanceStyle} className="spatial-shell relative flex h-dvh w-full max-w-full flex-col overflow-hidden text-white">
@@ -303,7 +304,19 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
         {sideMode === "hidden" ? (
           <button onClick={() => setSide("auto")} title="باز کردن چت و افراد" aria-label="باز کردن چت و افراد" className="flex h-10 w-full shrink-0 items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] text-white/75 backdrop-blur-xl transition hover:bg-white/12 hover:text-white md:h-auto md:w-10 md:flex-col md:py-4"><PanelRightOpen className="size-4" /><MessageSquare className="size-4" /><Users className="size-4" /></button>
         ) : (
-          <aside className={`flex max-h-[46vh] min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[.04] backdrop-blur-xl md:max-h-none ${sideWidth}`}>
+          <div className={`flex min-h-0 w-full min-w-0 shrink-0 flex-col gap-2 md:w-auto ${sideWidth}`}>
+            {withCamera.length > 0 && !camMax && (
+              <section className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[.04] backdrop-blur-xl">
+                <header className="flex items-center justify-between gap-2 px-3 py-1.5 text-[11px] text-white/70">
+                  <span className="flex items-center gap-1.5"><Video className="size-3.5 text-sky-300" />دوربین‌ها ({withCamera.length})</span>
+                  <Tip label="بزرگ کردن"><button onClick={() => setCamMax(true)} aria-label="بزرگ کردن دوربین‌ها" className="grid size-6 place-items-center rounded-md text-white/65 transition hover:bg-white/12 hover:text-white"><Maximize2 className="size-3.5" /></button></Tip>
+                </header>
+                <div className={`grid max-h-[36vh] gap-1.5 overflow-y-auto p-1.5 pt-0 ${withCamera.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                  {withCamera.map((p) => <ParticipantTile key={p.identity} compact zoom participant={p} />)}
+                </div>
+              </section>
+            )}
+          <aside className="flex max-h-[46vh] min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[.04] backdrop-blur-xl md:max-h-none">
             <div className="flex shrink-0 items-center gap-1 border-b border-white/8 p-1">
               <nav className="flex flex-1 gap-0.5">
                 {tabs.map(([id, label, Icon]) => (
@@ -316,42 +329,31 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
               <button title="تغییر عرض" aria-label="تغییر عرض" onClick={() => setSide(sideMode === "narrow" ? "normal" : "narrow")} className="hidden size-7 place-items-center rounded-lg text-white/60 hover:bg-white/10 md:grid"><ArrowLeftRight className="size-3.5" /></button>
               <button title="بستن پنل" aria-label="بستن پنل" onClick={() => setSide("hidden")} className="grid size-7 place-items-center rounded-lg text-white/60 hover:bg-white/10"><PanelRightClose className="size-3.5" /></button>
             </div>
-            {strip.length > 0 && (
-              <div className="grid max-h-[30vh] shrink-0 grid-cols-2 gap-1.5 overflow-y-auto border-b border-white/8 p-1.5">
-                {strip.map((p) => <ParticipantTile key={p.identity} compact participant={p} />)}
-              </div>
-            )}
             <div className="min-h-0 flex-1 overflow-y-auto"><PanelBoundary key={tab}>
               {tab === "chat" && (
                 <div className="flex h-full min-h-[260px] flex-col gap-2 p-1.5">
                   
                   <div className="min-h-0 flex-1"><LiveChat key={channel} compact channel={channel} initialEnabled={chatEnabled}
-                      headerExtra={isStaff ? <ChatMenu channel={channel} chatEnabled={chatOn} chatMode={chatMode} onEnabled={setChatOn} onMode={setChatMode} flash={flash} /> : null}
-                      footerSlot={(isStaff ? pollOpen : true) ? <ClassPoll channel={channel} isStaff={isStaff} audience={participants.filter((p) => !p.identity.startsWith("staff:")).length} tick={pollTick} onChange={() => publish({ type: "poll" })} /> : null} /></div>
+                      headerExtra={isStaff ? <ChatMenu channel={channel} chatEnabled={chatOn} chatMode={chatMode} onEnabled={setChatOn} onMode={setChatMode} flash={flash} /> : null} /></div>
                 </div>
               )}
               {tab === "files" && <FilesPanel channel={channel} files={files} sharedId={stage.content?.id} isStaff={canControl} onChanged={refresh} onShare={(fileId) => updateStage({ fileId })} recordings={recordings} />}
               {tab === "people" && <ParticipantsPanel channel={channel} rows={rows} isStaff={isStaff} hiddenForStudents={hidePeople} onChanged={() => {}} />}
             </PanelBoundary></div>
           </aside>
+          </div>
         )}
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
           {state !== "connected" && !room ? (
             <div className="grid flex-1 place-items-center text-white/60"><div className="text-center"><Loader2 className="mx-auto mb-3 size-7 animate-spin text-sky-300" />در حال اتصال به کلاس...</div></div>
-          ) : presenting ? (
+          ) : panels.length > 0 ? (
             <PanelBoundary><Stage panels={panels} /></PanelBoundary>
           ) : (
-            withCamera.length === 0 ? (
-              <div className="grid min-h-0 flex-1 place-items-center text-center text-white/35"><div><Video className="mx-auto mb-2 size-7 opacity-50" /><p className="text-sm">هنوز دوربینی روشن نیست</p></div></div>
-            ) : (
-              <div className={`grid min-h-0 flex-1 auto-rows-fr content-center gap-3 overflow-y-auto ${withCamera.length <= 1 ? "grid-cols-1" : withCamera.length <= 4 ? "grid-cols-1 sm:grid-cols-2" : withCamera.length <= 9 ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-2 md:grid-cols-3 xl:grid-cols-4"}`}>
-                {withCamera.map((p) => <ParticipantTile key={p.identity} participant={p} />)}
-              </div>
-            )
+            <div className="grid min-h-0 flex-1 place-items-center text-center text-white/35"><div><BarChart3 className="mx-auto mb-2 size-7 opacity-40" /><p className="text-sm">ارائه شروع نشده است</p></div></div>
           )}
 
-          <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[.05] p-2 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-center gap-2 pb-0.5">
             {canUse("microphone") && <ToolButton icon={micOn ? Mic : MicOff} label={micOn ? "بستن میکروفون" : "میکروفون"} active={micOn} onClick={() => toggle("mic")} />}
             {canUse("camera") && <ToolButton icon={camOn ? Video : VideoOff} label={camOn ? "بستن دوربین" : "دوربین"} active={camOn} onClick={() => toggle("cam")} />}
             {canUse("screen") && <ToolButton icon={screenOn ? MonitorOff : MonitorUp} label={screenOn ? "توقف اشتراک" : "اشتراک صفحه"} active={screenOn} onClick={() => toggle("screen")} />}
@@ -367,6 +369,12 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
       </div>
 
       <AudioSink participants={participants} />
+
+      {(isStaff ? pollOpen : true) && (
+        <div className={`pointer-events-none absolute bottom-[84px] z-30 ${canControl ? "left-3 md:left-[84px]" : "left-3"}`}>
+          <div className="pointer-events-auto"><ClassPoll channel={channel} isStaff={isStaff} audience={participants.filter((p) => !p.identity.startsWith("staff:")).length} tick={pollTick} onChange={() => publish({ type: "poll" })} /></div>
+        </div>
+      )}
 
       {state === "reconnecting" && <div className="pointer-events-none absolute inset-x-0 top-14 z-40 mx-auto flex w-fit items-center gap-2 rounded-full bg-amber-500/90 px-4 py-1.5 text-xs font-medium text-slate-900 shadow-lg"><Loader2 className="size-3.5 animate-spin" />اتصال قطع شد؛ در حال اتصال دوباره...</div>}
       {notice && <div className="pointer-events-none absolute inset-x-0 top-16 z-30 mx-auto w-fit max-w-[90vw] rounded-2xl border border-white/15 bg-slate-900/90 px-5 py-3 text-sm shadow-2xl backdrop-blur">{notice}</div>}

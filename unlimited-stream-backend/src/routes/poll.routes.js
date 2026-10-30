@@ -105,6 +105,14 @@ router.patch('/polls/:pollId/options/:optionId', async (req, res) => {
   res.json(poll);
 });
 
+router.delete('/polls/:pollId', async (req, res) => {
+  const poll = await loadManagedPoll(req, res);
+  if (!poll) return;
+  await PollResponse.deleteMany({ pollId: poll._id });
+  await poll.deleteOne();
+  res.status(204).end();
+});
+
 router.post('/polls/:pollId/close', async (req, res) => {
   const poll = await loadManagedPoll(req, res);
   if (!poll) return;

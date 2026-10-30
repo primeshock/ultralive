@@ -167,8 +167,8 @@ export function HeaderActions({ channel, settings, mode, onMode, onSettings, fla
           <Toggle checked={settings.showParticipantsToStudents} onChange={(v) => onSettings({ showParticipantsToStudents: v })} label="نمایش فهرست افراد به دانش‌آموز" />
           <Toggle checked={settings.studentsMayRaiseHand} onChange={(v) => onSettings({ studentsMayRaiseHand: v })} label="اجازهٔ بالا بردن دست" />
           <div className="mt-2 border-t border-white/10 px-1 pt-3">
-            <p className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold text-rose-200"><Timer className="size-3.5" />پایان کلاس</p>
-            <button onClick={() => end(0)} className="w-full rounded-lg bg-rose-500/90 px-2 py-2 text-xs font-medium text-white hover:bg-rose-400">پایان کلاس برای همه، همین حالا</button>
+            <p className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold text-rose-200"><Timer className="size-3.5" />پایان جلسه</p>
+            <button onClick={() => end(0)} className="w-full rounded-lg bg-rose-500/90 px-2 py-2 text-xs font-medium text-white hover:bg-rose-400">پایان جلسه</button>
             <p className="px-1 pb-1 pt-3 text-[11px] text-white/50">یا بعد از مدتی (شمارش معکوس برای همه):</p>
             <div className="grid grid-cols-4 gap-1.5">{[5, 10, 15, 30].map((m) => <button key={m} onClick={() => end(m)} className="rounded-lg bg-white/10 py-2 text-xs text-white hover:bg-white/18">{m} د</button>)}</div>
             {endsAt && <button onClick={() => { api.meetingCancelEnd(channel).catch(() => {}); close(); }} className="mt-2 w-full rounded-lg border border-white/15 px-2 py-2 text-xs text-white/85 hover:bg-white/8">لغو پایان زمان‌دار</button>}

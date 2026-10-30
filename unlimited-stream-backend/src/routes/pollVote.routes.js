@@ -2,10 +2,12 @@ const express = require('express');
 const { Poll, PollResponse } = require('../models/Poll');
 const { checkStudentAccess } = require('../utils/checkStudentAccess');
 const { COOKIE_NAME, verifyToken } = require('../utils/jwt');
+const { canAccessClass } = require('../utils/classAccess');
+const { cookieSecure } = require('../config/env');
 
 const router = express.Router();
 
-async function getIdentity(req) {
+async function getIdentity(req, res) {
   const token = req.cookies?.[COOKIE_NAME];
   if (token) {
     try {
@@ -15,14 +17,27 @@ async function getIdentity(req) {
       /* fall through to the student session */
     }
   }
-  const access = await checkStudentAccess(req.params.channel.toLowerCase(), req.cookies || {});
-  return { userId: access.externalUserId, isStaff: false };
+  const channel = req.params.channel.toLowerCase();
+  try {
+    const access = await checkStudentAccess(channel, req.cookies || {});
+    return { userId: access.externalUserId, isStaff: false };
+  } catch { /* not a room-session student: maybe a public-link guest */ }
+  if (await canAccessClass(channel, req.cookies || {})) {
+    // guests have no account: give each browser its own stable id so every guest can vote once
+    let id = req.cookies?.[`public_guest_${channel}`];
+    if (!id) {
+      id = require('crypto').randomUUID();
+      res.cookie(`public_guest_${channel}`, id, { httpOnly: true, sameSite: 'lax', secure: cookieSecure, maxAge: 6 * 60 * 60 * 1000 });
+    }
+    return { userId: `guest:${id}`, isStaff: false };
+  }
+  throw new Error('no access');
 }
 
 router.get('/:channel/polls/active', async (req, res) => {
   let identity;
   try {
-    identity = await getIdentity(req);
+    identity = await getIdentity(req, res);
   } catch {
     return res.status(401).json({ error: 'دسترسی ندارید.' });
   }
@@ -71,7 +86,7 @@ router.get('/:channel/polls/active', async (req, res) => {
 router.post('/:channel/polls/:pollId/vote', async (req, res) => {
   let identity;
   try {
-    identity = await getIdentity(req);
+    identity = await getIdentity(req, res);
   } catch {
     return res.status(401).json({ error: 'دسترسی ندارید.' });
   }

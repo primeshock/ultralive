@@ -210,6 +210,7 @@ export const api = {
     apiFetch(`/api/admin/polls/${pollId}/options/${optionId}`, { method: "DELETE" }),
   setPollOptionCorrect: (pollId, optionId, isCorrect) =>
     apiFetch(`/api/admin/polls/${pollId}/options/${optionId}`, { method: "PATCH", body: JSON.stringify({ isCorrect }) }),
+  deletePoll: (pollId) => apiFetch(`/api/admin/polls/${pollId}`, { method: "DELETE" }),
   closePoll: (pollId) => apiFetch(`/api/admin/polls/${pollId}/close`, { method: "POST" }),
   revealPoll: (pollId) => apiFetch(`/api/admin/polls/${pollId}/reveal`, { method: "POST" }),
   resetPoll: (pollId) => apiFetch(`/api/admin/polls/${pollId}/reset`, { method: "POST" }),
