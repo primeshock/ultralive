@@ -289,9 +289,9 @@ server {
 }
 
 server {
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    http2 on;
+    # `listen ... http2` works on every nginx version (the standalone `http2 on;` needs >= 1.25.1)
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
     server_name ${HOST};
     ssl_certificate ${cert};
     ssl_certificate_key ${key};
