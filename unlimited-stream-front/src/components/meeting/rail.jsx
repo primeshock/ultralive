@@ -37,7 +37,7 @@ function useDock() {
 
 function Toggle({ checked, onChange, label }) {
   return (
-    <button type="button" onClick={() => onChange(!checked)} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-right text-xs text-[var(--ink)] transition hover:bg-[var(--s2)]">
+    <button type="button" onClick={() => onChange(!checked)} className="mb-1 flex w-full items-center justify-between gap-3 rounded-lg bg-[color-mix(in_oklab,var(--s2)_55%,transparent)] px-2.5 py-2 text-right text-xs text-[var(--ink)] transition hover:bg-[var(--s3)]">
       <span>{label}</span>
       <span className={`relative h-5 w-9 shrink-0 rounded-full transition ring-1 ring-inset ring-[var(--line-strong)] ${checked ? "bg-[var(--accent)]" : "bg-[var(--s3)]"}`}><span className={`absolute top-0.5 size-4 rounded-full bg-white transition-[right] ${checked ? "right-0.5" : "right-[18px]"}`} /></span>
     </button>
@@ -196,15 +196,15 @@ export function HeaderActions({ channel, settings, mode, onMode, onSettings, fla
       <RecordControl rec={rec} onAction={onRec} />
       {open?.id === "set" && (
         <Pop anchor={open.rect} direction="down" title="تنظیمات کلاس" onClose={close}>
-          <div className="px-2 pb-2"><ModeSwitch channel={channel} mode={mode} onChange={onMode} /></div>
+          <div className="px-2 pb-2"><ModeSwitch className="flex w-full" channel={channel} mode={mode} onChange={onMode} /></div>
           <Toggle checked={settings.showParticipantsToStudents} onChange={(v) => onSettings({ showParticipantsToStudents: v })} label="نمایش فهرست افراد به دانش‌آموز" />
           <Toggle checked={settings.studentsMayRaiseHand} onChange={(v) => onSettings({ studentsMayRaiseHand: v })} label="اجازهٔ بالا بردن دست" />
-          <div className="mt-2 border-t border-[var(--line)] px-1 pt-3">
+          <div className="mt-3 px-1">
             <p className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold text-rose-200"><Timer className="size-3.5" />پایان جلسه</p>
-            <button onClick={() => end(0)} className="w-full rounded-lg bg-rose-500/90 px-2 py-2 text-xs font-medium text-white hover:bg-rose-400">پایان جلسه</button>
+            <button onClick={() => end(0)} className="w-full rounded-lg bg-rose-700/70 px-2 py-2 text-xs font-medium text-rose-50 transition hover:bg-rose-500">پایان جلسه</button>
             <p className="px-1 pb-1 pt-3 text-[11px] text-[var(--ink-3)]">یا بعد از مدتی (شمارش معکوس برای همه):</p>
-            <div className="grid grid-cols-4 gap-1.5">{[5, 10, 15, 30].map((m) => <button key={m} onClick={() => end(m)} className="rounded-lg bg-[var(--s2)] py-2 text-xs text-white hover:bg-[var(--s3)]">{m} د</button>)}</div>
-            {endsAt && <button onClick={() => { api.meetingCancelEnd(channel).catch(() => {}); close(); }} className="mt-2 w-full rounded-lg border border-[var(--line-strong)] px-2 py-2 text-xs text-[var(--ink)] hover:bg-[var(--s2)]">لغو پایان زمان‌دار</button>}
+            <div className="grid grid-cols-4 gap-1.5">{[5, 10, 15, 30].map((m) => <button key={m} onClick={() => end(m)} className="rounded-lg bg-[color-mix(in_oklab,var(--s2)_55%,transparent)] py-2 text-xs text-white transition hover:bg-[var(--s3)]">{m} د</button>)}</div>
+            {endsAt && <button onClick={() => { api.meetingCancelEnd(channel).catch(() => {}); close(); }} className="mt-2 w-full rounded-lg bg-[color-mix(in_oklab,var(--s2)_55%,transparent)] px-2 py-2 text-xs text-[var(--ink)] transition hover:bg-[var(--s3)]">لغو پایان زمان‌دار</button>}
           </div>
         </Pop>
       )}

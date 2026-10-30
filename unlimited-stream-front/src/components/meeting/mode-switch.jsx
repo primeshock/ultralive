@@ -14,9 +14,9 @@ export function ModeSwitch({ channel, mode, onChange, className = "" }) {
     try { await api.meetingMode(channel, next); onChange?.(next); } finally { setBusy(false); }
   }
   return (
-    <div className={`inline-flex rounded-lg border border-[var(--line-strong)] bg-[var(--s2)] p-1 text-xs ${className}`} role="group" aria-label="حالت کلاس">
+    <div className={`inline-flex gap-1.5 text-xs ${className}`} role="group" aria-label="حالت کلاس">
       {items.map(([value, label, Icon]) => (
-        <button key={value} onClick={() => pick(value)} disabled={busy} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${mode === value ? "bg-[var(--accent)] text-white shadow" : "text-[var(--ink-2)] hover:bg-[var(--s2)]"}`}>
+        <button key={value} onClick={() => pick(value)} disabled={busy} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${mode === value ? "bg-[var(--accent)] text-white" : "bg-[color-mix(in_oklab,var(--s2)_55%,transparent)] text-[var(--ink-2)] hover:bg-[var(--s3)] hover:text-white"}`}>
           <Icon className="size-3.5" />{label}
         </button>
       ))}
