@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { PenTool, FileText, BarChart3, Settings2, Presentation, X, Timer, Pause, Play, Square, Undo2, Trash2, Ban } from "lucide-react";
 import { PollWidget } from "@/components/poll-widget";
@@ -123,7 +123,14 @@ function HeadButton({ icon: Icon, label, active, onClick, tone = "neutral", chil
  * Recording control: a clear red record button when idle; while recording a compact pill with a pulsing
  * dot, elapsed time, pause/resume and stop. (Pause ends the current file; resume starts the next one.)
  */
-export function RecordControl({ rec, seconds, onAction }) {
+export function RecordControl({ rec, onAction }) {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    if (rec.state !== "recording") return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [rec.state]);
+  const seconds = rec.acc + (rec.state === "recording" && now ? Math.max(0, Math.round((now - rec.since) / 1000)) : 0);
   if (rec.state === "idle") {
     return (
       <Tip label="شروع ضبط کلاس">
@@ -149,13 +156,13 @@ export function RecordControl({ rec, seconds, onAction }) {
 }
 
 /** Host actions in the top bar: class settings (incl. ending the class) and recording. */
-export function HeaderActions({ channel, settings, mode, onMode, onSettings, flash, endsAt, rec, recSeconds, onRec }) {
+export function HeaderActions({ channel, settings, mode, onMode, onSettings, flash, endsAt, rec, onRec }) {
   const [open, toggle, close] = usePop();
   const end = async (minutes) => { try { await api.meetingEnd(channel, minutes); if (minutes) flash(`کلاس ${minutes} دقیقهٔ دیگر بسته می‌شود.`); } catch (e) { flash(e.message); } close(); };
   return (
     <>
       <HeadButton icon={Settings2} label="تنظیمات کلاس" active={open?.id === "set"} onClick={(e) => toggle("set", e)} />
-      <RecordControl rec={rec} seconds={recSeconds} onAction={onRec} />
+      <RecordControl rec={rec} onAction={onRec} />
       {open?.id === "set" && (
         <Pop anchor={open.rect} direction="down" title="تنظیمات کلاس" onClose={close}>
           <div className="px-2 pb-2"><ModeSwitch channel={channel} mode={mode} onChange={onMode} /></div>

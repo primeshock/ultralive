@@ -9,6 +9,8 @@
 #   ultralive restart [svc]   all | backend | frontend | livekit
 #   ultralive backup          full backup to /root/ultralive-backups
 #   ultralive restore FILE    replace ALL data with a backup
+#   ultralive tune            raise connection/file limits for large classes (300+ viewers)
+#   ultralive doctor          deep health check: LiveKit keys, wss path, limits, errors
 #   ultralive reset-owner     set a new owner password
 set -uo pipefail
 
@@ -153,6 +155,34 @@ cmd_reset_owner() {
   (cd "$BACKEND" && SEED_OWNER_USERNAME="$user" SEED_OWNER_PASSWORD="$pass" node scripts/seed-owner.js)
 }
 
+cmd_tune() {
+  # shellcheck source=tune.sh
+  source "$APP_DIR/deploy/tune.sh"
+  ul_tune_system && ok "Tuned. Restarting the app so it picks up the new file limit ..."
+  systemctl restart pm2-root 2>/dev/null || pm2 restart all
+}
+
+cmd_doctor() {
+  local host bad=0; host="$(current_host)"
+  title "LiveKit credentials"
+  if (cd "$BACKEND" && node -e "
+    require('dotenv').config();
+    const { RoomServiceClient } = require('livekit-server-sdk');
+    new RoomServiceClient(process.env.LIVEKIT_URL, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
+      .listRooms().then(() => process.exit(0)).catch((e) => { console.error(e.message); process.exit(1); });" 2>/tmp/ul-lk.err); then ok "backend key/secret are accepted by LiveKit"
+  else warn "LiveKit rejected the backend's key ($(head -c 120 /tmp/ul-lk.err)) — recreating containers"; (cd "$LIVEKIT_DIR" && docker compose up -d --force-recreate >/dev/null 2>&1); bad=1; fi
+  title "Signalling through nginx (wss)"
+  [[ "$(curl -ksS --max-time 6 "https://127.0.0.1/livekit/" -H "Host: $host" 2>/dev/null)" == "OK" ]] && ok "https://$host/livekit/ → LiveKit" || { warn "LiveKit is not reachable through nginx"; bad=1; }
+  title "Limits"
+  local pid; pid="$(pm2 pid unlimited-stream-backend 2>/dev/null | head -1)"
+  [[ -n "$pid" && "$pid" != 0 ]] && echo "backend open-files limit: $(awk '/Max open files/{print $4}' /proc/$pid/limits)  (want 65535; run: ultralive tune)"
+  echo "nginx worker_connections: $(grep -m1 -o 'worker_connections [0-9]*' /etc/nginx/nginx.conf)  (want 8192)"
+  title "Recent problems"
+  grep -c "worker_connections are not enough" /var/log/nginx/error.log 2>/dev/null | sed 's/^/nginx "worker_connections are not enough": /'
+  pm2 jlist 2>/dev/null | python3 -c "import sys,json;[print(p['name'],'restarts:',p['pm2_env']['restart_time']) for p in json.load(sys.stdin)]" 2>/dev/null
+  [[ $bad -eq 0 ]] && ok "No blocking problems found." || warn "Fixed what could be fixed — reload the class page and test again."
+}
+
 menu() {
   while true; do
     echo; echo "${c_b}Ultra Live — $(current_host)${c_off}"
@@ -165,11 +195,13 @@ menu() {
   6) Restart services
   7) Backup
   8) Reset owner password
+  9) Deep health check (doctor)
+  t) Tune for large classes
   0) Exit
 M
     case "$(ask 'Choose: ' 0)" in
       1) cmd_status ;; 2) cmd_logs ;; 3) cmd_update ;; 4) cmd_domain ;; 5) cmd_ssl ;;
-      6) cmd_restart all ;; 7) cmd_backup ;; 8) cmd_reset_owner ;; 0|q|"") exit 0 ;; *) warn "Unknown choice" ;;
+      6) cmd_restart all ;; 7) cmd_backup ;; 8) cmd_reset_owner ;; 9) cmd_doctor ;; t|T) cmd_tune ;; 0|q|"") exit 0 ;; *) warn "Unknown choice" ;;
     esac
   done
 }
@@ -177,7 +209,7 @@ M
 case "${1:-menu}" in
   menu) menu ;; status) cmd_status ;; logs) shift; cmd_logs "${1:-}" ;; update) shift; cmd_update "${1:-}" ;;
   domain) shift; cmd_domain "${1:-}" ;; ssl) cmd_ssl ;; restart) shift; cmd_restart "${1:-all}" ;;
-  backup) cmd_backup ;; restore) shift; cmd_restore "${1:-}" ;; reset-owner) cmd_reset_owner ;;
+  backup) cmd_backup ;; restore) shift; cmd_restore "${1:-}" ;; reset-owner) cmd_reset_owner ;; tune) cmd_tune ;; doctor) cmd_doctor ;;
   version) git -C "$APP_DIR" log -1 --format='%h %s (%cr)' ;; -h|--help|help) sed -n 2,14p "$SELF" | sed 's/^# \{0,1\}//' ;;
   *) die "Unknown command: $1  (try: ultralive help)" ;;
 esac

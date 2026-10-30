@@ -122,6 +122,7 @@ router.post('/:channel/mode', loadTarget, requireStaff, requireClass, async (req
   if (!['studio', 'desktop'].includes(mode)) return res.status(400).json({ error: 'حالت نامعتبر است.' });
   req.target.mode = mode;
   await req.target.save();
+  require('../controllers/stream.controller').clearChannelCache(req.channel);
   await broadcast(req.channel, { type: 'mode', mode });
   res.json({ mode });
 });

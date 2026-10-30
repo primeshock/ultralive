@@ -40,7 +40,10 @@ export default function ChannelPage({ params }) {
   const [studioRoom, setStudioRoom] = useState(null);
 
   useEffect(() => {
-    api.sessionAccess(username).then((result) => { setAccessOptions(result); setAccessAllowed(result.allowed); }).catch(() => setAccessAllowed(false));
+    api.sessionAccess(username)
+      .then((result) => { setAccessOptions(result); setAccessAllowed(result.allowed); })
+      // a network blip must never kick someone out of a running class
+      .catch((err) => setAccessAllowed((current) => (current === true && ![401, 403, 404].includes(err.status) ? true : false)));
   }, [username, user]);
 
   useEffect(() => {
@@ -60,6 +63,8 @@ export default function ChannelPage({ params }) {
   useEffect(() => {
     if (authLoading || accessAllowed !== true) return;
     let cancelled = false;
+    let timer;
+    let pollMs = 3000;
 
     async function load() {
       try {
@@ -68,17 +73,23 @@ export default function ChannelPage({ params }) {
           setChannel(channel);
           setChatMode(channel.chatMode || "public");
           setAppearance(channel.appearance || null);
+          // interactive rooms learn about mode/stage changes over the realtime channel; poll rarely
+          pollMs = channel.mode === "desktop" ? 20000 : 3000;
         }
-      } catch {
-        if (!cancelled) setNotFound(true);
+      } catch (err) {
+        // only a real 404 means the class is gone; timeouts / 5xx / offline keep the room alive
+        if (!cancelled && err.status === 404) setNotFound(true);
       }
     }
 
-    load();
-    const id = setInterval(load, 3000);
+    const tick = async () => {
+      await load();
+      if (!cancelled) timer = setTimeout(tick, pollMs + Math.random() * 2000); // jitter: no thundering herd
+    };
+    tick();
     return () => {
       cancelled = true;
-      clearInterval(id);
+      clearTimeout(timer);
     };
   }, [authLoading, username, accessAllowed]);
 

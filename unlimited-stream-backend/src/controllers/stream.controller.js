@@ -20,8 +20,15 @@ async function listLive(req, res) {
   });
 }
 
+// Hundreds of viewers hit this endpoint; each uncached call used to cost several DB queries plus a LiveKit API call.
+const channelCache = new Map(); // username -> { at, payload }
+const CHANNEL_TTL_MS = 4000;
+function clearChannelCache(username) { channelCache.delete(String(username || '').toLowerCase()); }
+
 async function getChannel(req, res) {
   const username = req.params.username.toLowerCase();
+  const hit = channelCache.get(username);
+  if (hit && Date.now() - hit.at < CHANNEL_TTL_MS) return res.json(hit.payload);
   const target = await findStreamTarget(username);
   if (!target) return res.status(404).json({ error: 'Channel not found' });
   const live = await syncChannelLiveState(username);
@@ -35,7 +42,10 @@ async function getChannel(req, res) {
     channel.appearance = target.settings?.appearance || organization?.classAppearance || {};
     channel.organization = organization ? { id: organization._id, name: organization.name, logoUrl: organization.logoVersion ? `/api/organization-logos/${organization._id}.png?v=${organization.logoVersion}` : null } : null;
   }
-  res.json({ channel });
+  const payload = { channel };
+  channelCache.set(username, { at: Date.now(), payload });
+  if (channelCache.size > 2000) channelCache.clear();
+  res.json(payload);
 }
 
-module.exports = { listLive, getChannel };
+module.exports = { listLive, getChannel, clearChannelCache };

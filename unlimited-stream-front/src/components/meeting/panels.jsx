@@ -61,19 +61,28 @@ export function ParticipantRow({ channel, data, isStaff, onChanged }) {
   );
 }
 
+const PAGE = 60;
+
 export function ParticipantsPanel({ channel, rows, isStaff, hiddenForStudents, onChanged }) {
+  const [query, setQuery] = useState("");
+  const [limit, setLimit] = useState(PAGE);
   if (hiddenForStudents) {
     return <p className="m-3 rounded-xl border border-white/10 bg-white/5 p-3 text-center text-xs leading-6 text-white/60"><Eye className="mx-auto mb-1.5 size-4 opacity-60" />مدیر کلاس نمایش فهرست شرکت‌کنندگان را غیرفعال کرده است.</p>;
   }
   const sorted = [...rows].sort((a, b) => Number(b.handRaised) - Number(a.handRaised) || Number(b.isStaff) - Number(a.isStaff) || String(a.name).localeCompare(String(b.name), "fa"));
+  const q = query.trim().toLowerCase();
+  const filtered = q ? sorted.filter((r) => String(r.name || r.identity).toLowerCase().includes(q)) : sorted;
   const weak = isStaff ? rows.filter((r) => !r.isLocal && (r.quality === "poor" || r.quality === "lost")).length : 0;
   return (
     <div className="space-y-1.5 p-2">
       <div className="flex items-center justify-between px-1 text-[11px] text-white/50">
-        <span>{sorted.length} نفر در کلاس</span>
+        <span>{rows.length} نفر در کلاس</span>
         {weak > 0 && <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-amber-200">{weak} نفر اتصال ضعیف</span>}
       </div>
-      {sorted.map((row) => <ParticipantRow key={row.identity} channel={channel} data={row} isStaff={isStaff} onChanged={onChanged} />)}
+      {rows.length > 12 && <input value={query} onChange={(e) => { setQuery(e.target.value); setLimit(PAGE); }} placeholder="جست‌وجوی نام..." className="h-8 w-full rounded-lg border border-white/12 bg-black/20 px-2.5 text-xs text-white outline-none placeholder:text-white/35 focus:border-sky-400/50" />}
+      {filtered.slice(0, limit).map((row) => <ParticipantRow key={row.identity} channel={channel} data={row} isStaff={isStaff} onChanged={onChanged} />)}
+      {filtered.length > limit && <button onClick={() => setLimit((l) => l + PAGE)} className="w-full rounded-lg bg-white/8 py-2 text-xs text-white/80 hover:bg-white/14">نمایش {Math.min(PAGE, filtered.length - limit)} نفر دیگر ({filtered.length - limit} باقی‌مانده)</button>}
+      {filtered.length === 0 && <p className="py-4 text-center text-xs text-white/45">موردی پیدا نشد.</p>}
     </div>
   );
 }

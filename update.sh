@@ -46,6 +46,7 @@ echo "▶ swap + reload"
 rm -rf "$FRONT/.next.old"
 [[ -d "$FRONT/.next" ]] && mv "$FRONT/.next" "$FRONT/.next.old"
 mv "$FRONT/.next-build" "$FRONT/.next"
+ulimit -n 65535 2>/dev/null || true
 pm2 reload "$APP_DIR/ecosystem.config.js" --update-env
 
 echo "▶ health check"

@@ -37,7 +37,11 @@ const EVENTS = [
   "ActiveSpeakersChanged", "ConnectionQualityChanged", "LocalTrackPublished", "LocalTrackUnpublished", "ParticipantNameChanged",
 ];
 
-// Connects to the class room and re-renders on any roster/track change.
+// Reasons for which rejoining makes no sense (kicked, class closed, same user joined elsewhere).
+const FINAL = ["PARTICIPANT_REMOVED", "ROOM_DELETED", "DUPLICATE_IDENTITY", "CLIENT_INITIATED"];
+
+// Connects to the class room, re-renders on roster/track changes (throttled — with hundreds of people
+// speaking/quality events fire constantly) and silently rejoins with a fresh token after a drop.
 export function useClassRoom({ channel, livekitSettings, onData }) {
   const [room, setRoom] = useState(null);
   const [state, setState] = useState("connecting");
@@ -49,27 +53,52 @@ export function useClassRoom({ channel, livekitSettings, onData }) {
   useEffect(() => {
     let cancelled = false;
     let current = null;
-    (async () => {
+    let everConnected = false;
+    let retry = 0;
+    let retryTimer = null;
+    let renderTimer = null;
+    let lastRender = 0;
+
+    const schedule = () => {
+      if (renderTimer) return;
+      renderTimer = setTimeout(() => { renderTimer = null; lastRender = Date.now(); bump(); }, Math.max(0, 300 - (Date.now() - lastRender)));
+    };
+
+    async function join() {
       try {
         const lk = await import("livekit-client");
         const credentials = await api.livekitToken(channel);
-        current = new lk.Room(buildRoomOptions(lk, livekitSettings));
-        for (const name of EVENTS) if (lk.RoomEvent[name]) current.on(lk.RoomEvent[name], bump);
-        current.on(lk.RoomEvent.ConnectionStateChanged, (next) => { setState(String(next)); bump(); });
-        current.on(lk.RoomEvent.Disconnected, () => setState("disconnected"));
-        current.on(lk.RoomEvent.DataReceived, (payload, participant) => {
+        if (cancelled) return;
+        const next = new lk.Room(buildRoomOptions(lk, livekitSettings));
+        for (const name of EVENTS) if (lk.RoomEvent[name]) next.on(lk.RoomEvent[name], schedule);
+        next.on(lk.RoomEvent.ConnectionStateChanged, (st) => { setState(String(st) === "connected" ? "connected" : String(st)); schedule(); });
+        next.on(lk.RoomEvent.Disconnected, (reason) => {
+          if (cancelled || next !== current) return;
+          const name = Object.keys(lk.DisconnectReason || {}).find((k) => lk.DisconnectReason[k] === reason);
+          if (FINAL.includes(name)) { setState("disconnected"); return; }
+          setState("reconnecting");
+          retryTimer = setTimeout(join, Math.min(10000, 1000 * 1.6 ** retry++));
+        });
+        next.on(lk.RoomEvent.DataReceived, (payload, participant) => {
           try { dataRef.current?.(JSON.parse(new TextDecoder().decode(payload)), participant); } catch { /* ignore malformed */ }
         });
-        await current.connect(credentials.serverUrl, credentials.participantToken, connectOptionsFromLivekit(livekitSettings));
-        if (cancelled) { current.disconnect(); return; }
-        await current.startAudio().catch(() => {});
-        setRoom(current);
+        const old = current;
+        current = next;
+        await next.connect(credentials.serverUrl, credentials.participantToken, connectOptionsFromLivekit(livekitSettings));
+        if (cancelled) { next.disconnect(); return; }
+        old?.disconnect();
+        await next.startAudio().catch(() => {});
+        everConnected = true; retry = 0;
+        setRoom(next);
         setState("connected");
       } catch (err) {
-        if (!cancelled) { setError(err?.message || "اتصال به کلاس برقرار نشد."); setState("failed"); }
+        if (cancelled) return;
+        if (everConnected) { setState("reconnecting"); retryTimer = setTimeout(join, Math.min(10000, 1000 * 1.6 ** retry++)); }
+        else { setError(err?.message || "اتصال به کلاس برقرار نشد."); setState("failed"); }
       }
-    })();
-    return () => { cancelled = true; current?.disconnect(); };
+    }
+    join();
+    return () => { cancelled = true; clearTimeout(retryTimer); clearTimeout(renderTimer); current?.disconnect(); };
   }, [channel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { room, state, error };

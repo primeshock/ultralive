@@ -19,7 +19,9 @@ async function apiFetch(path, options = {}) {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error || "درخواست با خطا مواجه شد");
+      const err = new Error(data.error || "درخواست با خطا مواجه شد");
+      err.status = res.status;
+      throw err;
     }
     return data;
   } finally {

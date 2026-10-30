@@ -361,6 +361,12 @@ else
   warn "No trusted certificate (see the certbot error above); using a self-signed one. Fix later with:  ultralive ssl"
 fi
 
+# capacity tuning for large classes
+# shellcheck source=deploy/tune.sh
+source "$APP_DIR/deploy/tune.sh"
+ul_tune_system || warn "System tuning was skipped."
+ulimit -n 65535 2>/dev/null || true
+
 # `ultralive` command: update, logs, status, domain/SSL, backup ...
 chmod +x "$APP_DIR/deploy/ultralive"
 ln -sf "$APP_DIR/deploy/ultralive" /usr/local/bin/ultralive
