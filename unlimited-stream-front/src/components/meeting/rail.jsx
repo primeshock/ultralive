@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { PenTool, FileText, BarChart3, Settings2, Presentation, X, Timer, Pause, Play, Square, Undo2, Trash2, Ban } from "lucide-react";
-import { PollWidget } from "@/components/poll-widget";
 import { api } from "@/lib/api";
 import { ModeSwitch } from "./mode-switch";
 import { Tip } from "./tip";
@@ -22,13 +21,13 @@ function Toggle({ checked, onChange, label }) {
 
 // One open popover at a time. The anchor rect is captured on click so the panel can be rendered in a
 // portal (position: fixed) — it can never be clipped by, or hidden under, the stage / rail containers.
-function usePop() {
+export function usePop() {
   const [open, setOpen] = useState(null);
   const toggle = (id, e) => { const rect = e.currentTarget.getBoundingClientRect(); setOpen((cur) => (cur?.id === id ? null : { id, rect })); };
   return [open, toggle, () => setOpen(null)];
 }
 
-function Pop({ anchor, title, onClose, children, wide, direction = "side" }) {
+export function Pop({ anchor, title, onClose, children, wide, direction = "side" }) {
   const w = wide ? 340 : 272;
   const vw = typeof window === "undefined" ? 1200 : window.innerWidth;
   const vh = typeof window === "undefined" ? 800 : window.innerHeight;
@@ -65,14 +64,14 @@ function Tool({ icon: Icon, label, active, onClick, danger }) {
  * Side rail = content controls ONLY. What it shows follows what is on stage:
  * always: whiteboard / document / poll. While a PDF or whiteboard is open: the annotation toolkit.
  */
-export function ContentRail({ channel, stage, files, onStage, drawable, ink, onInk, onInkAction }) {
+export function ContentRail({ channel, stage, files, onStage, drawable, ink, onInk, onInkAction, pollOpen, onPoll }) {
   const [open, toggle, close] = usePop();
   const hasDoc = Boolean(stage.content);
   return (
     <nav aria-label="کنترل محتوا" className="flex flex-row flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-white/[.05] p-1 backdrop-blur-xl md:max-h-full md:w-[56px] md:flex-col md:flex-nowrap md:overflow-y-auto md:overflow-x-hidden">
       <RailButton icon={PenTool} label="تخته" active={stage.boardOpen} onClick={() => onStage({ boardOpen: !stage.boardOpen })} />
       <RailButton icon={FileText} label="سند" active={hasDoc || open?.id === "doc"} onClick={(e) => toggle("doc", e)} />
-      <RailButton icon={BarChart3} label="نظرسنجی" active={open?.id === "poll"} onClick={(e) => toggle("poll", e)} />
+      <RailButton icon={BarChart3} label="نظرسنجی" active={pollOpen} onClick={onPoll} />
 
       {drawable && (
         <>
@@ -105,7 +104,6 @@ export function ContentRail({ channel, stage, files, onStage, drawable, ink, onI
           {hasDoc && <button onClick={() => { onStage({ fileId: null }); close(); }} className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg bg-rose-500/20 px-2 py-2 text-xs text-rose-100 hover:bg-rose-500/30"><Ban className="size-3.5" />بستن سند</button>}
         </Pop>
       )}
-      {open?.id === "poll" && <Pop anchor={open.rect} title="نظرسنجی و آزمون" onClose={close} wide><PollWidget channel={channel} /></Pop>}
     </nav>
   );
 }

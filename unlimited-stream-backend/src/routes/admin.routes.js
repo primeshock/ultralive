@@ -140,6 +140,14 @@ router.post('/channels/:channel/chat-mode', loadOwnedChannel, async (req, res) =
   res.json({ chatMode });
 });
 
+router.post('/channels/:channel/chat-enabled', loadOwnedChannel, async (req, res) => {
+  if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'مقدار نامعتبر.' });
+  req.targetChannel.chatEnabled = req.body.enabled;
+  await req.targetChannel.save();
+  chat.setChatEnabled(req.targetChannel.username, req.body.enabled); // tells every connected chat immediately
+  res.json({ chatEnabled: req.body.enabled });
+});
+
 router.post('/channels/:channel/viewer-count', loadOwnedChannel, async (req, res) => {
   if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'مقدار enabled نامعتبر است.' });
   req.targetChannel.showViewerCount = req.body.enabled;

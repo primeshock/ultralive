@@ -190,6 +190,7 @@ export default function ChannelPage({ params }) {
           organization={channel.organization?.name}
           isStaff={Boolean(canManageClass)}
           chatEnabled={channel.chatEnabled}
+          chatMode={channel.chatMode}
           livekitSettings={livekitStatus?.livekit}
           initialSettings={channel.meeting}
           onLeave={() => { window.location.href = canManageClass ? "/admin" : "/"; }}

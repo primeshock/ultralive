@@ -16,6 +16,8 @@ import { AnnotatedSurface, loadPdf } from "./annotated-surface";
 import { createBoardStore } from "./board-store";
 import { Tip } from "./tip";
 import { PanelBoundary } from "./boundary";
+import { ClassPoll } from "./class-poll";
+import { ChatMenu } from "./chat-menu";
 
 const pad = (n) => String(n).padStart(2, "0");
 const clock = (s) => `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
@@ -55,7 +57,7 @@ function ToolButton({ icon: Icon, label, onClick, active, danger, showLabel }) {
 const TABS = [["chat", "چت", MessageSquare], ["files", "فایل‌ها", FolderOpen], ["people", "افراد", Users]];
 const EMPTY_STAGE = { content: null, boardOpen: false, page: 1, boardPage: 1 };
 
-export function MeetingRoom({ channel, title, organization, appearance, appearanceStyle, mode, onModeChange, isStaff, chatEnabled, livekitSettings, initialSettings, onLeave }) {
+export function MeetingRoom({ channel, title, organization, appearance, appearanceStyle, mode, onModeChange, isStaff, chatEnabled, chatMode: initialChatMode, livekitSettings, initialSettings, onLeave }) {
   const [settings, setSettings] = useState({ showParticipantsToStudents: initialSettings?.showParticipantsToStudents !== false, studentsMayRaiseHand: initialSettings?.studentsMayRaiseHand !== false });
   const [stage, setStage] = useState(EMPTY_STAGE);
   const [files, setFiles] = useState([]);
@@ -70,6 +72,10 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
   const [rec, setRec] = useState({ state: "idle", acc: 0, since: 0 }); // idle | recording | paused
   const [recordings, setRecordings] = useState([]);
   const [presenters, setPresenters] = useState([]);
+  const [chatOn, setChatOn] = useState(chatEnabled !== false);
+  const [chatMode, setChatMode] = useState(initialChatMode || "public");
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pollTick, setPollTick] = useState(0);
   const [identity, setIdentity] = useState(null);
   const [ink, setInk] = useState({ tool: "pen", color: "#ef4444", width: 3 });
   const inkActions = useRef({ last: null, map: {} });
@@ -98,6 +104,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
     else if (message.type === "request") setRequest(message.kind);
     else if (message.type === "lower-hand") localRef.current?.setAttributes({ hand: "0" }).catch(() => {});
     else if (message.type === "presenters") setPresenters(message.list || []);
+    else if (message.type === "poll") setPollTick((t) => t + 1);
     else if (message.type === "ending") setEndsAt(message.endsAt || null);
     else if (message.type === "ended") setEnded(true);
   }, [store, onModeChange]);
@@ -317,8 +324,10 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
             <div className="min-h-0 flex-1 overflow-y-auto"><PanelBoundary key={tab}>
               {tab === "chat" && (
                 <div className="flex h-full min-h-[260px] flex-col gap-2 p-1.5">
-                  {!isStaff && <details className="group shrink-0 rounded-xl border border-white/8 bg-white/[.03]"><summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs text-white/80">نظرسنجی / آزمون <ChevronDown className="size-3.5 transition group-open:rotate-180" /></summary><div className="max-h-72 overflow-y-auto p-1.5"><PollWidget channel={channel} /></div></details>}
-                  <div className="min-h-0 flex-1"><LiveChat key={channel} compact channel={channel} initialEnabled={chatEnabled} /></div>
+                  
+                  <div className="min-h-0 flex-1"><LiveChat key={channel} compact channel={channel} initialEnabled={chatEnabled}
+                      headerExtra={isStaff ? <ChatMenu channel={channel} chatEnabled={chatOn} chatMode={chatMode} onEnabled={setChatOn} onMode={setChatMode} flash={flash} /> : null}
+                      footerSlot={(isStaff ? pollOpen : true) ? <ClassPoll channel={channel} isStaff={isStaff} audience={participants.filter((p) => !p.identity.startsWith("staff:")).length} tick={pollTick} onChange={() => publish({ type: "poll" })} /> : null} /></div>
                 </div>
               )}
               {tab === "files" && <FilesPanel channel={channel} files={files} sharedId={stage.content?.id} isStaff={canControl} onChanged={refresh} onShare={(fileId) => updateStage({ fileId })} recordings={recordings} />}
@@ -352,7 +361,7 @@ export function MeetingRoom({ channel, title, organization, appearance, appearan
 
         {canControl && (
           <div className="order-first shrink-0 md:order-last">
-            <ContentRail channel={channel} stage={stage} files={files} onStage={updateStage} drawable={drawable} ink={ink} onInk={(patch) => setInk((cur) => ({ ...cur, ...patch }))} onInkAction={runInk} />
+            <ContentRail channel={channel} stage={stage} files={files} onStage={updateStage} drawable={drawable} ink={ink} onInk={(patch) => setInk((cur) => ({ ...cur, ...patch }))} onInkAction={runInk} pollOpen={pollOpen} onPoll={() => { setPollOpen((o) => !o); setSide((cur) => (cur === "hidden" ? "auto" : cur)); setTab("chat"); }} />
           </div>
         )}
       </div>

@@ -30,7 +30,7 @@ function MessageText({ text }) {
   );
 }
 
-export function LiveChat({ channel, initialEnabled = true, compact = false }) {
+export function LiveChat({ channel, initialEnabled = true, compact = false, headerExtra = null, footerSlot = null }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
@@ -135,7 +135,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false }) {
     <div className="flex h-full min-h-0 flex-col overflow-hidden text-white">
       <div className={`flex items-center justify-between border-b border-white/10 ${compact ? "px-3 py-2" : "px-4 py-3"}`}>
         <div><p className={`${compact ? "text-xs font-medium text-white/85" : "text-sm font-semibold"}`}>گفت‌وگوی کلاس</p>{!compact && <p className="text-[11px] text-white/45">هم‌زمان با اتاق زنده</p>}</div>
-        <span className={`size-2 rounded-full ${connected ? "bg-emerald-400 shadow-[0_0_12px_rgb(52_211_153)]" : "bg-white/25"}`} aria-label={connected ? "متصل" : "در حال اتصال"} />
+        <span className="flex items-center gap-2"><span className={`size-2 rounded-full ${connected ? "bg-emerald-400 shadow-[0_0_12px_rgb(52_211_153)]" : "bg-white/25"}`} aria-label={connected ? "متصل" : "در حال اتصال"} />{headerExtra}</span>
       </div>
       <ScrollArea className={`flex-1 min-h-0 ${compact ? "p-2" : "p-4"}`}>
         <div className={`flex flex-col ${compact ? "gap-1.5" : "gap-2.5"}`}>
@@ -177,7 +177,7 @@ export function LiveChat({ channel, initialEnabled = true, compact = false }) {
                         {["mute", "ban"].map((type) => {
                           const active = moderation.restrictionFor(m.externalUserId, type);
                           const label = type === "ban" ? "بن" : "سکوت";
-                          return <div key={type}>
+                          return <div key={type} className="rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
                             <DropdownMenuItem disabled={moderation.busy || !moderation.ready} className="justify-center text-xs text-white" onClick={() => handleModeration(m, type, "permanent")}>
                               {active ? (type === "ban" ? "رفع بن (Unban)" : "رفع سکوت (Unmute)") : label}
                             </DropdownMenuItem>
@@ -221,6 +221,8 @@ export function LiveChat({ channel, initialEnabled = true, compact = false }) {
           ))}
         </div>
       )}
+
+      {footerSlot}
 
       <form onSubmit={sendMessage} className={`flex gap-2 border border-white/12 bg-black/20 focus-within:border-cyan-300/45 ${compact ? "m-2 rounded-xl p-1.5" : "m-3 rounded-full p-1.5"}`}>
         <button type="button" onClick={() => setShowEmoji((s) => !s)} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="ایموجی">

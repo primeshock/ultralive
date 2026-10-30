@@ -146,6 +146,8 @@ export const api = {
     apiFetch(`/api/admin/channels/${channel}/chat-mode`, { method: "POST", body: JSON.stringify({ chatMode }) }),
   setViewerCount: (channel, enabled) =>
     apiFetch(`/api/admin/channels/${channel}/viewer-count`, { method: "POST", body: JSON.stringify({ enabled }) }),
+  setChatEnabled: (channel, enabled) =>
+    apiFetch(`/api/admin/channels/${channel}/chat-enabled`, { method: "POST", body: JSON.stringify({ enabled }) }),
   clearChat: (channel) => apiFetch(`/api/admin/channels/${channel}/clear-chat`, { method: "POST" }),
   endSession: (channel) => apiFetch(`/api/admin/channels/${channel}/end-session`, { method: "POST" }),
   setClassAccess: (channel, mode, regenerate = false) => apiFetch(`/api/admin/channels/${channel}/access`, { method: "POST", body: JSON.stringify({ mode, regenerate }) }),

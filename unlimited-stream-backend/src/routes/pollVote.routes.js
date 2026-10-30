@@ -27,7 +27,9 @@ router.get('/:channel/polls/active', async (req, res) => {
     return res.status(401).json({ error: 'دسترسی ندارید.' });
   }
   const poll = await Poll.findOne({ channel: req.params.channel.toLowerCase() }).sort({ createdAt: -1 });
-  if (!poll || !poll.isOpen) return res.json(null);
+  if (!poll) return res.json(null);
+  // a finished poll stays visible (as results) while the host shows results / has revealed the answer
+  if (!poll.isOpen && !(poll.showResults || (poll.mode === 'quiz' && poll.isEffectivelyRevealed()))) return res.json(null);
   const votingOpen = poll.isEffectivelyOpen();
   const serverNow = Date.now();
   const response = {
