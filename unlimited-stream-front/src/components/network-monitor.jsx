@@ -1,67 +1,29 @@
-import { Badge } from "@/components/ui/badge";
+"use client";
 
-function colorForQuality(text) {
-  switch (text) {
-    case "Excellent":
-      return "bg-emerald-500/15 text-emerald-700 border-emerald-500/20";
-    case "Good":
-      return "bg-sky-500/15 text-sky-700 border-sky-500/20";
-    case "Fair":
-      return "bg-amber-500/15 text-amber-800 border-amber-500/20";
-    case "Poor":
-      return "bg-rose-500/15 text-rose-700 border-rose-500/20";
-    default:
-      return "bg-muted text-muted-foreground border-border";
-  }
-}
+const LABEL = { excellent: ["عالی", "text-emerald-300"], good: ["خوب", "text-emerald-200"], poor: ["ضعیف", "text-amber-300"], lost: ["قطع", "text-rose-300"] };
+const dash = (v, unit) => (v === null || v === undefined ? "—" : `${v}${unit}`);
 
-function fmtMs(ms) {
-  return ms === null || ms === undefined ? "—" : `${ms} ms`;
-}
-
-function fmtKbps(kbps) {
-  return kbps === null || kbps === undefined ? "—" : `${kbps} kbps`;
-}
-
-function fmtResolution(resolution) {
-  return resolution ? `${resolution.width}×${resolution.height}` : "—";
-}
-
-export function NetworkMonitor({ stats, compact = false }) {
-  const quality = stats?.qualityText || "Disconnected";
-  const status = stats?.reconnecting ? "Reconnecting" : stats?.state === "connected" ? "Connected" : stats?.state === "reconnecting" ? "Reconnecting" : stats?.state === "disconnected" ? "Disconnected" : "Connecting";
-
-  const items = [
-    ["Connection Quality", quality],
-    ["Packet Loss", stats?.packetLossPct === null || stats?.packetLossPct === undefined ? "—" : `${stats.packetLossPct}%`],
-    ["RTT / Latency", fmtMs(stats?.rttMs)],
-    ["Jitter", fmtMs(stats?.jitterMs)],
-    ["Incoming Bitrate", fmtKbps(stats?.incomingBitrateKbps ?? stats?.bitrateKbps)],
-    ["Outgoing Bitrate", fmtKbps(stats?.outgoingBitrateKbps)],
-    ["Resolution", fmtResolution(stats?.resolution)],
-    ["FPS", stats?.fps === null || stats?.fps === undefined ? "—" : `${stats.fps}`],
-    ["Codec", stats?.codec || "—"],
-    ["Connection State", status],
-    ["Participants", stats?.participants === null || stats?.participants === undefined ? "—" : `${stats.participants + 1}`],
+// Minimal connection panel: only what helps someone decide whether their connection is the problem.
+export function NetworkMonitor({ stats }) {
+  const [text, tone] = LABEL[stats?.connectionQuality] || ["در حال اتصال", "text-white/60"];
+  const rows = [
+    ["وضعیت اتصال", <span key="q" className={tone}>{text}</span>],
+    ["تأخیر", dash(stats?.rttMs, " ms")],
+    ["افت بسته", dash(stats?.packetLossPct, "٪")],
+    ["سرعت دریافت", dash(stats?.incomingBitrateKbps ?? stats?.bitrateKbps, " kbps")],
+    ["کیفیت تصویر", stats?.resolution ? `${stats.resolution.height}p` : "—"],
   ];
-
   return (
-    <section className={`network-monitor-panel flex flex-col gap-3 rounded-[1.75rem] text-white ${compact ? "p-4" : "p-5"}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold">Network Monitor</p>
-          <p className="text-xs text-white/45">Read-only LiveKit / WebRTC</p>
-        </div>
-        <Badge variant="outline" className={colorForQuality(quality)}>{quality}</Badge>
-      </div>
-      <div className="grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-3 xl:grid-cols-4">
-        {items.map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-white/10 bg-black/20 px-2 py-1.5 shadow-sm backdrop-blur-sm">
-            <p className="text-[10px] uppercase tracking-wide text-white/40">{label}</p>
-            <p className="mt-0.5 text-xs font-medium">{value}</p>
+    <div dir="rtl" className="w-60 rounded-2xl border border-white/14 bg-[#0b1226]/92 p-3 text-white shadow-2xl backdrop-blur-xl">
+      <p className="mb-2 text-xs font-semibold text-white/85">کیفیت اتصال</p>
+      <dl className="space-y-1.5">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between gap-3 border-b border-white/6 pb-1.5 text-[12px] last:border-0 last:pb-0">
+            <dt className="text-white/55">{label}</dt>
+            <dd className="tabular-nums" dir="ltr">{value}</dd>
           </div>
         ))}
-      </div>
-    </section>
+      </dl>
+    </div>
   );
 }

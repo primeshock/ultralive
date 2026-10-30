@@ -11,6 +11,7 @@ import { LiveChat } from "@/components/live-chat";
 import { PollWidget } from "@/components/poll-widget";
 import { ClassAdminPanel } from "@/components/class-admin-panel";
 import { NetworkMonitor } from "@/components/network-monitor";
+import { Quality } from "@/components/meeting/panels";
 import { MeetingRoom } from "@/components/meeting/meeting-room";
 import { StudentCallOverlay } from "@/components/meeting/student-call";
 import { ModeSwitch } from "@/components/meeting/mode-switch";
@@ -263,17 +264,17 @@ export default function ChannelPage({ params }) {
             type="button"
             onClick={() => setNetworkOpen((open) => !open)}
             aria-expanded={networkOpen}
-            aria-controls="network-monitor-panel"
-            className="absolute left-3 top-3 z-30 inline-flex h-8 items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/75 px-3 text-[11px] font-medium text-white/80 shadow-lg backdrop-blur-xl transition hover:border-cyan-300/45 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            aria-label="کیفیت اتصال"
+            title="کیفیت اتصال"
+            className="absolute left-3 top-3 z-30 grid size-8 place-items-center rounded-full border border-white/15 bg-slate-950/75 shadow-lg backdrop-blur-xl transition hover:border-cyan-300/45"
           >
-            <Activity className="size-3.5 text-cyan-200" />
-            Network
-            <span className={`size-1.5 rounded-full ${networkStats?.reconnecting ? "bg-amber-300" : networkStats?.state === "connected" ? "bg-emerald-400" : "bg-white/35"}`} />
+            <Quality value={networkStats?.reconnecting ? "poor" : networkStats?.connectionQuality} />
           </button>
           {networkOpen && (
-            <div id="network-monitor-panel" className="absolute inset-x-0 top-12 z-20">
-              <NetworkMonitor stats={networkStats} compact />
-            </div>
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setNetworkOpen(false)} aria-hidden />
+              <div id="network-monitor-panel" className="absolute left-3 top-12 z-30"><NetworkMonitor stats={networkStats} /></div>
+            </>
           )}
           <div className="glass-float flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2rem]">
           <LiveChat key={username} channel={username} initialEnabled={channel.chatEnabled} />
