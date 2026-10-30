@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MoreVertical, Pin, PinOff, Reply, Smile, X } from "lucide-react";
+import { MoreVertical, Pin, PinOff, Reply, Send, Smile, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -247,21 +247,21 @@ export function LiveChat({ channel, initialEnabled = true, compact = false, head
 
       {footerSlot}
 
-      <form onSubmit={sendMessage} className={compact ? "flex shrink-0 items-center gap-2 border-t border-[var(--line)] px-3 py-2.5" : "m-3 flex gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--ground)] p-1.5 focus-within:border-[var(--accent)]"}>
-        <button type="button" onClick={() => setShowEmoji((s) => !s)} className="grid size-9 shrink-0 place-items-center rounded-lg text-[var(--ink-3)] transition-colors hover:bg-[var(--s2)] hover:text-[var(--ink)]" aria-label="ایموجی">
-          <Smile className="size-5" />
+      <form onSubmit={sendMessage} className="mx-3 mb-3 mt-2 flex shrink-0 items-center gap-1 rounded-full border border-[var(--line-strong)] bg-[var(--s2)] p-1 transition-colors focus-within:border-[var(--accent)]">
+        <button type="button" onClick={() => setShowEmoji((s) => !s)} className="grid size-8 shrink-0 place-items-center rounded-full text-[var(--ink-3)] transition-colors hover:bg-[var(--s3)] hover:text-[var(--ink)]" aria-label="ایموجی">
+          <Smile className="size-[18px]" />
         </button>
-        <Input
+        <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className={`text-white shadow-none focus-visible:ring-0 ${compact ? "h-10 flex-1 rounded-lg border border-[var(--line)] bg-[var(--s2)] px-3 text-[13px] placeholder:text-[var(--ink-3)] focus-visible:border-[var(--accent)]" : "border-0 bg-transparent"}`}
+          className="h-8 min-w-0 flex-1 bg-transparent px-1 text-[13px] text-white outline-none placeholder:text-[var(--ink-3)] disabled:cursor-not-allowed"
           placeholder={!chatEnabled ? (canModerate ? "چت برای دانش‌آموزان بسته است" : "چت بسته است") : connected ? "پیام بنویس..." : "در حال اتصال..."}
           disabled={!canSend}
           maxLength={300}
         />
-        <Button type="submit" disabled={!canSend} className={compact ? "h-10 rounded-lg px-4 text-[13px] font-medium" : ""}>
-          ارسال
-        </Button>
+        <button type="submit" disabled={!canSend || !text.trim()} aria-label="ارسال" className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white shadow-[0_4px_12px_-4px_rgb(10_123_196/.7)] transition hover:bg-[var(--accent-hover)] disabled:bg-[var(--s3)] disabled:text-[var(--ink-3)] disabled:shadow-none">
+          <Send className="size-4 -scale-x-100" />
+        </button>
       </form>
     </div>
   );
